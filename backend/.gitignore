@@ -1,0 +1,17 @@
+target/
+*.class
+*.jar
+*.war
+*.ear
+*.log
+*.tmp
+.gradle/
+.mvn/
+.settings/
+.project
+.classpath
+.factorypath
+.idea/
+.vscode/
+.vs/
+.DS_Store

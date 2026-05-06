@@ -1,0 +1,122 @@
+# Labex 实验教学管理系统 - 后端配置文件
+
+# 文件上传配置
+file:
+  upload:
+    # 使用绝对路径，确保文件可以正确存储和读取
+    # Windows系统示例: D:/workfordasan/uploads 或 D:\\workfordasan\\uploads
+    # Linux/Mac系统示例: /home/user/workfordasan/uploads
+    path: D:/workfordasan/uploads
+
+# 简化的上传路径配置（直接被代码引用）
+upload-path: D:/workfordasan/uploads
+
+# 在线编程执行目录（Windows 环境建议使用可信目录，避免 Temp 路径被策略阻止执行）
+code-exec:
+  base-path: D:/workfordasan/code_exec
+
+server:
+  port: 8080
+  servlet:
+    context-path: /api
+
+spring:
+  application:
+    name: labex-backend
+
+  # MySQL 数据库配置
+  datasource:
+    type: com.alibaba.druid.pool.DruidDataSource
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/labex?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: root
+    password: yu6670980506
+    # Druid 连接池配置
+    druid:
+      initial-size: 5
+      min-idle: 5
+      max-active: 20
+      max-wait: 60000
+      time-between-eviction-runs-millis: 60000
+      min-evictable-idle-time-millis: 300000
+      validation-query: SELECT 1
+      test-while-idle: true
+      test-on-borrow: false
+      test-on-return: false
+
+  # Redis 配置
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password:
+      database: 0
+      timeout: 10000ms
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+          max-wait: -1ms
+
+  # Neo4j 图数据库配置
+  neo4j:
+    uri: bolt://localhost:7687
+    authentication:
+      username: neo4j
+      password: yu6670980506
+
+  # 文件上传配置
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 100MB
+      max-request-size: 100MB
+
+# MyBatis-Plus 配置
+mybatis-plus:
+  mapper-locations: classpath*:mapper/**/*Mapper.xml
+  type-aliases-package: com.labex.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      id-type: auto
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+# JWT 配置
+jwt:
+  secret: labex-secret-key-2026-very-long-and-secure-key-for-jwt-signing-must-be-at-least-64-bytes
+  expiration: 86400000  # 24小时过期（毫秒）
+  header: Authorization
+  prefix: "Bearer "
+
+# 日志配置
+logging:
+  level:
+    com.labex: debug
+    org.springframework.security: info
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level %logger{36} - %msg%n"
+
+# RAG 配置
+rag:
+  # Python 嵌入服务地址
+  embedding-service-url: http://localhost:5000
+  # MiniMax API Key（请替换为你的实际API Key）
+  mini-max-api-key: sk-api-ILMujkml6Hdqp5jrzdHf-f7qkf3B1F2wsRANW8UM9Ni0okCzAtcHFZjDD6Na11gCeype58bzT4djBL84FGnKYMQ9rfGDhUReQ52eNDo4pHwMM-pJ6H021QM
+  # MiniMax API 基础地址
+  mini-max-base-url: https://api.minimax.chat/v1
+  # MiniMax 模型
+  mini-max-model: MiniMax-M2.7
+  # 最大上下文块数
+  max-context-chunks: 10
+  # 块大小（tokens）
+  chunk-size: 500
+  # 块重叠（tokens）
+  chunk-overlap: 50
+  # 上传文件路径
+  upload-path: D:/workfordasan/uploads

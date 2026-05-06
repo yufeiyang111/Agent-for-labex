@@ -1,0 +1,9 @@
+# Labex 项目根 .gitignore
+.git/
+node_modules/
+target/
+dist/
+.DS_Store
+*.log
+.env
+uploads/

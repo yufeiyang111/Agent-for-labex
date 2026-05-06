@@ -1,0 +1,40 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm init *)",
+      "Bash(python scripts/office/soffice.py --headless --convert-to pdf Labex架构分析.pptx)",
+      "Bash(pdftoppm -jpeg -r 150 Labex架构分析.pdf slide)",
+      "Bash(python -m markitdown \"C:/Users/35475/.claude/skills/pptx/Labex架构分析.pptx\")",
+      "Read(//c/Users/35475/.claude/skills/**)",
+      "Bash(python3 src/ui-ux-pro-max/scripts/search.py \"modern dashboard admin panel\" --domain style -n 3)",
+      "Bash(python src/ui-ux-pro-max/scripts/search.py \"modern dashboard admin panel\" --domain style -n 3)",
+      "Bash(python src/ui-ux-pro-max/scripts/search.py \"SaaS admin dashboard table card\" --domain style -n 5)",
+      "Bash(python src/ui-ux-pro-max/scripts/search.py \"modern enterprise SaaS learning management education\" --domain style -n 3)",
+      "Bash(python src/ui-ux-pro-max/scripts/search.py \"modern enterprise dashboard Apple style minimal\" --domain style -n 5)",
+      "Bash(npm run *)",
+      "Bash(mysql -u root -pyu6670980506 labex -e \"ALTER TABLE t_teacher ADD COLUMN avatar VARCHAR\\(500\\) DEFAULT NULL COMMENT '头像URL' AFTER teacher_password; ALTER TABLE t_student ADD COLUMN avatar VARCHAR\\(500\\) DEFAULT NULL COMMENT '头像URL' AFTER ip;\")",
+      "Bash(mysql -u root -pyu6670980506 labex -e \"DESCRIBE t_teacher; DESCRIBE t_student;\")",
+      "Bash(mvn compile *)",
+      "Bash(pkill -f \"java -jar\")",
+      "Bash(nohup java *)",
+      "Bash(curl -s http://localhost:8080/api/auth/userinfo -H \"Authorization: Bearer test\")",
+      "Bash(curl -s http://localhost:8080/api/auth/userinfo)",
+      "Bash(mysql -uroot -proot labex -e \"DESCRIBE t_student;\")",
+      "Bash(mysql -uroot -proot labex -e \"ALTER TABLE t_student ADD COLUMN avatar VARCHAR\\(500\\) DEFAULT NULL COMMENT '头像URL' AFTER ip;\")",
+      "Bash(mysql -uroot -proot123 labex -e \"ALTER TABLE t_student ADD COLUMN avatar VARCHAR\\(500\\) DEFAULT NULL COMMENT '头像URL' AFTER ip;\")",
+      "Bash(mysql -uroot -pyu6670980506 labex -e \"ALTER TABLE t_student ADD COLUMN avatar VARCHAR\\(500\\) DEFAULT NULL COMMENT '头像URL' AFTER ip;\")",
+      "Bash(\"/c/Program Files/MySQL/MySQL Server 8.0/bin/mysql\" -uroot -pyu6670980506 labex -e \"ALTER TABLE t_student ADD COLUMN avatar VARCHAR\\(500\\) DEFAULT NULL COMMENT '头像URL' AFTER ip;\")",
+      "Read(//d/d/workfordasan/**)",
+      "Bash(mvn dependency:tree)",
+      "Bash(mvn clean *)",
+      "Bash(javap -c target/classes/com/labex/filter/JwtAuthenticationFilter.class)",
+      "Bash(python extract_md.py)",
+      "Bash(chardet d:/workfordasan/111.sql)",
+      "Bash(xxd)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\35475\\.claude\\skills\\pptx",
+      "D:\\workfordasan\\code_exec"
+    ]
+  }
+}

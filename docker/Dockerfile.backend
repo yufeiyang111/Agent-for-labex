@@ -1,0 +1,31 @@
+# 多阶段构建 - 后端镜像
+FROM maven:3.9-eclipse-temurin-17 AS builder
+
+WORKDIR /app
+COPY pom.xml .
+COPY src ./src
+
+# 下载依赖并打包
+RUN mvn clean package -DskipTests
+
+# 运行镜像
+FROM eclipse-temurin:17-jre-alpine
+
+WORKDIR /app
+
+# 安装字体（含中文字体），避免PPT预览出现方块字
+RUN apk add --no-cache fontconfig ttf-dejavu ttf-liberation \
+    && (apk add --no-cache font-noto-cjk || apk add --no-cache wqy-zenhei || true) \
+    && fc-cache -f
+
+# 复制jar包
+COPY --from=builder /app/target/*.jar app.jar
+
+# 创建上传目录
+RUN mkdir -p uploads
+
+# 暴露端口
+EXPOSE 8080
+
+# 运行参数
+ENTRYPOINT ["java", "-jar", "/app/app.jar", "--spring.profiles.active=prod"]

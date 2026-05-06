@@ -1,0 +1,88 @@
+// 全局样式变量 - Soft UI Evolution 风格
+// 基于 Apple 风格，采用柔和阴影和高对比度设计
+
+// 主题色系
+$color-primary: #4caf50;
+$color-primary-light: #e8f5e9;
+$color-primary-lighter: #f0fdf4;
+$color-primary-dark: #2e7d32;
+$color-primary-extra-light: #c8e6c9;
+
+// 状态色 - 清晰鲜明
+$color-success: #22c55e;
+$color-success-light: #d1fae5;
+$color-warning: #f59e0b;
+$color-warning-light: #fef3c7;
+$color-danger: #ef4444;
+$color-danger-light: #fee2e2;
+$color-info: #3b82f6;
+$color-info-light: #dbeafe;
+
+// 文字颜色 - WCAG AA+ 高对比度
+$color-text-primary: #1d1d1f;
+$color-text-regular: #1d1d1f;
+$color-text-secondary: #6e6e73;
+$color-text-placeholder: #aeaeb2;
+$color-text-disabled: #c7c7cc;
+
+// 边框颜色 - 柔和边界
+$color-border: #e5e5e7;
+$color-border-light: #f0f0f0;
+$color-border-lighter: #f5f5f7;
+$color-border-extra-light: #fafafa;
+$color-border-focus: #4caf50;
+
+// 背景颜色 - 层次分明
+$color-bg: #ffffff;
+$color-bg-page: #f5f5f7;
+$color-bg-card: #ffffff;
+$color-bg-hover: #f9f9fb;
+$color-bg-active: #f0fdf0;
+
+// 阴影效果 - Soft UI 多层柔和阴影
+$shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.04);
+$shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
+$shadow-md: 0 4px 8px rgba(0, 0, 0, 0.04), 0 2px 4px rgba(0, 0, 0, 0.02);
+$shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.06), 0 4px 8px rgba(0, 0, 0, 0.04);
+$shadow-xl: 0 16px 32px rgba(0, 0, 0, 0.08), 0 8px 16px rgba(0, 0, 0, 0.04);
+$shadow-2xl: 0 24px 48px rgba(0, 0, 0, 0.1), 0 12px 24px rgba(0, 0, 0, 0.06);
+$shadow-primary: 0 8px 24px rgba(76, 175, 80, 0.3);
+
+// 圆角 - 统一柔和圆角 10-12px
+$border-radius-xs: 6px;
+$border-radius-sm: 8px;
+$border-radius-base: 10px;
+$border-radius-lg: 12px;
+$border-radius-xl: 16px;
+$border-radius-2xl: 20px;
+$border-radius-3xl: 24px;
+$border-radius-full: 9999px;
+
+// 间距 - 8px 基准网格
+$spacing-xs: 4px;
+$spacing-sm: 8px;
+$spacing-md: 16px;
+$spacing-lg: 24px;
+$spacing-xl: 32px;
+$spacing-xxl: 48px;
+
+// 字体 - 清晰可读
+$font-size-xs: 11px;
+$font-size-sm: 12px;
+$font-size-base: 14px;
+$font-size-lg: 15px;
+$font-size-xl: 17px;
+$font-size-xxl: 22px;
+$font-size-xxxl: 28px;
+
+// 过渡 - 流畅自然 200-300ms
+$transition-base: all 0.25s cubic-bezier(0.25, 0.1, 0.25, 1);
+$transition-fast: all 0.2s cubic-bezier(0.25, 0.1, 0.25, 1);
+$transition-slow: all 0.35s cubic-bezier(0.25, 0.1, 0.25, 1);
+$transition-bounce: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+
+// 动画时长
+$duration-fast: 150ms;
+$duration-base: 200ms;
+$duration-slow: 300ms;
+$duration-slower: 400ms;

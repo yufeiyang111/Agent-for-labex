@@ -1,0 +1,12 @@
+# BGE-M3 Embedding Service Dependencies
+flask>=2.3.0
+sentence-transformers>=2.2.0
+torch>=2.0.0
+numpy>=1.24.0
+transformers>=4.35.0
+accelerate>=0.25.0
+
+# SpaCy NLP
+spacy>=3.7.0
+# 中文模型: python -m spacy download zh_core_web_sm
+# 英文模型: python -m spacy download en_core_web_sm

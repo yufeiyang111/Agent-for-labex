@@ -1,0 +1,271 @@
+// 全局样式重置与基础样式 - Soft UI Evolution 风格
+@import './variables.scss';
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-size: $font-size-base;
+  color: $color-text-primary;
+  background-color: $color-bg-page;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#app {
+  width: 100%;
+  height: 100%;
+}
+
+// 滚动条样式 - 柔和设计
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #d1d1d6;
+  border-radius: 3px;
+
+  &:hover {
+    background: #aeaeb2;
+  }
+}
+
+// 链接样式
+a {
+  color: $color-primary;
+  text-decoration: none;
+  transition: color $transition-fast;
+
+  &:hover {
+    color: $color-primary-dark;
+  }
+}
+
+// 卡片基础样式 - Soft UI
+.van-card,
+.el-card {
+  border-radius: $border-radius-xl !important;
+  box-shadow: $shadow-md !important;
+  border: none !important;
+  transition: box-shadow $transition-base, transform $transition-base !important;
+
+  &:hover {
+    box-shadow: $shadow-lg !important;
+    transform: translateY(-2px);
+  }
+}
+
+// 按钮通用样式
+.btn-primary {
+  background: $color-primary;
+  border: none;
+  border-radius: $border-radius-lg;
+  padding: 12px 28px;
+  font-weight: 600;
+  font-size: 14px;
+  color: white;
+  transition: all $transition-base;
+
+  &:hover {
+    background: #3d8b40;
+    transform: translateY(-2px);
+    box-shadow: $shadow-primary;
+  }
+
+  &:active {
+    transform: translateY(0) scale(0.98);
+  }
+}
+
+// 输入框样式增强 - 柔和边框
+.el-input__wrapper,
+.el-textarea__inner {
+  border-radius: $border-radius-lg !important;
+  transition: all $transition-base;
+  box-shadow: 0 0 0 1px $color-border !important;
+  background: #ffffff;
+
+  &:hover {
+    box-shadow: 0 0 0 1px #c7c7cc !important;
+  }
+
+  &.is-focus {
+    box-shadow: 0 0 0 2px $color-primary !important;
+  }
+}
+
+// 表格样式增强 - 柔和层次
+.el-table {
+  border-radius: $border-radius-xl !important;
+  overflow: hidden !important;
+  font-size: 13px;
+  border: none !important;
+  background: #ffffff;
+
+  .el-table__header {
+    th {
+      background-color: #fafafa !important;
+      color: $color-text-secondary;
+      font-weight: 600;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      padding: 14px 16px !important;
+      border-bottom: 1px solid $color-border-light !important;
+    }
+  }
+
+  .el-table__body {
+    td {
+      padding: 16px !important;
+      color: $color-text-primary;
+      border-bottom: 1px solid $color-border-light !important;
+      font-size: 13px;
+    }
+  }
+
+  .el-table__row {
+    transition: background-color $transition-fast;
+
+    &:hover > td {
+      background-color: $color-bg-hover !important;
+    }
+  }
+}
+
+// 对话框样式增强 - 柔和阴影
+.el-dialog {
+  border-radius: $border-radius-2xl !important;
+  box-shadow: $shadow-2xl !important;
+  border: none !important;
+  overflow: hidden;
+
+  .el-dialog__header {
+    margin-bottom: 0;
+    padding: 24px 28px;
+    border-bottom: 1px solid $color-border-light;
+    background: #ffffff;
+  }
+
+  .el-dialog__body {
+    padding: 28px;
+  }
+
+  .el-dialog__footer {
+    padding: 20px 28px;
+    border-top: 1px solid $color-border-light;
+    background: #ffffff;
+  }
+}
+
+// 分页样式增强 - 柔和按钮
+.el-pagination {
+  .el-pager li {
+    border-radius: $border-radius-lg !important;
+    background: #ffffff;
+    border: none;
+    margin: 0 3px;
+    min-width: 36px;
+    height: 36px;
+    line-height: 36px;
+    font-size: 13px;
+    transition: all $transition-fast;
+    box-shadow: $shadow-xs;
+  }
+
+  .el-pager li:hover {
+    background: #f5f5f5;
+    transform: translateY(-1px);
+    box-shadow: $shadow-sm;
+  }
+
+  .el-pager li.is-active {
+    background-color: $color-primary !important;
+    color: #fff !important;
+    font-weight: 600;
+    box-shadow: 0 4px 12px rgba(76, 175, 80, 0.35);
+  }
+
+  .el-pager li.btn-quicknext,
+  .el-pager li.btn-quickprev {
+    color: $color-text-secondary;
+    box-shadow: none;
+  }
+}
+
+// 标签样式 - 柔和圆润
+.el-tag {
+  border-radius: $border-radius-full !important;
+  font-weight: 500;
+  font-size: 11px;
+  padding: 4px 12px;
+  border: none;
+}
+
+// 通用布局
+.page-container {
+  padding: $spacing-lg;
+  min-height: calc(100vh - 60px);
+  background-color: $color-bg-page;
+}
+
+// 工具类
+.text-center {
+  text-align: center;
+}
+
+.text-right {
+  text-align: right;
+}
+
+.mt-sm { margin-top: $spacing-sm; }
+.mt-md { margin-top: $spacing-md; }
+.mt-lg { margin-top: $spacing-lg; }
+
+.mb-sm { margin-bottom: $spacing-sm; }
+.mb-md { margin-bottom: $spacing-md; }
+.mb-lg { margin-bottom: $spacing-lg; }
+
+.ml-sm { margin-left: $spacing-sm; }
+.ml-md { margin-left: $spacing-md; }
+.ml-lg { margin-left: $spacing-lg; }
+
+.mr-sm { margin-right: $spacing-sm; }
+.mr-md { margin-right: $spacing-md; }
+.mr-lg { margin-right: $spacing-lg; }
+
+.p-sm { padding: $spacing-sm; }
+.p-md { padding: $spacing-md; }
+.p-lg { padding: $spacing-lg; }
+
+.flex {
+  display: flex;
+}
+
+.flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.flex-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.flex-wrap {
+  flex-wrap: wrap;
+}

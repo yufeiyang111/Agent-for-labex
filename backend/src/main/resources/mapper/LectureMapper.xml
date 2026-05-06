@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.labex.mapper.LectureMapper">
+
+    <select id="selectByType" resultType="com.labex.entity.Lecture">
+        SELECT * FROM t_lecture
+        WHERE lecture_type = #{type}
+        ORDER BY lecture_id DESC
+    </select>
+
+    <select id="selectUnvectorized" resultType="com.labex.entity.Lecture">
+        SELECT * FROM t_lecture
+        WHERE (vectorized = 0 OR vectorized IS NULL)
+        AND file_path IS NOT NULL
+        AND file_path != ''
+        ORDER BY lecture_id ASC
+    </select>
+
+    <update id="updateVectorized">
+        UPDATE t_lecture
+        SET vectorized = #{status},
+            document_id = #{documentId}
+        WHERE lecture_id = #{lectureId}
+    </update>
+
+</mapper>

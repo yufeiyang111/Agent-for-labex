@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.labex.mapper.RagMessageMapper">
+
+    <select id="selectBySessionId" resultType="com.labex.entity.RagMessage">
+        SELECT * FROM rag_message
+        WHERE session_id = #{sessionId}
+        ORDER BY create_time ASC
+    </select>
+
+    <delete id="deleteBySessionId">
+        DELETE FROM rag_message WHERE session_id = #{sessionId}
+    </delete>
+
+</mapper>
