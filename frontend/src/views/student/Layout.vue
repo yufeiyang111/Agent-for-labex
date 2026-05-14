@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="student-layout">
     <!-- 侧边栏 -->
     <aside class="sidebar" :class="{ collapsed: isCollapse }">
@@ -40,6 +40,10 @@
         <el-menu-item index="/student/training">
           <el-icon><List /></el-icon>
           <template #title>题目训练</template>
+        </el-menu-item>
+        <el-menu-item index="/student/cloud-space">
+          <el-icon><Cloudy /></el-icon>
+          <template #title>Cloud Code Space</template>
         </el-menu-item>
         <el-menu-item index="/student/recommendation">
           <el-icon><Aim /></el-icon>
@@ -89,7 +93,7 @@
       <!-- 内容区 -->
       <main class="main-content">
         <router-view v-slot="{ Component, route }">
-          <transition name="el-fade-in-linear" mode="out-in">
+          <transition name="el-fade-in-linear" >
             <component :is="Component" :key="route.path" />
           </transition>
         </router-view>

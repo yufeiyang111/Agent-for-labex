@@ -41,7 +41,9 @@ const StudentTraining = () => import('@/views/student/Training.vue')
 const StudentTrainingPractice = () => import('@/views/student/TrainingPractice.vue')
 const StudentTrainingResult = () => import('@/views/student/TrainingResult.vue')
 const StudentCloudSpace = () => import('@/views/student/CloudSpace.vue')
-const StudentCloudWorkspace = () => import('@/views/student/CloudWorkspace.vue')
+
+// CloudWorkspace is a standalone full-page route (no sidebar)
+const CloudWorkspace = () => import('@/views/student/CloudWorkspace.vue')
 
 const routes = [
   { path: '/login', name: 'Login', component: Login, meta: { title: 'Login', requiresAuth: false } },
@@ -98,9 +100,15 @@ const routes = [
       { path: 'training', name: 'StudentTraining', component: StudentTraining, meta: { title: 'Training', icon: 'List' } },
       { path: 'training/:id/practice', name: 'StudentTrainingPractice', component: StudentTrainingPractice, meta: { title: 'Practice', icon: 'Edit' } },
       { path: 'training/:id/result/:attemptId', name: 'StudentTrainingResult', component: StudentTrainingResult, meta: { title: 'Results', icon: 'View' } },
-      { path: 'cloud-space', name: 'StudentCloudSpace', component: StudentCloudSpace, meta: { title: 'Cloud Code Space', icon: 'Cloudy' } },
-      { path: 'cloud-workspace/:projectId', name: 'StudentCloudWorkspace', component: StudentCloudWorkspace, meta: { title: 'Workspace', requiresAuth: true, role: 'STUDENT' } }
+      { path: 'cloud-space', name: 'StudentCloudSpace', component: StudentCloudSpace, meta: { title: 'Cloud Code Space', icon: 'Cloudy' } }
     ]
+  },
+  // CloudWorkspace as standalone full-page route (no sidebar)
+  {
+    path: '/workspace/:projectId',
+    name: 'CloudWorkspace',
+    component: CloudWorkspace,
+    meta: { title: 'Workspace', requiresAuth: true, role: 'STUDENT' }
   },
   { path: '/', redirect: '/login' },
   { path: '/:pathMatch(.*)*', redirect: '/login' }
