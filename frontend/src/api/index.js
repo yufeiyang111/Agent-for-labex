@@ -1,34 +1,34 @@
-// API接口统一管理
+﻿// API鎺ュ彛缁熶竴绠＄悊
 import request from '@/utils/request'
 
-// 认证相关API
+// 璁よ瘉鐩稿叧API
 export const authApi = {
-  // 登录
+  // 鐧诲綍
   login(data) {
     return request.post('/auth/login', data)
   },
 
-  // 退出登录
+  // 閫€鍑虹櫥褰?
   logout() {
     return request.post('/auth/logout')
   },
 
-  // 刷新Token
+  // 鍒锋柊Token
   refreshToken() {
     return request.post('/auth/refresh')
   },
 
-  // 获取用户信息
+  // 鑾峰彇鐢ㄦ埛淇℃伅
   getUserInfo() {
     return request.get('/auth/userinfo')
   },
 
-  // 修改密码
+  // 淇敼瀵嗙爜
   updatePassword(data) {
     return request.put('/auth/update-password', data)
   },
 
-  // 上传头像
+  // 涓婁紶澶村儚
   uploadAvatar(file) {
     const formData = new FormData()
     formData.append('file', file)
@@ -37,15 +37,15 @@ export const authApi = {
     })
   },
 
-  // 获取头像
+  // 鑾峰彇澶村儚
   getAvatar() {
     return request.get('/auth/avatar', { responseType: 'blob' })
   }
 }
 
-// 教师模块API
+// 鏁欏笀妯″潡API
 export const teacherApi = {
-  // 班级管理
+  // 鐝骇绠＄悊
   clazz: {
     list(params) {
       return request.get('/teacher/clazz/list', { params })
@@ -70,7 +70,7 @@ export const teacherApi = {
     }
   },
 
-  // 学生管理
+  // 瀛︾敓绠＄悊
   student: {
     list(params) {
       return request.get('/teacher/student/list', { params })
@@ -109,7 +109,7 @@ export const teacherApi = {
     }
   },
 
-  // 实验管理
+  // 瀹為獙绠＄悊
   experiment: {
     list(params) {
       return request.get('/teacher/experiment/list', { params })
@@ -134,7 +134,7 @@ export const teacherApi = {
     }
   },
 
-  // 实验题目管理
+  // 瀹為獙棰樼洰绠＄悊
   experimentItem: {
     list(params) {
       return request.get('/teacher/experiment-item/list', { params })
@@ -159,7 +159,7 @@ export const teacherApi = {
     }
   },
 
-  // 讲义管理
+  // 璁蹭箟绠＄悊
   lecture: {
     list(params) {
       return request.get('/teacher/lecture/list', { params })
@@ -191,7 +191,7 @@ export const teacherApi = {
     }
   },
 
-  // 成绩管理
+  // 鎴愮哗绠＄悊
   score: {
     getStudentAnswers(experimentId) {
       return request.get(`/teacher/score/experiment/${experimentId}/students`)
@@ -212,7 +212,7 @@ export const teacherApi = {
     }
   },
 
-  // 考试管理
+  // 鑰冭瘯绠＄悊
   dashboard: {
     overview() {
       return request.get('/teacher/dashboard/overview')
@@ -243,7 +243,7 @@ export const teacherApi = {
     }
   },
 
-  // 试卷管理
+  // 璇曞嵎绠＄悊
   paper: {
     list(params) {
       return request.get('/teacher/paper/list', { params })
@@ -271,7 +271,7 @@ export const teacherApi = {
     }
   },
 
-  // 题库管理
+  // 棰樺簱绠＄悊
   question: {
     list(params) {
       return request.get('/teacher/question/list', { params })
@@ -302,7 +302,7 @@ export const teacherApi = {
     }
   },
 
-  // 考试批改
+  // 鑰冭瘯鎵规敼
   grading: {
     getPendingExams() {
       return request.get('/teacher/grading/pending-exams')
@@ -326,7 +326,7 @@ export const teacherApi = {
     }
   },
 
-  // 作业管理
+  // 浣滀笟绠＄悊
   homework: {
     list(params) {
       return request.get('/teacher/homework/list', { params })
@@ -382,46 +382,46 @@ export const teacherApi = {
   }
 }
 
-// 学生模块API
+// 瀛︾敓妯″潡API
 export const studentApi = {
-  // 实验相关
+  // 瀹為獙鐩稿叧
   experiments() {
     return request.get('/student/experiments')
   },
 
-  // 获取讲义列表
+  // 鑾峰彇璁蹭箟鍒楄〃
   lectures() {
     return request.get('/student/lectures')
   },
 
-  // 获取讲义详情
+  // 鑾峰彇璁蹭箟璇︽儏
   getLecture(id) {
     return request.get(`/student/lecture/${id}`)
   },
 
-  // 获取实验题目列表
+  // 鑾峰彇瀹為獙棰樼洰鍒楄〃
   getExperimentItems(experimentId) {
     return request.get(`/teacher/experiment-item/experiment/${experimentId}`)
   },
 
-  // 获取已保存的答题记录
+  // 鑾峰彇宸蹭繚瀛樼殑绛旈璁板綍
   getProgress(experimentId) {
     return request.get(`/student/experiment/${experimentId}/progress`)
   },
 
-  // 保存答案
+  // 淇濆瓨绛旀
   saveAnswer(experimentId, itemId, content) {
     return request.post(`/student/experiment/${experimentId}/item/${itemId}/save`, null, {
       params: { content }
     })
   },
 
-  // 提交实验答案
+  // 鎻愪氦瀹為獙绛旀
   submitAnswer(experimentId, answers) {
     return request.post(`/student/experiment/${experimentId}/submit`, answers)
   },
 
-  // 讲义相关
+  // 璁蹭箟鐩稿叧
   lectures() {
     return request.get('/student/lectures')
   },
@@ -430,17 +430,17 @@ export const studentApi = {
     return request.get(`/student/lecture/${id}`)
   },
 
-  // 成绩查询
+  // 鎴愮哗鏌ヨ
   scores() {
     return request.get('/student/scores')
   },
 
-  // 学习统计
+  // 瀛︿範缁熻
   stats() {
     return request.get('/student/stats')
   },
 
-  // 考试相关
+  // 鑰冭瘯鐩稿叧
   exam: {
     list(params) {
       return request.get('/student/exam/list', { params })
@@ -477,7 +477,7 @@ export const studentApi = {
     }
   },
 
-  // 作业相关
+  // 浣滀笟鐩稿叧
   homework: {
     list(params) {
       return request.get('/student/homework/list', { params })
@@ -526,9 +526,9 @@ export const studentApi = {
   }
 }
 
-// 管理员模块API
+// 绠＄悊鍛樻ā鍧桝PI
 export const adminApi = {
-  // 教师管理
+  // 鏁欏笀绠＄悊
   teacher: {
     list(params) {
       return request.get('/admin/teacher/list', { params })
@@ -556,7 +556,7 @@ export const adminApi = {
     }
   },
 
-  // 学生管理
+  // 瀛︾敓绠＄悊
   student: {
     list(params) {
       return request.get('/admin/student/list', { params })
@@ -595,7 +595,7 @@ export const adminApi = {
     }
   },
 
-  // 班级管理
+  // 鐝骇绠＄悊
   clazz: {
     list(params) {
       return request.get('/admin/clazz/list', { params })
@@ -620,142 +620,152 @@ export const adminApi = {
     }
   },
 
-  // 统计信息
+  // 缁熻淇℃伅
   stats() {
     return request.get('/admin/stats')
   }
 }
 
-// RAG知识库模块API
+// RAG鐭ヨ瘑搴撴ā鍧桝PI
 export const ragApi = {
-  // 初始化知识库
+  // 鍒濆鍖栫煡璇嗗簱
   init() {
     return request.post('/rag/init')
   },
 
-  // 创建会话
+  // 鍒涘缓浼氳瘽
   createSession(title) {
     return request.post('/rag/session/create', null, { params: { title } })
   },
 
-  // 获取用户的所有会话
+  // 鑾峰彇鐢ㄦ埛鐨勬墍鏈変細璇?
   getSessions() {
     return request.get('/rag/sessions')
   },
 
-  // 获取单个会话
+  // 鑾峰彇鍗曚釜浼氳瘽
   getSession(sessionId) {
     return request.get(`/rag/session/${sessionId}`)
   },
 
-  // 删除会话
+  // 鍒犻櫎浼氳瘽
   deleteSession(sessionId) {
     return request.delete(`/rag/session/${sessionId}`)
   },
 
-  // 更新会话标题
+  // 鏇存柊浼氳瘽鏍囬
   updateSessionTitle(sessionId, title) {
     return request.put(`/rag/session/${sessionId}/title`, null, { params: { title } })
   },
 
-  // 知识问答
+  // 鐭ヨ瘑闂瓟
   query(data) {
     return request.post('/rag/query', data)
   },
 
-  // 获取会话历史
+  // 鑾峰彇浼氳瘽鍘嗗彶
   getHistory(sessionId) {
     return request.get(`/rag/history/${sessionId}`)
   },
 
-  // 清空会话历史
+  // 娓呯┖浼氳瘽鍘嗗彶
   clearHistory(sessionId) {
     return request.delete(`/rag/history/${sessionId}`)
   },
 
-  // 获取文档列表
+  // 鑾峰彇鏂囨。鍒楄〃
   listDocuments() {
     return request.get('/rag/documents')
   },
 
-  // 获取知识库状态
+  // 鑾峰彇鐭ヨ瘑搴撶姸鎬?
   getStatus() {
     return request.get('/rag/status')
   },
 
-  // 获取讲义内容（RAG预览，不校验教师归属）
+  // 鑾峰彇璁蹭箟鍐呭锛圧AG棰勮锛屼笉鏍￠獙鏁欏笀褰掑睘锛?
   getLecture(id) {
     return request.get(`/rag/lecture/${id}`)
   }
 }
 
-// 知识图谱API
+// 鐭ヨ瘑鍥捐氨API
 export const kgApi = {
-  // 从讲义提取知识点
+  // 浠庤涔夋彁鍙栫煡璇嗙偣
   extract(data) {
     return request.post('/kg/extract', data)
   },
-  // 知识点列表
+  // 鐭ヨ瘑鐐瑰垪琛?
   getPoints(params) {
     return request.get('/kg/points', { params })
   },
-  // 知识点详情
+  // 鐭ヨ瘑鐐硅鎯?
   getPoint(id) {
     return request.get(`/kg/points/${id}`)
   },
-  // 手动创建知识点
+  // 鎵嬪姩鍒涘缓鐭ヨ瘑鐐?
   createPoint(data) {
     return request.post('/kg/points', data)
   },
-  // 删除知识点
+  // 鍒犻櫎鐭ヨ瘑鐐?
   deletePoint(id) {
     return request.delete(`/kg/points/${id}`)
   },
-  // 批量关联题目到知识点
+  // 鎵归噺鍏宠仈棰樼洰鍒扮煡璇嗙偣
   linkQuestions(data) {
     return request.post('/kg/link-questions', data)
   },
-  // 主题列表
+  // 涓婚鍒楄〃
   getTopics() {
     return request.get('/kg/topics')
   },
-  // 创建主题
+  // 鍒涘缓涓婚
   createTopic(data) {
     return request.post('/kg/topics', data)
   },
-  // 更新主题
+  // 鏇存柊涓婚
   updateTopic(id, data) {
     return request.put(`/kg/topics/${id}`, data)
   },
-  // 删除主题
+  // 鍒犻櫎涓婚
   deleteTopic(id) {
     return request.delete(`/kg/topics/${id}`)
   },
-  // 知识图谱统计
+  // 鐭ヨ瘑鍥捐氨缁熻
   getStats() {
     return request.get('/kg/stats')
   },
 }
 
-// 习题推荐API
+// 涔犻鎺ㄨ崘API
 export const recommendationApi = {
-  // 个性化推荐（弱项强化）
+  // 涓€у寲鎺ㄨ崘锛堝急椤瑰己鍖栵級
   forMe(params) {
     return request.get('/recommendation/for-me', { params })
   },
-  // 按知识点推荐
+  // 鎸夌煡璇嗙偣鎺ㄨ崘
   byKnowledge(params) {
     return request.get('/recommendation/by-knowledge', { params })
   },
-  // 相似题目推荐
+  // 鐩镐技棰樼洰鎺ㄨ崘
   similar(params) {
     return request.get('/recommendation/similar', { params })
   },
 }
 
-// 题目训练模块API
+// 棰樼洰璁粌妯″潡API
+// Student mastery API
+export const masteryApi = {
+  myState() {
+    return request.get('/mastery/my-state')
+  },
+  studentState(studentId) {
+    return request.get('/mastery/student/' + studentId)
+  }
+}
+
 export const trainingApi = {
-  // 教师端
+  // 鏁欏笀绔?
   teacher: {
     list(params) {
       return request.get('/teacher/training-set/list', { params })
@@ -795,7 +805,7 @@ export const trainingApi = {
     }
   },
 
-  // 学生端
+  // 瀛︾敓绔?
   student: {
     list() {
       return request.get('/student/training/list')
@@ -820,20 +830,56 @@ export const trainingApi = {
     retry(id) {
       return request.post(`/student/training/${id}/retry`)
     },
+    runCode(code, language) {
+      return request.post('/student/training/run-code', null, { params: { code, language } })
+    },
     getResult(id, attemptId) {
       return request.get(`/student/training/${id}/result/${attemptId}`)
     }
   }
 }
 
-// 学生能力画像API
-export const masteryApi = {
-  // 我的能力画像
-  myState() {
-    return request.get('/mastery/my-state')
+// 瀛︾敓鑳藉姏鐢诲儚API
+
+// 浜戜唬鐮佺┖闂碅PI
+export const projectApi = {
+  // Agent ask
+  askAgent(projectId, data) {
+    return request.post('/student/projects/' + projectId + '/agent-ask', data)
   },
-  // 查看指定学生画像（教师）
-  studentState(studentId) {
-    return request.get(`/mastery/student/${studentId}`)
+  // 原有方法
+  list() {
+    return request.get('/student/projects')
   },
+  createEmpty(name) {
+    return request.post('/student/projects/empty', null, { params: { name } })
+  },
+  upload(file, name) {
+    const fd = new FormData()
+    fd.append('file', file)
+    if (name) fd.append('projectName', name)
+    return request.post('/student/projects/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+  },
+  detail(id) {
+    return request.get('/student/projects/' + id)
+  },
+  delete(id) {
+    return request.delete('/student/projects/' + id)
+  },
+  getTree(id, path) {
+    return request.get('/student/projects/' + id + '/tree', { params: { path: path || '' } })
+  },
+  readFile(id, path) {
+    return request.get('/student/projects/' + id + '/files', { params: { path } })
+  },
+  saveFile(id, path, content) {
+    return request.put('/student/projects/' + id + '/files', { content }, { params: { path } })
+  },
+  createWithTemplate(name, templateKey) {
+    return request.post('/student/projects/template', null, { params: { name, templateKey } })
+  },
+  renameItem(id, path, newName) {
+    return request.put('/student/projects/' + id + '/files/item', { path, newName })
+  }
 }
+
