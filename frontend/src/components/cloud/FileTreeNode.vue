@@ -1,209 +1,63 @@
 <template>
   <div class="ftn">
-    <!-- Directory node -->
-    <div
-      v-if="node.type === 'directory'"
-      class="ftn-row dir"
-      :class="{ selected: isDirSelected }"
-      @click.stop="toggle"
-    >
+    <div v-if="node.type === 'directory'" class="ftn-row dir" :class="{ selected: isDirSelected }" @click.stop="toggle">
       <span class="ftn-arrow" :class="{ open: expanded }">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-          <polyline points="9 18 15 12 9 6"/>
-        </svg>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
       </span>
       <span class="ftn-folder-icon" :class="{ open: expanded }">
-        <svg v-if="expanded" width="14" height="14" viewBox="0 0 24 24" fill="#6366f1" stroke="#6366f1" stroke-width="1">
-          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-        </svg>
-        <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2">
-          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-        </svg>
+        <svg v-if="expanded" width="14" height="14" viewBox="0 0 24 24" fill="#6366f1" stroke="#6366f1" stroke-width="1"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+        <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
       </span>
       <span class="ftn-name">{{ node.name }}</span>
       <span v-if="node.fileCount" class="ftn-count">{{ node.fileCount }}</span>
     </div>
-
-    <!-- Lazy-loaded children with transition -->
     <Transition name="ftn-slide">
       <div v-if="expanded" class="ftn-children">
-        <div v-if="loading" class="ftn-loading">
-          <span class="ftn-spinner"></span>
-          <span>???...</span>
-        </div>
+        <div v-if="loading" class="ftn-loading"><span class="ftn-spinner"></span><span>加载中...</span></div>
         <TransitionGroup v-else name="ftn-list" tag="div">
-          <FileTreeNode
-            v-for="child in children"
-            :key="child.path"
-            :node="child"
-            :depth="depth + 1"
-            :selected-path="selectedPath"
-            :load-children="loadChildren"
-            @select="(p) => emit('select', p)"
-          />
+          <FileTreeNode v-for="child in children" :key="child.path" :node="child" :depth="depth + 1" :selected-path="selectedPath" :load-children="loadChildren" @select="(p) => emit('select', p)"/>
         </TransitionGroup>
       </div>
     </Transition>
-
-    <!-- File node -->
-    <div
-      v-if="node.type === 'file'"
-      class="ftn-row file"
-      :class="{ selected: node.path === selectedPath }"
-      @click.stop="emit('select', node.path)"
-    >
-      <span class="ftn-file-icon">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" :stroke="node.path === selectedPath ? '#6366f1' : '#9ca3af'" stroke-width="2">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-          <polyline points="14 2 14 8 20 8"/>
-        </svg>
-      </span>
+    <div v-if="node.type === 'file'" class="ftn-row file" :class="{ selected: node.path === selectedPath }" @click.stop="emit('select', node.path)">
+      <span class="ftn-file-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" :stroke="node.path === selectedPath ? '#6366f1' : '#9ca3af'" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></span>
       <span class="ftn-name">{{ node.name }}</span>
     </div>
   </div>
 </template>
-
 <script setup>
 import { ref, computed } from 'vue'
-
-const props = defineProps({
-  node: { type: Object, required: true },
-  depth: { type: Number, default: 0 },
-  selectedPath: { type: String, default: '' },
-  loadChildren: { type: Function, default: null }
-})
-
+const props = defineProps({ node: { type: Object, required: true }, depth: { type: Number, default: 0 }, selectedPath: { type: String, default: '' }, loadChildren: { type: Function, default: null } })
 const emit = defineEmits(['select'])
 const expanded = ref(props.depth < 1)
 const children = ref([])
 const loading = ref(false)
-
-const isDirSelected = computed(() => {
-  if (!props.selectedPath) return false
-  return props.selectedPath.startsWith(props.node.path + '/')
-})
-
-async function toggle() {
-  expanded.value = !expanded.value
-  if (expanded.value && props.loadChildren && children.value.length === 0) {
-    loading.value = true
-    try {
-      const result = await props.loadChildren(props.node.path)
-      children.value = result || []
-    } finally {
-      loading.value = false
-    }
-  }
-}
+const isDirSelected = computed(() => { if (!props.selectedPath) return false; return props.selectedPath.startsWith(props.node.path + '/') })
+async function toggle() { expanded.value = !expanded.value; if (expanded.value && props.loadChildren && children.value.length === 0) { loading.value = true; try { const result = await props.loadChildren(props.node.path); children.value = result || [] } finally { loading.value = false } } }
 </script>
-
 <style scoped>
 .ftn { user-select: none; font-size: 13px; }
-
-.ftn-row {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  padding: 4px 8px;
-  border-radius: 6px;
-  cursor: pointer;
-  color: #374151;
-  transition: background 0.12s ease;
-  margin: 1px 0;
-}
+.ftn-row { display: flex; align-items: center; gap: 5px; padding: 4px 8px; border-radius: 6px; cursor: pointer; color: #374151; transition: background 0.12s ease; margin: 1px 0; }
 .ftn-row:hover { background: #f3f4f6; }
 .ftn-row.selected { background: #eef2ff; color: #4338ca; }
 .ftn-row.dir.selected { background: #eef2ff; }
-
-/* Arrow animation */
-.ftn-arrow {
-  width: 16px;
-  height: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  color: #9ca3af;
-  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
+.ftn-arrow { width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; color: #9ca3af; transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1); }
 .ftn-arrow.open { transform: rotate(90deg); color: #6366f1; }
-
 .ftn-folder-icon { flex-shrink: 0; display: flex; align-items: center; transition: all 0.15s ease; }
 .ftn-file-icon { flex-shrink: 0; display: flex; align-items: center; }
 .ftn-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; font-size: 13px; }
-.ftn-count {
-  font-size: 10px;
-  color: #9ca3af;
-  background: #f3f4f6;
-  padding: 1px 6px;
-  border-radius: 8px;
-  flex-shrink: 0;
-}
-
-/* Children container */
-.ftn-children {
-  padding-left: 16px;
-  border-left: 1px solid #e5e7eb;
-  margin-left: 7px;
-}
-
-/* Loading spinner */
-.ftn-loading {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
-  color: #9ca3af;
-  font-size: 12px;
-}
-.ftn-spinner {
-  width: 14px;
-  height: 14px;
-  border: 2px solid #e5e7eb;
-  border-top-color: #6366f1;
-  border-radius: 50%;
-  animation: ftn-spin 0.6s linear infinite;
-}
+.ftn-count { font-size: 10px; color: #9ca3af; background: #f3f4f6; padding: 1px 6px; border-radius: 8px; flex-shrink: 0; }
+.ftn-children { padding-left: 16px; border-left: 1px solid #e5e7eb; margin-left: 7px; }
+.ftn-loading { display: flex; align-items: center; gap: 8px; padding: 6px 8px; color: #9ca3af; font-size: 12px; }
+.ftn-spinner { width: 14px; height: 14px; border: 2px solid #e5e7eb; border-top-color: #6366f1; border-radius: 50%; animation: ftn-spin 0.6s linear infinite; }
 @keyframes ftn-spin { to { transform: rotate(360deg); } }
-
-/* Slide animation for expand/collapse */
-.ftn-slide-enter-active {
-  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  overflow: hidden;
-}
-.ftn-slide-leave-active {
-  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
-  overflow: hidden;
-}
-.ftn-slide-enter-from,
-.ftn-slide-leave-to {
-  opacity: 0;
-  max-height: 0;
-  transform: translateY(-4px);
-}
-.ftn-slide-enter-to,
-.ftn-slide-leave-from {
-  opacity: 1;
-  max-height: 2000px;
-  transform: translateY(0);
-}
-
-/* List item stagger animation */
-.ftn-list-enter-active {
-  transition: all 0.2s ease;
-}
-.ftn-list-leave-active {
-  transition: all 0.15s ease;
-}
-.ftn-list-enter-from {
-  opacity: 0;
-  transform: translateX(-8px);
-}
-.ftn-list-leave-to {
-  opacity: 0;
-  transform: translateX(-4px);
-}
-.ftn-list-move {
-  transition: transform 0.2s ease;
-}
+.ftn-slide-enter-active { transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); overflow: hidden; }
+.ftn-slide-leave-active { transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1); overflow: hidden; }
+.ftn-slide-enter-from, .ftn-slide-leave-to { opacity: 0; max-height: 0; transform: translateY(-4px); }
+.ftn-slide-enter-to, .ftn-slide-leave-from { opacity: 1; max-height: 2000px; transform: translateY(0); }
+.ftn-list-enter-active { transition: all 0.2s ease; }
+.ftn-list-leave-active { transition: all 0.15s ease; }
+.ftn-list-enter-from { opacity: 0; transform: translateX(-8px); }
+.ftn-list-leave-to { opacity: 0; transform: translateX(-4px); }
+.ftn-list-move { transition: transform 0.2s ease; }
 </style>
