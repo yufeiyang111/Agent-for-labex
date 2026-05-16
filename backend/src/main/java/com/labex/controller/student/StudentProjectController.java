@@ -206,7 +206,13 @@ public class StudentProjectController {
             if (project == null) {
                 return Result.error("Project not found");
             }
-            return Result.success(Map.of("session", this.projectTerminalService.create(this.getStudentId(auth), project, request != null ? request.getName() : null, request != null ? request.getPath() : null).snapshot()));
+            ProjectTerminalService.TerminalSession session = this.projectTerminalService.create(this.getStudentId(auth), project, request != null ? request.getName() : null, request != null ? request.getPath() : null);
+            Map<String, Object> info = new java.util.LinkedHashMap<>();
+            info.put("sessionId", session.sessionId);
+            info.put("name", session.name);
+            info.put("cwd", session.cwd);
+            info.put("output", session.snapshot());
+            return Result.success(info);
         }
         catch (Exception e) {
             return Result.error((String)e.getMessage());
@@ -231,12 +237,19 @@ public class StudentProjectController {
             }
             ProjectCommandSafety.SafetyCheck safety = ProjectCommandSafety.check((String)command, (request != null && Boolean.TRUE.equals(request.getAllowDangerous()) ? 1 : 0) != 0);
             if (!safety.allowed()) {
-                return Result.success(Map.of("approvalRequired", safety.approvalRequired(), "message", safety.message(), "riskLevel", safety.riskLevel(), "matchedRule", safety.matchedRule(), "session", session.snapshot()));
+                return Result.success(Map.of("approvalRequired", safety.approvalRequired(), "message", safety.message(), "riskLevel", safety.riskLevel(), "matchedRule", safety.matchedRule(), "output", session.snapshot()));
             }
             int timeout = Math.min(600, Math.max(1, request != null && request.getTimeoutSeconds() != null ? request.getTimeoutSeconds() : 60));
             ProjectTerminalService.TerminalRunResult result = this.projectTerminalService.run(session, project, command, request != null ? request.getPath() : null, request != null && Boolean.TRUE.equals(request.getLongRunning()), timeout);
             this.studentProjectService.refreshProjectMetadata(this.getStudentId(auth), projectId);
-            return Result.success(Map.of("approvalRequired", false, "running", result.running(), "exitCode", result.exitCode() == null ? "" : result.exitCode(), "session", result.session()));
+            Map<String, Object> info = new java.util.LinkedHashMap<>();
+            info.put("approvalRequired", false);
+            info.put("running", result.running());
+            info.put("exitCode", result.exitCode() == null ? "" : result.exitCode());
+            info.put("sessionId", session.sessionId);
+            info.put("name", session.name);
+            info.put("output", session.snapshot());
+            return Result.success(info);
         }
         catch (Exception e) {
             return Result.error((String)e.getMessage());
@@ -325,6 +338,18 @@ public class StudentProjectController {
         try {
             this.studentProjectService.deleteOwnedProject(this.getStudentId(auth), projectId);
             return Result.success(null);
+        }
+        catch (Exception e) {
+            return Result.error((String)e.getMessage());
+        }
+    }
+
+    @PutMapping(value={"/{projectId}/rename"})
+    public Result<StudentProject> rename(@PathVariable Integer projectId, @RequestBody Map<String, String> request, Authentication auth) {
+        try {
+            String newName = request != null ? request.get("name") : null;
+            StudentProject project = this.studentProjectService.renameProject(this.getStudentId(auth), projectId, newName);
+            return Result.success(project);
         }
         catch (Exception e) {
             return Result.error((String)e.getMessage());

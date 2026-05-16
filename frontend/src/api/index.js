@@ -8,6 +8,11 @@ export const authApi = {
     return request.post('/auth/login', data)
   },
 
+  // 学生注册
+  register(data) {
+    return request.post('/auth/register', data)
+  },
+
   // 閫€鍑虹櫥褰?
   logout() {
     return request.post('/auth/logout')
@@ -847,6 +852,60 @@ export const projectApi = {
   askAgent(projectId, data) {
     return request.post('/student/projects/' + projectId + '/agent-ask', data)
   },
+  optimizePrompt(projectId, data) {
+    return request.post('/student/projects/' + projectId + '/agent/prompt/optimize', data)
+  },
+  agentInterrupt(projectId, sessionId) {
+    return request.post('/student/projects/' + projectId + '/agent/interrupt', { sessionId })
+  },
+  agentConversations(projectId) {
+    return request.get('/student/projects/' + projectId + '/agent/conversations')
+  },
+  agentMessages(projectId, conversationId) {
+    return request.get('/student/projects/' + projectId + '/agent/conversations/' + conversationId + '/messages')
+  },
+  agentDeleteConversation(projectId, conversationId) {
+    return request.delete('/student/projects/' + projectId + '/agent/conversations/' + conversationId)
+  },
+  agentTokenStats(projectId, conversationId) {
+    return request.get('/student/projects/' + projectId + '/agent/tokens/' + conversationId)
+  },
+  agentTokenSummary(projectId) {
+    return request.get('/student/projects/' + projectId + '/agent/tokens/student/summary')
+  },
+  terminalRun(projectId, command, timeoutSeconds) {
+    return request.post('/student/projects/' + projectId + '/terminal/run', { command, timeoutSeconds: timeoutSeconds || 60 })
+  },
+  terminalCreateSession(projectId) {
+    return request.post('/student/projects/' + projectId + '/terminal/sessions', {})
+  },
+  terminalRunSession(projectId, sessionId, command, timeoutSeconds) {
+    return request.post('/student/projects/' + projectId + '/terminal/sessions/' + sessionId + '/run', { command, timeoutSeconds: timeoutSeconds || 60 })
+  },
+  terminalGetSession(projectId, sessionId) {
+    return request.get('/student/projects/' + projectId + '/terminal/sessions/' + sessionId)
+  },
+  terminalStopSession(projectId, sessionId) {
+    return request.post('/student/projects/' + projectId + '/terminal/sessions/' + sessionId + '/stop')
+  },
+  terminalDeleteSession(projectId, sessionId) {
+    return request.delete('/student/projects/' + projectId + '/terminal/sessions/' + sessionId)
+  },
+  agentChanges(projectId) {
+    return request.get('/student/projects/' + projectId + '/agent/changes')
+  },
+  agentDiff(projectId, changeId) {
+    return request.get('/student/projects/' + projectId + '/agent/diff/' + changeId)
+  },
+  agentApplyDiff(projectId, changeId) {
+    return request.post('/student/projects/' + projectId + '/agent/diff/' + changeId + '/apply')
+  },
+  agentRejectDiff(projectId, changeId) {
+    return request.post('/student/projects/' + projectId + '/agent/diff/' + changeId + '/reject')
+  },
+  agentUndoDiff(projectId, changeId) {
+    return request.post('/student/projects/' + projectId + '/agent/diff/' + changeId + '/undo')
+  },
   // 原有方法
   list() {
     return request.get('/student/projects')
@@ -880,6 +939,72 @@ export const projectApi = {
   },
   renameItem(id, path, newName) {
     return request.put('/student/projects/' + id + '/files/item', { path, newName })
+  },
+  createItem(projectId, parentPath, name, type) {
+    return request.post('/student/projects/' + projectId + '/files/item', { parentPath, name, type })
+  },
+  deleteItem(projectId, path) {
+    return request.delete('/student/projects/' + projectId + '/files/item', { params: { path } })
+  },
+  exportProject(projectId) {
+    return request.get('/student/projects/' + projectId + '/export', { responseType: 'blob' })
+  },
+  renameProject(projectId, name) {
+    return request.put('/student/projects/' + projectId + '/rename', { name })
+  }
+}
+
+export const modelConfigApi = {
+  list() {
+    return request.get('/student/model-configs')
+  },
+  get(configId) {
+    return request.get('/student/model-configs/' + configId)
+  },
+  create(data) {
+    return request.post('/student/model-configs', data)
+  },
+  update(configId, data) {
+    return request.put('/student/model-configs/' + configId, data)
+  },
+  delete(configId) {
+    return request.delete('/student/model-configs/' + configId)
+  },
+  getDefault() {
+    return request.get('/student/model-configs/default')
+  },
+  getProviders() {
+    return request.get('/student/model-configs/providers')
+  },
+  testConnection(configId) {
+    return request.post('/student/model-configs/' + configId + '/test')
+  }
+}
+
+export const agentExtensionApi = {
+  listSkills() {
+    return request.get('/student/agent/extensions/skills')
+  },
+  createSkill(data) {
+    return request.post('/student/agent/extensions/skills', data)
+  },
+  updateSkill(skillId, data) {
+    return request.put('/student/agent/extensions/skills/' + skillId, data)
+  },
+  deleteSkill(skillId) {
+    return request.delete('/student/agent/extensions/skills/' + skillId)
+  },
+  listMcpServers() {
+    return request.get('/student/agent/extensions/mcp')
+  },
+  createMcpServer(data) {
+    return request.post('/student/agent/extensions/mcp', data)
+  },
+  updateMcpServer(serverId, data) {
+    return request.put('/student/agent/extensions/mcp/' + serverId, data)
+  },
+  deleteMcpServer(serverId) {
+    return request.delete('/student/agent/extensions/mcp/' + serverId)
   }
 }
 
