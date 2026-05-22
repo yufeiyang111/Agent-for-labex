@@ -7,3 +7,7 @@ dist/
 *.log
 .env
 uploads/
+code_exec/
+student_projects/
+_archive/
+.venv/
