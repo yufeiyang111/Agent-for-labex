@@ -24,7 +24,7 @@
 
     <el-card class="table-card" shadow="hover">
       <el-table :data="examList" v-loading="loading" stripe>
-        <el-table-column prop="id" label="ID" width="70" />
+        <el-table-column prop="id" label="ID" min-width="70" />
         <el-table-column prop="examName" label="考试名称" min-width="170" />
         <el-table-column label="试卷（可复用）" min-width="180">
           <template #default="{ row }">{{ row.paperName || '-' }}</template>

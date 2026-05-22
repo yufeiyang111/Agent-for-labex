@@ -174,14 +174,12 @@ public class TrainingSetController {
             @RequestParam(required = false) Integer type,
             @RequestParam(required = false) String keyword,
             Authentication auth) {
-        Integer teacherId = getTeacherId(auth);
         LambdaQueryWrapper<Question> wrapper = new LambdaQueryWrapper<Question>()
-                .eq(Question::getTeacherId, teacherId)
                 .eq(Question::getState, 1)
                 .eq(type != null && type > 0, Question::getType, type)
                 .like(keyword != null && !keyword.isBlank(), Question::getQuestion, keyword)
                 .orderByDesc(Question::getId);
-        
+
         Page<Question> p = questionService.page(new Page<>(page, pageSize), wrapper);
         PageResult<Question> pageResult = new PageResult<>();
         pageResult.setPageNum(page);

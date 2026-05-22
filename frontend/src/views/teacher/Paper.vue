@@ -115,7 +115,7 @@
           <h4>题库题目</h4>
           <el-table ref="questionTableRef" :data="allQuestions" @selection-change="handleSelectionChange" height="460" stripe>
             <el-table-column type="selection" width="50" />
-            <el-table-column prop="id" label="ID" width="70" />
+            <el-table-column prop="id" label="ID" min-width="70" />
             <el-table-column label="类型" width="92">
               <template #default="{ row }">
                 <el-tag size="small">{{ getTypeName(row.type) }}</el-tag>

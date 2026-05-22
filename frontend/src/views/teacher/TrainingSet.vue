@@ -85,7 +85,7 @@
       </div>
       <el-table :data="availableQuestions" @selection-change="handleSelectionChange" stripe height="320" v-loading="questionLoading">
         <el-table-column type="selection" width="55" />
-        <el-table-column prop="id" label="ID" width="80" />
+        <el-table-column prop="id" label="ID" min-width="80" />
         <el-table-column label="类型" width="90">
           <template #default="{ row }"><el-tag>{{ getTypeName(row.type) }}</el-tag></template>
         </el-table-column>
@@ -112,7 +112,7 @@
       <div class="current-questions" v-if="currentQuestions.length > 0">
         <h4>当前训练集题目（{{ currentQuestions.length }}）</h4>
         <el-table :data="currentQuestions" stripe size="small" height="220">
-          <el-table-column prop="questionId" label="ID" width="80" />
+          <el-table-column prop="questionId" label="ID" min-width="80" />
           <el-table-column label="类型" width="90">
             <template #default="{ row }"><el-tag>{{ getTypeName(row.type) }}</el-tag></template>
           </el-table-column>

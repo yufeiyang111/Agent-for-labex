@@ -56,7 +56,17 @@
       "Bash(python 'app.py *)",
       "Bash(mvn 'spring-boot:run *)",
       "mcp__chrome-devtools__wait_for",
-      "Bash(git sparse-checkout *)"
+      "Bash(git sparse-checkout *)",
+      "Bash(curl -s \"http://localhost:8080/api/teacher/training-set/available-questions?page=1&pageSize=20\" -H \"Authorization: Bearer test\")",
+      "Bash(mysql -uroot -pyu6670980506 -h localhost labex -e \"SELECT COUNT\\(*\\) as total FROM t_question WHERE state=1;\")",
+      "Bash(mysql -uroot -pyu6670980506 -h localhost labex -e \"DESCRIBE t_question;\")",
+      "Bash(taskkill //F //PID 21840)"
     ]
+  },
+  "enabledPlugins": {
+    "superpowers@claude-plugins-official": true,
+    "github@claude-plugins-official": true,
+    "context7@claude-plugins-official": true,
+    "code-review@claude-plugins-official": true
   }
 }

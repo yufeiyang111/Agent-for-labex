@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(taskkill //F //PID 38188)",
+      "Bash(mysql -uroot -pyu6670980506 -h localhost labex -e \"SELECT id, username, role FROM t_teacher LIMIT 5;\")",
+      "Bash(mysql -uroot -pyu6670980506 -h localhost -P 3306 labex -e \"SELECT id, username, role FROM t_teacher LIMIT 5;\")",
+      "Bash(mysql -uroot -pyu6670980506 -h localhost -P 3306 labex -e \"DESCRIBE t_teacher;\")",
+      "Bash(mysql -uroot -pyu6670980506 -h localhost -P 3306 labex -e \"SELECT teacher_id, teacher_account, teacher_name, role FROM t_teacher LIMIT 5;\")",
+      "Bash(curl -s \"http://localhost:8080/api/teacher/training-set/available-questions?page=1&pageSize=5\")",
+      "Bash(mvn clean *)",
+      "Bash(taskkill //F //PID 32876)",
+      "Bash(taskkill //pid 20452 //f)",
+      "Bash(taskkill //pid 26272 //f)"
+    ]
+  }
+}

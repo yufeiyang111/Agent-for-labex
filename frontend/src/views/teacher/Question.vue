@@ -37,7 +37,7 @@
 
     <el-card class="table-card" shadow="hover">
       <el-table :data="questionList" v-loading="loading" stripe>
-        <el-table-column prop="id" label="ID" width="80" />
+        <el-table-column prop="id" label="ID" min-width="80" />
         <el-table-column label="类型" width="110">
           <template #default="{ row }">
             <el-tag :type="getTypeTag(row.type)">{{ row.typeName || getTypeName(row.type) }}</el-tag>
