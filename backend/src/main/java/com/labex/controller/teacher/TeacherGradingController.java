@@ -153,6 +153,47 @@ public class TeacherGradingController {
     }
 
     /**
+     * 获取考试已批改学生列表
+     */
+    @GetMapping("/exam/{examId}/graded-students")
+    public Result<List<Map<String, Object>>> getGradedStudents(@PathVariable Integer examId) {
+        Exam exam = examService.getById(examId);
+        if (exam == null) {
+            return Result.error("考试不存在");
+        }
+
+        Integer teacherId = getCurrentTeacherId();
+        if (!exam.getTeacherId().equals(teacherId)) {
+            return Result.error("无权访问此考试");
+        }
+
+        // 获取已完成人工批改的学生
+        List<ExamGrading> gradings = examGradingService.list(
+                new LambdaQueryWrapper<ExamGrading>()
+                        .eq(ExamGrading::getExamId, examId)
+                        .eq(ExamGrading::getManualGraded, true)
+                        .orderByDesc(ExamGrading::getGradedAt)
+        );
+
+        List<Map<String, Object>> students = new ArrayList<>();
+        for (ExamGrading grading : gradings) {
+            Student student = studentService.getById(grading.getStudentId());
+            if (student == null) continue;
+
+            Map<String, Object> studentInfo = new HashMap<>();
+            studentInfo.put("studentId", student.getStudentId());
+            studentInfo.put("studentName", student.getStudentName());
+            studentInfo.put("studentNo", student.getStudentNo());
+            studentInfo.put("finalScore", grading.getFinalScore() != null ? grading.getFinalScore() : 0);
+            studentInfo.put("gradedAt", grading.getGradedAt());
+
+            students.add(studentInfo);
+        }
+
+        return Result.success(students);
+    }
+
+    /**
      * 获取学生答题详情（用于批改）
      */
     @GetMapping("/exam/{examId}/student/{studentId}/questions")

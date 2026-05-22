@@ -2,6 +2,7 @@ package com.labex.controller.teacher;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.labex.common.PageResult;
 import com.labex.common.Result;
 import com.labex.entity.*;
 import com.labex.service.*;
@@ -167,7 +168,9 @@ public class TrainingSetController {
     }
 
     @GetMapping("/available-questions")
-    public Result<List<Question>> availableQuestions(
+    public Result<PageResult<Question>> availableQuestions(
+            @RequestParam(defaultValue = "1") Integer page,
+            @RequestParam(defaultValue = "20") Integer pageSize,
             @RequestParam(required = false) Integer type,
             @RequestParam(required = false) String keyword,
             Authentication auth) {
@@ -178,7 +181,15 @@ public class TrainingSetController {
                 .eq(type != null && type > 0, Question::getType, type)
                 .like(keyword != null && !keyword.isBlank(), Question::getQuestion, keyword)
                 .orderByDesc(Question::getId);
-        return Result.success(questionService.list(wrapper));
+        
+        Page<Question> p = questionService.page(new Page<>(page, pageSize), wrapper);
+        PageResult<Question> pageResult = new PageResult<>();
+        pageResult.setPageNum(page);
+        pageResult.setPageSize(pageSize);
+        pageResult.setTotal(p.getTotal());
+        pageResult.setList(p.getRecords());
+        pageResult.setTotalPages((int) Math.ceil((double) p.getTotal() / pageSize));
+        return Result.success(pageResult);
     }
 
     @GetMapping("/{id}/student-records")

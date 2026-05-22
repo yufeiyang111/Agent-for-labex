@@ -13,7 +13,7 @@ import java.util.*;
  */
 @Slf4j
 @Service
-public class MiniMaxChat {
+public class MiniMaxChat implements LLMChat {
 
     private final RagConfig ragConfig;
     private final RestTemplate restTemplate;
@@ -129,5 +129,47 @@ public class MiniMaxChat {
         // For simplicity, return non-streaming response
         // Streaming can be implemented with WebFlux or SSE
         return chat(prompt, context, question);
+    }
+
+    public Map<String, Object> chatWithTools(String sysPrompt, ArrayList<Map<String, Object>> msgs, List<Map<String, Object>> tools) {
+        try {
+            String apiKey = ragConfig.getMiniMaxApiKey();
+            if (apiKey == null || apiKey.isBlank()) return Map.of("type", "final", "content", "API key not configured");
+            String url = ragConfig.getMiniMaxBaseUrl().replaceAll("/$", "") + "/text/chatcompletion_v2";
+            ArrayList<Map<String, Object>> messages = new ArrayList<>();
+            messages.add(Map.of("role", "system", "content", sysPrompt));
+            messages.addAll(msgs);
+            Map<String, Object> body = new HashMap<>();
+            body.put("model", ragConfig.getMiniMaxModel());
+            body.put("messages", messages);
+            body.put("max_tokens", 8192);
+            if (tools != null && !tools.isEmpty()) { body.put("tools", tools); body.put("tool_choice", "auto"); }
+            org.springframework.http.HttpHeaders h = new org.springframework.http.HttpHeaders();
+            h.setContentType(org.springframework.http.MediaType.APPLICATION_JSON);
+            h.set("Authorization", "Bearer " + apiKey);
+            org.springframework.http.HttpEntity<Map<String, Object>> entity = new org.springframework.http.HttpEntity<>(body, h);
+            org.springframework.http.ResponseEntity<Map> r = restTemplate.postForEntity(url, entity, Map.class);
+            if (r.getStatusCode().value() == 200 && r.getBody() != null) {
+                Map<String, Object> rb = r.getBody();
+                if (rb.containsKey("choices")) {
+                    List<Map<String, Object>> choices = (List<Map<String, Object>>) rb.get("choices");
+                    if (choices != null && !choices.isEmpty()) {
+                        Map<String, Object> msg = (Map<String, Object>) choices.get(0).get("message");
+                        if (msg != null) {
+                            String content = msg.get("content") != null ? msg.get("content").toString() : "";
+                            if (msg.containsKey("tool_calls")) {
+                                List<Map<String, Object>> tcs = (List<Map<String, Object>>) msg.get("tool_calls");
+                                if (tcs != null && !tcs.isEmpty()) {
+                                    Map<String, Object> fn = (Map<String, Object>) tcs.get(0).get("function");
+                                    return Map.of("type", "tool_call", "tool", fn.get("name").toString(), "arguments", fn.get("arguments").toString(), "thinking", content);
+                                }
+                            }
+                            return Map.of("type", "final", "content", content.isEmpty() ? "No response" : content);
+                        }
+                    }
+                }
+            }
+            return Map.of("type", "final", "content", "API call failed");
+        } catch (Exception e) { log.error("MiniMax tools: {}", e.getMessage()); return Map.of("type", "final", "content", "LLM error: " + e.getMessage()); }
     }
 }

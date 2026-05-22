@@ -1,36 +1,33 @@
 """
-Text Preprocessing using SpaCy
+SpaCy NLP Wrapper for sentence segmentation, entity extraction and preprocessing
 """
 import spacy
-from typing import List, Optional
+from typing import List, Tuple, Optional
 
 
-class SpaCyNLP:
-    def __init__(self, lang: str = "zh_core_web_sm"):
+class SpacyNLP:
+    def __init__(self, model_name: str = "zh_core_web_sm"):
+        self.model_name = model_name
         self.nlp = None
-        self.lang = lang
-        self._loaded = False
 
-    def load(self, lang: Optional[str] = None):
+    def load_model(self):
         """Load spaCy model"""
-        model = lang or self.lang
         try:
-            self.nlp = spacy.load(model)
-            self._loaded = True
-            print(f"SpaCy model '{model}' loaded successfully!")
+            self.nlp = spacy.load(self.model_name)
+            print(f"Loaded spaCy model: {self.model_name}")
         except OSError:
-            print(f"Model '{model}' not found. Installing...")
-            import subprocess
-            subprocess.run(["python", "-m", "spacy", "download", model], check=True)
-            self.nlp = spacy.load(model)
-            self._loaded = True
+            print(f"Downloading spaCy model: {self.model_name}...")
+            spacy.cli.download(self.model_name)
+            self.nlp = spacy.load(self.model_name)
 
-    def is_loaded(self) -> bool:
-        return self._loaded and self.nlp is not None
+    def _ensure_model(self):
+        """Ensure model is loaded"""
+        if self.nlp is None:
+            self.load_model()
 
     def sent_segment(self, text: str) -> List[str]:
         """
-        Split text into sentences using spaCy's sentence boundary detection
+        Split text into sentences
 
         Args:
             text: Input text
@@ -38,30 +35,11 @@ class SpaCyNLP:
         Returns:
             List of sentences
         """
-        if not self.is_loaded():
-            self.load()
-
+        self._ensure_model()
         doc = self.nlp(text)
-        sentences = [sent.text.strip() for sent in doc.sents if sent.text.strip()]
-        return sentences
+        return [sent.text.strip() for sent in doc.sents if sent.text.strip()]
 
-    def tokenize(self, text: str) -> List[str]:
-        """
-        Tokenize text into words/tokens
-
-        Args:
-            text: Input text
-
-        Returns:
-            List of tokens
-        """
-        if not self.is_loaded():
-            self.load()
-
-        doc = self.nlp(text)
-        return [token.text for token in doc if not token.is_space and not token.is_punct]
-
-    def extract_entities(self, text: str) -> List[tuple]:
+    def extract_entities(self, text: str) -> List[Tuple[str, str]]:
         """
         Extract named entities
 
@@ -71,15 +49,13 @@ class SpaCyNLP:
         Returns:
             List of (entity_text, entity_label) tuples
         """
-        if not self.is_loaded():
-            self.load()
-
+        self._ensure_model()
         doc = self.nlp(text)
         return [(ent.text, ent.label_) for ent in doc.ents]
 
     def preprocess(self, text: str) -> str:
         """
-        Full preprocessing: clean and normalize text
+        Preprocess text: remove stopwords and lemmatize
 
         Args:
             text: Input text
@@ -87,27 +63,29 @@ class SpaCyNLP:
         Returns:
             Preprocessed text
         """
-        if not self.is_loaded():
-            self.load()
-
+        self._ensure_model()
         doc = self.nlp(text)
-        # Remove stopwords and punctuation, keep meaningful tokens
-        tokens = []
-        for token in doc:
-            if not token.is_stop and not token.is_punct and not token.is_space:
-                # Use lemmatized form if available, otherwise original token
-                lemma = token.lemma_ if token.lemma_ else token.text
-                tokens.append(lemma)
+        tokens = [
+            token.lemma_ for token in doc
+            if not token.is_stop and not token.is_punct and not token.is_space
+        ]
         return " ".join(tokens)
 
 
-# Singleton instance for reuse
-_nlp_instance = None
+# Cache for loaded models
+_models = {}
 
 
-def get_nlp(lang: str = "zh_core_web_sm") -> SpaCyNLP:
-    """Get or create singleton NLP instance"""
-    global _nlp_instance
-    if _nlp_instance is None or _nlp_instance.lang != lang:
-        _nlp_instance = SpaCyNLP(lang)
-    return _nlp_instance
+def get_nlp(model_name: str = "zh_core_web_sm") -> SpacyNLP:
+    """
+    Get or create a SpacyNLP instance
+
+    Args:
+        model_name: spaCy model name (zh_core_web_sm, en_core_web_sm)
+
+    Returns:
+        SpacyNLP instance
+    """
+    if model_name not in _models:
+        _models[model_name] = SpacyNLP(model_name)
+    return _models[model_name]

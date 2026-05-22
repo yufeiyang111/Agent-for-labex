@@ -10,8 +10,11 @@
         <el-button @click="showExtractDialog = true" type="primary" :icon="MagicStick">
           从讲义提取知识点
         </el-button>
+        <el-button @click="linkQuestionsFast" type="warning" :icon="Connection" :loading="linkingQuestionsFast">
+          快速关联 (Embedding)
+        </el-button>
         <el-button @click="linkQuestions" type="success" :icon="Connection" :loading="linkingQuestions">
-          自动关联题目
+          精确关联 (LLM)
         </el-button>
       </div>
     </div>
@@ -188,6 +191,7 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { Search, MagicStick, Connection } from '@element-plus/icons-vue'
 import { kgApi, studentApi, teacherApi } from '@/api'
 
 const activeTab = ref('points')
@@ -231,6 +235,7 @@ const editTopicForm = reactive({ id: '', name: '', description: '' })
 
 // Question linking
 const linkingQuestions = ref(false)
+const linkingQuestionsFast = ref(false)
 
 // Load
 const loadPoints = async (page = 1) => {
@@ -307,13 +312,13 @@ const extractPoints = async () => {
   }
 }
 
-// Link questions
+// Link questions (LLM - slow)
 const linkQuestions = async () => {
   linkingQuestions.value = true
   try {
     const res = await kgApi.linkQuestions({ forceReprocess: false })
     if (res.code === 0) {
-      ElMessage.success('题目关联已启动，正在后台处理')
+      ElMessage.success('LLM关联已启动，正在后台处理（速度较慢）')
     } else {
       ElMessage.error(res.message || '关联失败')
     }
@@ -321,6 +326,23 @@ const linkQuestions = async () => {
     ElMessage.error('关联请求失败')
   } finally {
     linkingQuestions.value = false
+  }
+}
+
+// Link questions fast (Embedding - fast)
+const linkQuestionsFast = async () => {
+  linkingQuestionsFast.value = true
+  try {
+    const res = await kgApi.linkQuestionsFast({ forceReprocess: false })
+    if (res.code === 0) {
+      ElMessage.success('快速关联已启动，基于向量相似度匹配（速度快）')
+    } else {
+      ElMessage.error(res.message || '关联失败')
+    }
+  } catch (e) {
+    ElMessage.error('关联请求失败')
+  } finally {
+    linkingQuestionsFast.value = false
   }
 }
 

@@ -208,6 +208,17 @@
             <template #default="{ row }">{{ row.score || 10 }}</template>
           </el-table-column>
         </el-table>
+        <div class="pagination-wrapper">
+          <el-pagination
+            v-model:current-page="questionPagination.page"
+            v-model:page-size="questionPagination.pageSize"
+            :page-sizes="[10, 20, 50, 100]"
+            :total="questionPagination.total"
+            layout="total, sizes, prev, pager, next, jumper"
+            @current-change="handleQuestionPageChange"
+            @size-change="handleQuestionSizeChange"
+          />
+        </div>
       </template>
 
       <template v-else>
@@ -231,7 +242,7 @@
           </el-form-item>
 
           <template v-if="directForm.type === 1 || directForm.type === 5">
-            <el-form-item :label="directForm.type === 1 ? '标准答案' : '参考答案'">
+            <el-form-item :value="directForm.type === 1 ? '标准答案' : '参考答案'">
               <el-input v-model="directForm.answer" type="textarea" :rows="3" />
             </el-form-item>
           </template>
@@ -343,6 +354,13 @@ const questionType = ref(null)
 const availableQuestions = ref([])
 const selectedQuestions = ref([])
 const currentHomeworkQuestions = ref([])
+
+// 分页相关
+const questionPagination = reactive({
+  page: 1,
+  pageSize: 20,
+  total: 0
+})
 
 const INITIAL_HOMEWORK_COUNT = 12
 const LOAD_MORE_HOMEWORK_COUNT = 8
@@ -611,6 +629,7 @@ const handleQuestions = async (row) => {
   currentHomeworkId.value = row.homeworkId
   questionAddMode.value = 'bank'
   selectedQuestions.value = []
+  questionPagination.page = 1
   questionDialogVisible.value = true
   resetDirectForm()
   await loadCurrentQuestions()
@@ -628,13 +647,36 @@ const loadCurrentQuestions = async () => {
 
 const loadAvailableQuestions = async () => {
   try {
-    const params = questionType.value ? { type: questionType.value } : {}
+    const params = {
+      page: questionPagination.page,
+      pageSize: questionPagination.pageSize
+    }
+    if (questionType.value) {
+      params.type = questionType.value
+    }
     const res = await teacherApi.homework.getAvailableQuestions(params)
-    const list = res.data || []
-    availableQuestions.value = list.filter((q) => [1, 2, 5, 6].includes(q.type))
+    const data = res.data
+    if (data && data.list) {
+      availableQuestions.value = (data.list || []).filter((q) => [1, 2, 5, 6].includes(q.type))
+      questionPagination.total = data.total || 0
+    } else {
+      availableQuestions.value = (res.data || []).filter((q) => [1, 2, 5, 6].includes(q.type))
+      questionPagination.total = availableQuestions.value.length
+    }
   } catch {
     ElMessage.error('加载题库失败')
   }
+}
+
+const handleQuestionPageChange = (page) => {
+  questionPagination.page = page
+  loadAvailableQuestions()
+}
+
+const handleQuestionSizeChange = (size) => {
+  questionPagination.pageSize = size
+  questionPagination.page = 1
+  loadAvailableQuestions()
 }
 
 const handleQuestionSelectionChange = (selection) => { selectedQuestions.value = selection }
@@ -913,6 +955,7 @@ onMounted(loadHomeworkList)
 
 .question-mode { margin-bottom: 10px; }
 .question-toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.pagination-wrapper { display: flex; justify-content: flex-end; margin-top: 12px; }
 .direct-form { border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px; }
 .direct-action { margin-top: 10px; }
 .choice-editor { display: flex; flex-direction: column; gap: 8px; width: 100%; }

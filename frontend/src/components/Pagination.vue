@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="pagination-wrapper">
     <el-pagination
       v-model:current-page="currentPageSync"

@@ -88,6 +88,28 @@
           <span class="label">解析：</span>
           <span class="value">{{ item.analysis }}</span>
         </div>
+
+        <!-- Judge details for programming questions -->
+        <div v-if="item.judgeResult && item.judgeResult.details" class="judge-detail">
+          <el-divider content-position="left">测试点详情</el-divider>
+          <div class="judge-summary">
+            <span>通过 {{ countPassed(item.judgeResult) }} / {{ item.judgeResult.details.length }}</span>
+          </div>
+          <el-table :data="item.judgeResult.details" size="small" border>
+            <el-table-column label="测试点" width="130">
+              <template #default="{ row, $index }">{{ row.name || `test_${$index + 1}` }}</template>
+            </el-table-column>
+            <el-table-column label="结果" width="100">
+              <template #default="{ row }">
+                <el-tag :type="row.passed ? 'success' : 'danger'" size="small">{{ row.passed ? '通过' : '失败' }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="用时(ms)" width="100">
+              <template #default="{ row }">{{ row.timeMs ?? '-' }}</template>
+            </el-table-column>
+            <el-table-column prop="actualOutput" label="实际输出" min-width="220" show-overflow-tooltip />
+          </el-table>
+        </div>
       </div>
     </el-card>
   </div>
@@ -131,6 +153,11 @@ function isCorrect(item) {
   if (item.isCorrect === 0) return false
   if (item.score !== null && item.maxScore && item.score >= item.maxScore) return true
   return false
+}
+
+function countPassed(judgeResult) {
+  if (!judgeResult?.details) return 0
+  return judgeResult.details.filter((d) => d.passed).length
 }
 
 function formatDate(date) {
@@ -406,5 +433,24 @@ onMounted(loadResult)
     color: #6b7280;
     font-style: italic;
   }
+}
+
+.judge-detail {
+  margin-top: 12px;
+  padding: 8px 0;
+}
+
+.judge-detail :deep(.el-divider__text) {
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.judge-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+  font-size: 14px;
+  color: #374151;
 }
 </style>

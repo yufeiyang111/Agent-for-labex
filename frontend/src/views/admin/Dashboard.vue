@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="admin-dashboard">
     <!-- 面包屑导航 -->
     <el-breadcrumb separator="/" class="breadcrumb">

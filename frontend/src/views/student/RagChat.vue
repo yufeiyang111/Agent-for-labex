@@ -87,15 +87,29 @@
               <div class="message-bubble">
                 <div class="message-text" v-html="formatMessage(msg.content)"></div>
                 <div v-if="msg.sources && msg.sources.length > 0" class="sources">
-                  <div class="sources-title">参考来源：</div>
+                  <div class="sources-title">
+                    <el-icon><Document /></el-icon>
+                    参考资料 ({{ msg.sources.length }})
+                  </div>
                   <div
                     v-for="(source, sIdx) in msg.sources"
                     :key="sIdx"
                     class="source-item"
                     @click="previewLectureFn(source)"
                   >
-                    <el-icon><Document /></el-icon>
-                    <span class="source-text">{{ source.lectureName || '讲义' }} - {{ source.text ? source.text.substring(0, 50) : '' }}...</span>
+                    <div class="source-icon">
+                      <el-icon><Document /></el-icon>
+                    </div>
+                    <div class="source-info">
+                      <div class="source-name">{{ source.lectureName || '未知讲义' }}</div>
+                      <div class="source-excerpt">{{ source.text ? source.text.substring(0, 80) : '' }}...</div>
+                      <div class="source-meta">
+                        <span v-if="source.score" class="source-score">
+                          相关度: {{ (source.score * 100).toFixed(0) }}%
+                        </span>
+                        <span class="source-action">点击预览</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1157,49 +1171,107 @@ onMounted(() => {
 
 /* ==================== Sources ==================== */
 .sources {
-  margin-top: 10px;
+  margin-top: 12px;
   padding-top: 10px;
   border-top: 1px solid #e8ecf0;
 }
 
 .sources-title {
   font-size: 12px;
-  font-weight: 500;
-  color: #909399;
-  margin-bottom: 6px;
+  font-weight: 600;
+  color: #606266;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sources-title :deep(.el-icon) {
+  font-size: 14px;
+  color: #409eff;
 }
 
 .source-item {
   display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  background: #f5f6f8;
-  border-radius: 6px;
-  margin-top: 4px;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  background: linear-gradient(135deg, #f8fafb 0%, #f0f7ff 100%);
+  border-radius: 8px;
+  margin-top: 6px;
   cursor: pointer;
-  transition: all 0.15s;
-  border: 1px solid transparent;
+  transition: all 0.2s ease;
+  border: 1px solid #e8ecf0;
 }
 
 .source-item:hover {
-  background: #e8f5e9;
+  background: linear-gradient(135deg, #e8f5e9 0%, #e3f2fd 100%);
   border-color: #c8e6c9;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(64, 158, 255, 0.1);
 }
 
-.source-item :deep(.el-icon) {
-  font-size: 14px;
-  color: #4caf50;
+.source-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  background: linear-gradient(135deg, #409eff 0%, #337ecc 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
 }
 
-.source-text {
-  color: #606266;
-  font-size: 12px;
+.source-icon :deep(.el-icon) {
+  font-size: 16px;
+  color: #fff;
+}
+
+.source-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.source-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1f2328;
+  margin-bottom: 4px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  line-height: 1.4;
+}
+
+.source-excerpt {
+  font-size: 12px;
+  color: #606266;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.source-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 6px;
+}
+
+.source-score {
+  font-size: 11px;
+  color: #67c23a;
+  font-weight: 500;
+  background: #f0f9eb;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.source-action {
+  font-size: 11px;
+  color: #409eff;
+  font-weight: 500;
 }
 
 /* ==================== Footer ==================== */

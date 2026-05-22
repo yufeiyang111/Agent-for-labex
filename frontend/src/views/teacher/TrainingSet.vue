@@ -65,7 +65,8 @@
     <!-- Question Management Dialog -->
     <el-dialog v-model="questionDialogVisible" :title="'题目管理 - ' + (currentTs?.name || '')" width="1080px" destroy-on-close>
       <div class="question-toolbar">
-        <el-select v-model="questionType" placeholder="题目类型" clearable style="width: 160px">
+        <el-select v-model="questionType" placeholder="题目类型" clearable style="width: 140px">
+          <el-option label="全部类型" :value="null" />
           <el-option label="填空题" :value="1" />
           <el-option label="单选题" :value="2" />
           <el-option label="多选题" :value="3" />
@@ -74,12 +75,15 @@
           <el-option label="编程题" :value="6" />
           <el-option label="综合题" :value="7" />
         </el-select>
+        <el-input v-model="questionKeyword" placeholder="搜索题目内容" clearable style="width: 200px" @keyup.enter="loadAvailableQuestions" />
         <el-button type="primary" @click="loadAvailableQuestions">筛选</el-button>
+        <el-button type="info" plain @click="resetQuestionFilter">重置</el-button>
+        <div style="flex:1"></div>
         <el-button type="success" :disabled="selectedQuestions.length === 0" @click="confirmAddQuestions">
           添加选中（{{ selectedQuestions.length }}）
         </el-button>
       </div>
-      <el-table :data="availableQuestions" @selection-change="handleSelectionChange" stripe height="320">
+      <el-table :data="availableQuestions" @selection-change="handleSelectionChange" stripe height="320" v-loading="questionLoading">
         <el-table-column type="selection" width="55" />
         <el-table-column prop="id" label="ID" width="80" />
         <el-table-column label="类型" width="90">
@@ -92,6 +96,18 @@
           <template #default="{ row }">{{ row.score || 10 }}</template>
         </el-table-column>
       </el-table>
+      <div class="pagination-wrapper">
+        <el-pagination
+          v-model:current-page="questionPagination.page"
+          v-model:page-size="questionPagination.pageSize"
+          :page-sizes="[10, 20, 50, 100]"
+          :total="questionPagination.total"
+          :background="true"
+          layout="total, sizes, prev, pager, next, jumper"
+          @current-change="handleQuestionPageChange"
+          @size-change="handleQuestionSizeChange"
+        />
+      </div>
 
       <div class="current-questions" v-if="currentQuestions.length > 0">
         <h4>当前训练集题目（{{ currentQuestions.length }}）</h4>
@@ -182,9 +198,18 @@ const currentTs = ref(null)
 
 const questionDialogVisible = ref(false)
 const questionType = ref(null)
+const questionKeyword = ref('')
+const questionLoading = ref(false)
 const availableQuestions = ref([])
 const selectedQuestions = ref([])
 const currentQuestions = ref([])
+
+// 分页相关
+const questionPagination = reactive({
+  page: 1,
+  pageSize: 20,
+  total: 0
+})
 
 const recordDialogVisible = ref(false)
 const recordLoading = ref(false)
@@ -293,6 +318,9 @@ function handleDelete(ts) {
 async function handleQuestions(ts) {
   currentTs.value = ts
   selectedQuestions.value = []
+  questionType.value = null
+  questionKeyword.value = ''
+  questionPagination.page = 1
   questionDialogVisible.value = true
   await loadCurrentQuestions(ts.trainingSetId)
   await loadAvailableQuestions()
@@ -308,13 +336,53 @@ async function loadCurrentQuestions(trainingSetId) {
 }
 
 async function loadAvailableQuestions() {
+  questionLoading.value = true
   try {
-    const params = questionType.value ? { type: questionType.value } : {}
+    const params = {
+      page: questionPagination.page,
+      pageSize: questionPagination.pageSize
+    }
+    if (questionType.value) {
+      params.type = questionType.value
+    }
+    if (questionKeyword.value) {
+      params.keyword = questionKeyword.value
+    }
     const res = await trainingApi.teacher.getAvailableQuestions(params)
-    availableQuestions.value = res.data || []
+    const data = res.data
+    if (data && data.list) {
+      availableQuestions.value = data.list || []
+      questionPagination.total = data.total || 0
+    } else if (data && Array.isArray(data)) {
+      availableQuestions.value = data
+      questionPagination.total = data.length
+    } else {
+      availableQuestions.value = []
+      questionPagination.total = 0
+    }
   } catch {
     ElMessage.error('加载题库失败')
+  } finally {
+    questionLoading.value = false
   }
+}
+
+function resetQuestionFilter() {
+  questionType.value = null
+  questionKeyword.value = ''
+  questionPagination.page = 1
+  loadAvailableQuestions()
+}
+
+function handleQuestionPageChange(page) {
+  questionPagination.page = page
+  loadAvailableQuestions()
+}
+
+function handleQuestionSizeChange(size) {
+  questionPagination.pageSize = size
+  questionPagination.page = 1
+  loadAvailableQuestions()
 }
 
 function handleSelectionChange(selection) {
@@ -406,6 +474,7 @@ onMounted(loadTrainingSets)
 .actions { display: flex; gap: 8px; flex-wrap: wrap; }
 
 .question-toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.pagination-wrapper { display: flex; justify-content: flex-end; margin-top: 12px; }
 .current-questions { margin-top: 16px; }
 .current-questions h4 { margin: 0 0 8px; color: #111827; }
 </style>

@@ -148,7 +148,11 @@
       </template>
 
       <div class="lecture-content" v-if="currentLecture">
-        <div v-if="currentLecture.lectureContent" v-html="currentLecture.lectureContent"></div>
+        <div v-if="currentLecture.lectureContent && !isMarkdownFile" v-html="currentLecture.lectureContent"></div>
+
+        <div v-else-if="markdownHtmlContent && isMarkdownFile" class="markdown-container">
+          <div class="markdown-content" v-html="markdownHtmlContent"></div>
+        </div>
 
         <div v-else-if="currentLecture.filePath" class="file-preview">
           <div v-if="isPdfFile" class="pdf-container">
@@ -382,6 +386,7 @@ import { Document, Download, Loading, CircleCloseFilled, View, Refresh } from '@
 import * as pdfjsLib from 'pdfjs-dist'
 import mammoth from 'mammoth'
 import { marked } from 'marked'
+import hljs from 'highlight.js'
 import * as XLSX from 'xlsx'
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
@@ -497,7 +502,13 @@ const normalizedFileExt = computed(() => {
 
   const filePath = String(lecture.filePath || '').trim().toLowerCase()
   const match = filePath.match(/\.([a-z0-9]+)(?:$|[?#])/)
-  return match ? match[1] : ''
+  if (match) return match[1]
+
+  if (lecture.lectureContent && /^#\s|```|^>\s|\*\*|^\|.*\|/m.test(lecture.lectureContent)) {
+    return 'md'
+  }
+
+  return ''
 })
 
 const isPdfFile = computed(() => {
@@ -604,7 +615,10 @@ const viewLecture = async (row) => {
   spreadsheetWorkbook = null
 
   await nextTick()
-  if (currentLecture.value?.filePath) {
+
+  if (currentLecture.value?.lectureContent && isMarkdownFile.value) {
+    markdownHtmlContent.value = marked.parse(currentLecture.value.lectureContent, { renderer: markdownRenderer })
+  } else if (currentLecture.value?.filePath) {
     loadFilePreview()
   }
 }
@@ -657,11 +671,97 @@ marked.setOptions({
   breaks: true
 })
 
+let mdTableIndex = 0
 const markdownRenderer = new marked.Renderer()
+
+markdownRenderer.heading = ({ tokens, depth }) => {
+  const text = marked.Parser.parseInline(tokens || [])
+  const id = `h-${depth}-${mdTableIndex++}`
+  return `<h${depth} id="${id}">${text}</h${depth}>`
+}
+
+markdownRenderer.code = ({ text, lang }) => {
+  const language = lang || 'text'
+  const langClass = language ? `language-${language}` : ''
+
+  let highlighted
+  if (language && hljs.getLanguage(language)) {
+    try {
+      highlighted = hljs.highlight(text, { language }).value
+    } catch (e) {
+      highlighted = hljs.highlightAuto(text).value
+    }
+  } else {
+    highlighted = hljs.highlightAuto(text).value
+  }
+
+  return `<div class="code-block-wrapper">
+    <div class="code-block-header">
+      <span class="code-lang-label">${language}</span>
+      <button class="code-copy-btn" onclick="navigator.clipboard.writeText(this.closest('.code-block-wrapper').querySelector('code').textContent).then(()=>{this.textContent='已复制';setTimeout(()=>{this.textContent='复制'},1500)})">复制</button>
+    </div>
+    <pre><code class="${langClass}">${highlighted}</code></pre>
+  </div>`
+}
+
+markdownRenderer.table = ({ header, rows }) => {
+  const headerHtml = header.map(cell => {
+    const content = marked.Parser.parseInline(cell.tokens || [])
+    return `<th>${content}</th>`
+  }).join('')
+
+  const rowsHtml = rows.map(row => {
+    const cells = row.map(cell => {
+      const content = marked.Parser.parseInline(cell.tokens || [])
+      return `<td>${content}</td>`
+    }).join('')
+    return `<tr>${cells}</tr>`
+  }).join('')
+
+  return `<div class="table-wrapper">
+    <div class="table-header-bar">
+      <span class="table-label">表格</span>
+      <button class="table-copy-btn" onclick="(function(){const tbl=this.closest('.table-wrapper').querySelector('table');let csv='';tbl.querySelectorAll('tr').forEach((r,ri)=>{let row='';r.querySelectorAll('th,td').forEach((c,ci)=>{let val=c.textContent.trim().replace(/"/g,'""');if(ri>0&&(ci===0||row))row+=',';row+='"'+val+'"';});csv+=row+'\\n';});navigator.clipboard.writeText(csv).then(()=>{this.textContent='已复制';setTimeout(()=>{this.textContent='复制表格'},1500)})})()">复制表格</button>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead><tr>${headerHtml}</tr></thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+    </div>
+  </div>`
+}
+
 markdownRenderer.link = ({ href, title, tokens }) => {
   const safeHref = href || '#'
   const titleAttr = title ? ` title="${title}"` : ''
   return `<a href="${safeHref}"${titleAttr} target="_blank" rel="noopener noreferrer">${marked.Parser.parseInline(tokens || [])}</a>`
+}
+
+markdownRenderer.list = ({ ordered, items }) => {
+  const tag = ordered ? 'ol' : 'ul'
+  const itemsHtml = items.map(item => {
+    const content = marked.Parser.parseInline(item.tokens || [])
+    return `<li>${content}</li>`
+  }).join('')
+  return `<${tag}>${itemsHtml}</${tag}>`
+}
+
+markdownRenderer.blockquote = ({ tokens }) => {
+  const body = marked.Parser.parse(tokens || [])
+  return `<blockquote>${body}</blockquote>`
+}
+
+markdownRenderer.image = ({ href, title, text }) => {
+  const alt = text || ''
+  const titleAttr = title ? ` title="${title}"` : ''
+  return `<img src="${href}" alt="${alt}"${titleAttr} loading="lazy" />`
+}
+
+markdownRenderer.hr = () => `<hr />`
+
+markdownRenderer.checkbox = ({ checked }) => {
+  return `<input type="checkbox" ${checked ? 'checked' : ''} disabled />`
 }
 
 const loadPptPreview = async () => {
@@ -1053,6 +1153,8 @@ onUnmounted(() => {
 </script>
 
 <style lang="scss" scoped>
+@import 'highlight.js/styles/github.css';
+
 .lecture-page {
   max-width: 1400px;
   margin: 0 auto;
@@ -1301,25 +1403,225 @@ onUnmounted(() => {
     line-height: 1.75;
     color: #24292f;
     overflow-wrap: break-word;
-    :deep(h1), :deep(h2), :deep(h3), :deep(h4), :deep(h5), :deep(h6) { margin: 20px 0 12px; line-height: 1.35; font-weight: 600; color: #1f2328; }
-    :deep(h1) { font-size: 30px; border-bottom: 1px solid #d8dee4; padding-bottom: 10px; }
-    :deep(h2) { font-size: 24px; border-bottom: 1px solid #d8dee4; padding-bottom: 8px; }
-    :deep(h3) { font-size: 20px; }
-    :deep(p) { margin: 12px 0; }
-    :deep(ul), :deep(ol) { margin: 10px 0 10px 24px; padding: 0; }
-    :deep(li) { margin: 4px 0; }
-    :deep(blockquote) { margin: 14px 0; padding: 8px 14px; border-left: 4px solid #8ab4f8; background: #f4f8ff; color: #3d4c63; }
-    :deep(pre) { margin: 14px 0; padding: 14px; overflow-x: auto; border-radius: 8px; background: #0f172a; }
-    :deep(code) { font-family: 'Consolas', 'Monaco', 'Courier New', monospace; }
-    :deep(pre code) { color: #e2e8f0; font-size: 13px; }
-    :deep(:not(pre) > code) { background: #f1f3f5; padding: 2px 6px; border-radius: 4px; color: #b42318; font-size: 13px; }
-    :deep(table) { width: 100%; border-collapse: collapse; margin: 14px 0; border: 1px solid #d0d7de; }
-    :deep(th), :deep(td) { border: 1px solid #d0d7de; padding: 8px 10px; text-align: left; vertical-align: top; }
-    :deep(th) { background: #f6f8fa; font-weight: 600; }
+
+    :deep(h1), :deep(h2), :deep(h3), :deep(h4), :deep(h5), :deep(h6) {
+      margin: 24px 0 14px;
+      line-height: 1.35;
+      font-weight: 600;
+      color: #1f2328;
+    }
+    :deep(h1) { font-size: 28px; border-bottom: 2px solid #d0d7de; padding-bottom: 12px; margin-top: 32px; }
+    :deep(h2) { font-size: 22px; border-bottom: 1px solid #d8dee4; padding-bottom: 10px; margin-top: 28px; }
+    :deep(h3) { font-size: 18px; margin-top: 24px; }
+    :deep(h4) { font-size: 16px; }
+    :deep(h5) { font-size: 14px; }
+    :deep(h6) { font-size: 13px; color: #636c76; }
+
+    :deep(p) { margin: 14px 0; }
+
+    :deep(ul), :deep(ol) { margin: 12px 0 12px 28px; padding: 0; }
+    :deep(li) { margin: 5px 0; }
+    :deep(li > ul), :deep(li > ol) { margin: 4px 0 4px 20px; }
+
+    :deep(blockquote) {
+      margin: 16px 0;
+      padding: 12px 18px;
+      border-left: 4px solid #8ab4f8;
+      background: linear-gradient(135deg, #f0f7ff 0%, #f4f8ff 100%);
+      color: #3d4c63;
+      border-radius: 0 8px 8px 0;
+      :deep(p) { margin: 4px 0; }
+    }
+
+    :deep(.code-block-wrapper) {
+      margin: 16px 0;
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid #1e293b;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      .code-block-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 8px 14px;
+        background: #1e293b;
+        border-bottom: 1px solid #334155;
+        .code-lang-label {
+          font-size: 12px;
+          font-weight: 600;
+          color: #94a3b8;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+        .code-copy-btn {
+          padding: 4px 12px;
+          font-size: 12px;
+          font-weight: 500;
+          color: #94a3b8;
+          background: rgba(255, 255, 255, 0.08);
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          border-radius: 6px;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          &:hover {
+            color: #e2e8f0;
+            background: rgba(255, 255, 255, 0.15);
+            border-color: rgba(255, 255, 255, 0.2);
+          }
+        }
+      }
+      pre {
+        margin: 0 !important;
+        padding: 16px !important;
+        background: #0f172a !important;
+        border-radius: 0 !important;
+        overflow-x: auto;
+        code {
+          font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', 'Monaco', 'Courier New', monospace;
+          color: #e2e8f0;
+          font-size: 13px;
+          line-height: 1.6;
+          background: none !important;
+          padding: 0 !important;
+        }
+      }
+    }
+
+    :deep(pre) {
+      margin: 16px 0;
+      padding: 0;
+      background: transparent;
+      border-radius: 0;
+      overflow: visible;
+    }
+
+    :deep(code) {
+      font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', 'Monaco', 'Courier New', monospace;
+    }
+
+    :deep(:not(pre) > code) {
+      background: #f1f3f5;
+      padding: 2px 6px;
+      border-radius: 5px;
+      color: #b42318;
+      font-size: 13px;
+      font-weight: 500;
+      border: 1px solid #e8e8e8;
+    }
+
+    :deep(.table-wrapper) {
+      margin: 16px 0;
+      border-radius: 10px;
+      border: 1px solid #d0d7de;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+      .table-header-bar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 8px 14px;
+        background: #f6f8fa;
+        border-bottom: 1px solid #d0d7de;
+        .table-label {
+          font-size: 12px;
+          font-weight: 600;
+          color: #636c76;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+        .table-copy-btn {
+          padding: 4px 12px;
+          font-size: 12px;
+          font-weight: 500;
+          color: #636c76;
+          background: #ffffff;
+          border: 1px solid #d0d7de;
+          border-radius: 6px;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          &:hover {
+            color: #0969da;
+            border-color: #0969da;
+            background: #f0f7ff;
+          }
+        }
+      }
+      .table-scroll {
+        overflow-x: auto;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 0;
+        font-size: 14px;
+        thead {
+          tr { background: #f6f8fa; }
+          th {
+            padding: 10px 14px;
+            text-align: left;
+            font-weight: 600;
+            color: #24292f;
+            border-bottom: 2px solid #d0d7de;
+            white-space: nowrap;
+          }
+        }
+        tbody {
+          tr {
+            transition: background 0.15s ease;
+            &:nth-child(even) { background: #f9fafb; }
+            &:hover { background: #f0f7ff; }
+          }
+          td {
+            padding: 10px 14px;
+            border-bottom: 1px solid #eaecef;
+            color: #3d4c5e;
+            vertical-align: top;
+          }
+        }
+      }
+    }
+
+    :deep(table) {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0;
+      border: 1px solid #d0d7de;
+    }
+    :deep(th), :deep(td) {
+      border: 1px solid #d0d7de;
+      padding: 8px 10px;
+      text-align: left;
+      vertical-align: top;
+    }
+    :deep(th) {
+      background: #f6f8fa;
+      font-weight: 600;
+    }
+
     :deep(a) { color: #0969da; text-decoration: none; }
     :deep(a:hover) { text-decoration: underline; }
-    :deep(img) { max-width: 100%; border-radius: 8px; margin: 12px 0; box-shadow: 0 2px 8px rgba(15, 23, 42, 0.12); }
-    :deep(hr) { border: 0; border-top: 1px solid #d8dee4; margin: 20px 0; }
+
+    :deep(img) {
+      max-width: 100%;
+      border-radius: 8px;
+      margin: 14px 0;
+      box-shadow: 0 2px 8px rgba(15, 23, 42, 0.12);
+    }
+
+    :deep(hr) {
+      border: 0;
+      border-top: 2px solid #d0d7de;
+      margin: 24px 0;
+    }
+
+    :deep(input[type="checkbox"]) {
+      margin-right: 6px;
+      transform: scale(1.1);
+    }
+
+    :deep(strong) { font-weight: 600; color: #1f2328; }
+    :deep(em) { font-style: italic; }
+    :deep(del) { text-decoration: line-through; color: #636c76; }
   }
 }
 

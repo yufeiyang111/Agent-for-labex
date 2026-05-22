@@ -107,9 +107,10 @@ rag:
   # Python 嵌入服务地址
   embedding-service-url: http://localhost:5000
   # MiniMax API Key（请替换为你的实际API Key）
-  mini-max-api-key: sk-api-ILMujkml6Hdqp5jrzdHf-f7qkf3B1F2wsRANW8UM9Ni0okCzAtcHFZjDD6Na11gCeype58bzT4djBL84FGnKYMQ9rfGDhUReQ52eNDo4pHwMM-pJ6H021QM
+#  sk-api-ILMujkml6Hdqp5jrzdHf-f7qkf3B1F2wsRANW8UM9Ni0okCzAtcHFZjDD6Na11gCeype58bzT4djBL84FGnKYMQ9rfGDhUReQ52eNDo4pHwMM-pJ6H021QM
+  mini-max-api-key: sk-cp-RXPtq9jNm3nrU4uqccKuuu-PE3Yh-79mPvgjOKflViPPWtDRWkSV2_9TFKXOQTxUkKlENtgATd3umSRMm5llkLmCoeClpeH9OYx5DWvOr5M2sI-XXxHfXOE
   # MiniMax API 基础地址
-  mini-max-base-url: https://api.minimax.chat/v1
+  mini-max-base-url: https://api.minimaxi.com/v1
   # MiniMax 模型
   mini-max-model: MiniMax-M2.7
   # 最大上下文块数

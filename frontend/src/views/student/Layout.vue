@@ -1,11 +1,11 @@
-﻿<template>
+<template>
   <div class="student-layout">
     <!-- 侧边栏 -->
     <aside class="sidebar" :class="{ collapsed: isCollapse }">
       <div class="logo-container">
         <div class="logo">
+          <AppIcon :size="isCollapse ? 34 : 38" compact />
           <span v-if="!isCollapse">Labex</span>
-          <span v-else>L</span>
         </div>
       </div>
 
@@ -43,7 +43,7 @@
         </el-menu-item>
         <el-menu-item index="/student/cloud-space">
           <el-icon><Cloudy /></el-icon>
-          <template #title>Cloud Code Space</template>
+          <template #title>云代码空间</template>
         </el-menu-item>
         <el-menu-item index="/student/recommendation">
           <el-icon><Aim /></el-icon>
@@ -106,8 +106,9 @@
 import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
-import { Document, UserFilled, EditPen, CollectionTag, Notebook, Fold, Expand, ChatDotRound, Aim, List } from '@element-plus/icons-vue'
+import { Document, UserFilled, EditPen, CollectionTag, Notebook, Fold, Expand, ChatDotRound, Aim, List, Cloudy } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
+import AppIcon from '@/components/AppIcon.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -168,9 +169,12 @@ const handleCommand = async (command) => {
     overflow: hidden;
 
     .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
       font-size: 20px;
       font-weight: 700;
-      color: #4caf50;
+      color: #0f172a;
       letter-spacing: -0.5px;
     }
   }

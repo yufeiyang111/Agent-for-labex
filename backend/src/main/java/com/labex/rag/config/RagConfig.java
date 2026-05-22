@@ -16,9 +16,9 @@ public class RagConfig {
 
     private String miniMaxApiKey;
 
-    private String miniMaxBaseUrl = "https://api.minimax.chat";
+    private String miniMaxBaseUrl = "https://api.minimaxi.com/v1";
 
-    private String miniMaxModel = "abab6.5s-chat";
+    private String miniMaxModel = "MiniMax-M2.7";
 
     private int maxContextChunks = 10;
 
@@ -27,4 +27,10 @@ public class RagConfig {
     private int chunkOverlap = 50;
 
     private String uploadPath = "D:/workfordasan/uploads";
+
+    private String llmProvider = "minimax";
+
+    private String ollamaBaseUrl = "http://localhost:11434";
+
+    private String ollamaModel = "qwen2.5:3b";
 }

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 题目类型枚举
  */
 export const QUESTION_TYPES = {

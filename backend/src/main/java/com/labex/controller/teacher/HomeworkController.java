@@ -291,15 +291,31 @@ public class HomeworkController {
      * 获取所有可用题目（用于添加）
      */
     @GetMapping("/available-questions")
-    public Result<List<Question>> getAvailableQuestions(
+    public Result<PageResult<Question>> getAvailableQuestions(
+            @RequestParam(defaultValue = "1") Integer page,
+            @RequestParam(defaultValue = "20") Integer pageSize,
             @RequestParam(required = false) Integer type) {
         Integer teacherId = getCurrentTeacherId();
-        List<Question> questions = questionService.findByTeacherId(teacherId);
-        if (type != null) {
-            questions = questions.stream().filter(q -> q.getType().equals(type)).toList();
+        LambdaQueryWrapper<Question> wrapper = new LambdaQueryWrapper<>();
+        if (teacherId != null) {
+            wrapper.eq(Question::getTeacherId, teacherId);
         }
-        questions.forEach(q -> q.setTypeName(getTypeName(q.getType())));
-        return Result.success(questions);
+        wrapper.eq(Question::getState, 1);
+        if (type != null) {
+            wrapper.eq(Question::getType, type);
+        }
+        wrapper.orderByDesc(Question::getId);
+        
+        Page<Question> p = questionService.page(new Page<>(page, pageSize), wrapper);
+        p.getRecords().forEach(q -> q.setTypeName(getTypeName(q.getType())));
+        
+        PageResult<Question> pageResult = new PageResult<>();
+        pageResult.setPageNum(page);
+        pageResult.setPageSize(pageSize);
+        pageResult.setTotal(p.getTotal());
+        pageResult.setList(p.getRecords());
+        pageResult.setTotalPages((int) Math.ceil((double) p.getTotal() / pageSize));
+        return Result.success(pageResult);
     }
 
     private String getTypeName(Integer type) {

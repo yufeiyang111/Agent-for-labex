@@ -124,7 +124,7 @@
 
             <template v-else-if="currentQuestion.type === 2">
               <el-radio-group v-model="answers[currentQuestion.id]" class="option-group" @change="saveAnswer(currentQuestion)">
-                <el-radio v-for="(opt, key) in parseQuestionOptions(currentQuestion.options)" :key="key" :label="key">
+                <el-radio v-for="(opt, key) in parseQuestionOptions(currentQuestion.options)" :key="key" :value="key">
                   <strong>{{ key }}.</strong> {{ opt }}
                 </el-radio>
               </el-radio-group>
@@ -145,14 +145,12 @@
                 <span class="test-count">测试点：{{ currentQuestion.testCaseCount || 0 }}</span>
               </div>
 
-              <el-input
-                v-model="answers[currentQuestion.id]"
-                type="textarea"
-                :rows="14"
-                class="code-input"
-                placeholder="在此编写代码..."
-                @input="debouncedSave(currentQuestion)"
-              />
+              <MonacoEditor
+                  v-model="answers[currentQuestion.id]"
+                  :language="programmingLang[currentQuestion.id] || 'java'"
+                  height="320px"
+                  @input="debouncedSave(currentQuestion)"
+                />
 
               <div class="judge-panel" v-if="judgeResults[currentQuestion.id]">
                 <div class="judge-summary">

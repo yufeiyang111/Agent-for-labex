@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="profile-page">
     <!-- 页面标题 -->
     <el-card class="page-header">

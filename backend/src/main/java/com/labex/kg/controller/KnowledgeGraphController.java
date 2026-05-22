@@ -6,6 +6,7 @@ import com.labex.kg.dto.KnowledgePointDTO;
 import com.labex.kg.dto.TopicDTO;
 import com.labex.kg.service.KnowledgeExtractionService;
 import com.labex.kg.service.KnowledgeGraphService;
+import com.labex.kg.service.ProductionQuestionLinkingService;
 import com.labex.kg.service.QuestionLinkingService;
 import com.labex.mapper.QuestionMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -30,6 +31,9 @@ public class KnowledgeGraphController {
 
     @Autowired
     private QuestionLinkingService linkingService;
+
+    @Autowired
+    private ProductionQuestionLinkingService productionLinkingService;
 
     @Autowired
     private QuestionMapper questionMapper;
@@ -93,7 +97,7 @@ public class KnowledgeGraphController {
         return Result.success(null);
     }
 
-    /** Batch link questions to knowledge points */
+    /** Batch link questions to knowledge points (LLM - slow) */
     @PostMapping("/link-questions")
     public Result<Map<String, Object>> linkQuestions(@RequestBody Map<String, Object> body) {
         boolean forceReprocess = (Boolean) body.getOrDefault("forceReprocess", false);
@@ -102,8 +106,23 @@ public class KnowledgeGraphController {
         linkingService.linkQuestions(allQuestions, forceReprocess);
 
         Map<String, Object> result = new HashMap<>();
-        result.put("message", "Question linking started asynchronously");
+        result.put("message", "Question linking started asynchronously (LLM mode)");
         result.put("totalQuestions", allQuestions.size());
+        return Result.success(result);
+    }
+
+    /** Fast link questions using embedding similarity (Production) */
+    @PostMapping("/link-questions-fast")
+    public Result<Map<String, Object>> linkQuestionsFast(@RequestBody Map<String, Object> body) {
+        boolean forceReprocess = (Boolean) body.getOrDefault("forceReprocess", false);
+        List<Question> allQuestions = questionMapper.selectList(null);
+
+        productionLinkingService.linkQuestionsFast(allQuestions, forceReprocess);
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("message", "Fast question linking started (Embedding mode)");
+        result.put("totalQuestions", allQuestions.size());
+        result.put("mode", "embedding_similarity");
         return Result.success(result);
     }
 

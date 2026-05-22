@@ -315,6 +315,9 @@ export const teacherApi = {
     getPendingStudents(examId) {
       return request.get(`/teacher/grading/exam/${examId}/pending-students`)
     },
+    getGradedStudents(examId) {
+      return request.get(`/teacher/grading/exam/${examId}/graded-students`)
+    },
     getStudentQuestions(examId, studentId) {
       return request.get(`/teacher/grading/exam/${examId}/student/${studentId}/questions`)
     },
@@ -716,9 +719,13 @@ export const kgApi = {
   deletePoint(id) {
     return request.delete(`/kg/points/${id}`)
   },
-  // 鎵归噺鍏宠仈棰樼洰鍒扮煡璇嗙偣
+  // 鎵归噺鍏宠仈棰樼洰鍒扮煡璇嗙偣 (LLM - 鎱?)
   linkQuestions(data) {
     return request.post('/kg/link-questions', data)
+  },
+  // 蹇€熷叧鑱旈鐩? Embedding - 蹇?)
+  linkQuestionsFast(data) {
+    return request.post('/kg/link-questions-fast', data)
   },
   // 涓婚鍒楄〃
   getTopics() {
@@ -728,15 +735,15 @@ export const kgApi = {
   createTopic(data) {
     return request.post('/kg/topics', data)
   },
-  // 鏇存柊涓婚
+  // 鏇存柊涓婚
   updateTopic(id, data) {
     return request.put(`/kg/topics/${id}`, data)
   },
-  // 鍒犻櫎涓婚
+  // 鍒犻櫎涓婚
   deleteTopic(id) {
     return request.delete(`/kg/topics/${id}`)
   },
-  // 鐭ヨ瘑鍥捐氨缁熻
+  // 鐭ヨ瘑鍥捐氨缁熻
   getStats() {
     return request.get('/kg/stats')
   },
@@ -837,6 +844,11 @@ export const trainingApi = {
     },
     runCode(code, language) {
       return request.post('/student/training/run-code', null, { params: { code, language } })
+    },
+    runProgrammingTests(trainingSetId, questionId, code, language) {
+      return request.post(`/student/training/${trainingSetId}/question/${questionId}/run-tests`, null, {
+        params: { code, language }
+      })
     },
     getResult(id, attemptId) {
       return request.get(`/student/training/${id}/result/${attemptId}`)

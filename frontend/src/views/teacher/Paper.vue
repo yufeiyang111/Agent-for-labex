@@ -83,8 +83,8 @@
         </el-form-item>
         <el-form-item label="状态">
           <el-radio-group v-model="formData.state">
-            <el-radio :label="1">启用</el-radio>
-            <el-radio :label="0">禁用</el-radio>
+            <el-radio :value="1">启用</el-radio>
+            <el-radio :value="0">禁用</el-radio>
           </el-radio-group>
         </el-form-item>
       </el-form>
@@ -130,6 +130,17 @@
               <template #default="{ row }">{{ row.score || 10 }}</template>
             </el-table-column>
           </el-table>
+          <div class="pagination-wrapper">
+            <el-pagination
+              v-model:current-page="questionPagination.page"
+              v-model:page-size="questionPagination.pageSize"
+              :page-sizes="[10, 20, 50, 100]"
+              :total="questionPagination.total"
+              layout="total, sizes, prev, pager, next, jumper"
+              @current-change="handleQuestionPageChange"
+              @size-change="handleQuestionSizeChange"
+            />
+          </div>
         </div>
         <div class="question-selected">
           <h4>已选择（预览）</h4>
@@ -159,19 +170,26 @@ import { teacherApi } from '@/api/index.js'
 const loading = ref(false)
 const loadingMore = ref(false)
 const submitting = ref(false)
+const isEdit = ref(false)
 const paperList = ref([])
 const displayedPapers = ref([])
 const dialogVisible = ref(false)
 const questionDialogVisible = ref(false)
-const isEdit = ref(false)
 const formRef = ref(null)
 const searchQuery = ref('')
 const currentPaperId = ref(null)
+const questionType = ref(null)
 const allQuestions = ref([])
 const selectedQuestions = ref([])
-const questionType = ref(null)
 const questionTableRef = ref(null)
 const paperGridRef = ref(null)
+
+// 分页相关
+const questionPagination = reactive({
+  page: 1,
+  pageSize: 20,
+  total: 0
+})
 
 const INITIAL_PAGE_SIZE = 12
 const LOAD_MORE_SIZE = 8
@@ -281,6 +299,7 @@ const handleSubmit = async () => {
 const handleQuestions = async (row) => {
   currentPaperId.value = row.id
   selectedQuestions.value = []
+  questionPagination.page = 1
   questionDialogVisible.value = true
   await loadQuestions()
   try {
@@ -298,14 +317,36 @@ const handleQuestions = async (row) => {
 
 const loadQuestions = async () => {
   try {
-    const res = await teacherApi.question.getAll()
-    allQuestions.value = res.data || []
+    const params = {
+      page: questionPagination.page,
+      pageSize: questionPagination.pageSize
+    }
     if (questionType.value) {
-      allQuestions.value = allQuestions.value.filter((q) => q.type === questionType.value)
+      params.type = questionType.value
+    }
+    const res = await teacherApi.question.list(params)
+    const data = res.data
+    if (data && data.list) {
+      allQuestions.value = data.list || []
+      questionPagination.total = data.total || 0
+    } else {
+      allQuestions.value = res.data || []
+      questionPagination.total = allQuestions.value.length
     }
   } catch {
     ElMessage.error('加载题目失败')
   }
+}
+
+const handleQuestionPageChange = (page) => {
+  questionPagination.page = page
+  loadQuestions()
+}
+
+const handleQuestionSizeChange = (size) => {
+  questionPagination.pageSize = size
+  questionPagination.page = 1
+  loadQuestions()
 }
 
 const handleSelectionChange = (selection) => {
@@ -422,6 +463,7 @@ onMounted(loadPaperList)
 }
 .question-pool h4, .question-selected h4 { margin: 0 0 8px; color: #111827; }
 .q-cell { color: #374151; line-height: 1.5; }
+.pagination-wrapper { display: flex; justify-content: flex-end; margin-top: 12px; }
 .empty-hint { color: #9ca3af; padding: 14px 8px; }
 .selected-item {
   border: 1px solid #e5e7eb;

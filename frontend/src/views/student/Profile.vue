@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="profile-page">
     <el-card class="page-header">
       <div class="header-content">

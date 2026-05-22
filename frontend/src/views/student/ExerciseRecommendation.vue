@@ -57,8 +57,8 @@ const loadRecommendations = async () => {
   try {
     // Load personalized recommendations
     const res = await recommendationApi.forMe({ limit: 10, explain: true })
-    if (res.data?.code === 0) {
-      recommendations.value = res.data.data || []
+    if (res.code === 0) {
+      recommendations.value = res.data || []
     }
   } catch (e) {
     console.error('Failed to load recommendations:', e)

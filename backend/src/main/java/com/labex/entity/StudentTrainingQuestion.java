@@ -32,6 +32,9 @@ public class StudentTrainingQuestion {
     @TableField("submit_time")
     private LocalDateTime submitTime;
 
+    @TableField("judge_result")
+    private String judgeResult;
+
     @TableField("attempt_id")
     private Integer attemptId;
 

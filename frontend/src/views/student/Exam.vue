@@ -101,20 +101,20 @@
 
               <template v-else-if="q.type === 2">
                 <el-radio-group v-model="answers[q.id]" @change="saveAnswer(q.id, answers[q.id])">
-                  <el-radio v-for="(opt, key) in parseOptions(q.options)" :key="key" :label="key">{{ key }}. {{ opt }}</el-radio>
+                  <el-radio v-for="(opt, key) in parseOptions(q.options)" :key="key" :value="key">{{ key }}. {{ opt }}</el-radio>
                 </el-radio-group>
               </template>
 
               <template v-else-if="q.type === 3">
                 <el-checkbox-group v-model="multiAnswers[q.id]" @change="saveAnswer(q.id, multiAnswers[q.id].join(','))">
-                  <el-checkbox v-for="(opt, key) in parseOptions(q.options)" :key="key" :label="key">{{ key }}. {{ opt }}</el-checkbox>
+                  <el-checkbox v-for="(opt, key) in parseOptions(q.options)" :key="key" :value="key">{{ key }}. {{ opt }}</el-checkbox>
                 </el-checkbox-group>
               </template>
 
               <template v-else-if="q.type === 4">
                 <el-radio-group v-model="answers[q.id]" @change="saveAnswer(q.id, answers[q.id])">
-                  <el-radio label="true">正确</el-radio>
-                  <el-radio label="false">错误</el-radio>
+                  <el-radio value="true">正确</el-radio>
+                  <el-radio value="false">错误</el-radio>
                 </el-radio-group>
               </template>
 
@@ -129,11 +129,10 @@
                       运行测试点
                     </el-button>
                   </div>
-                  <el-input
+                  <MonacoEditor
                     v-model="programmingCodes[q.id]"
-                    type="textarea"
-                    :rows="12"
-                    placeholder="请输入代码"
+                    :language="codeLanguages[q.id] || 'java'"
+                    height="300px"
                     @input="onProgrammingInput(q.id)"
                   />
                   <div v-if="testResult[q.id]" class="judge-box">

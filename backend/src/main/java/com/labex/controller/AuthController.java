@@ -3,6 +3,7 @@ package com.labex.controller;
 import com.labex.common.Result;
 import com.labex.dto.LoginRequest;
 import com.labex.dto.PasswordUpdateRequest;
+import com.labex.dto.RegisterRequest;
 import com.labex.entity.Student;
 import com.labex.entity.Teacher;
 import com.labex.mapper.StudentMapper;
@@ -158,6 +159,42 @@ public class AuthController {
         } catch (Exception e) {
             log.error("登录异常", e);
             return ResponseEntity.ok(Result.error("登录失败: " + e.getMessage()));
+        }
+    }
+
+    /**
+     * 学生自助注册
+     */
+    @PostMapping("/register")
+    public ResponseEntity<Result<Void>> register(@Valid @RequestBody RegisterRequest request) {
+        try {
+            String studentNo = request.getStudentNo().trim();
+            String studentName = request.getStudentName().trim();
+            String clazzNo = request.getClazzNo() == null ? null : request.getClazzNo().trim();
+
+            if (studentMapper.selectByStudentNo(studentNo) != null) {
+                return ResponseEntity.ok(Result.error("该学号已注册"));
+            }
+
+            Student student = new Student();
+            student.setStudentNo(studentNo);
+            student.setStudentName(studentName);
+            student.setStudentPassword(passwordEncoder.encode(request.getPassword()));
+            student.setClazzNo(clazzNo == null || clazzNo.isBlank() ? null : clazzNo);
+            student.setState(1);
+            student.setErrorCount(0);
+            student.setCreateTime(LocalDateTime.now());
+            student.setUpdateTime(LocalDateTime.now());
+            studentMapper.insert(student);
+
+            log.info("学生注册成功: {}", studentNo);
+            return ResponseEntity.ok(Result.success("注册成功", null));
+        } catch (Exception e) {
+            log.error("学生注册异常", e);
+            String message = e.getMessage() != null && e.getMessage().contains("Duplicate")
+                    ? "该学号已注册"
+                    : "注册失败: " + e.getMessage();
+            return ResponseEntity.ok(Result.error(message));
         }
     }
 

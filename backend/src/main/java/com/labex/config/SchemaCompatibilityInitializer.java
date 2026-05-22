@@ -23,6 +23,9 @@ public class SchemaCompatibilityInitializer implements ApplicationRunner {
         ensurePaperSchema();
         ensurePaperQuestionSchema();
         ensureExamMonitorSchema();
+        ensureRagSessionSchema();
+        ensureRagMessageSchema();
+        ensureTrainingQuestionJudgeResult();
     }
 
     private void ensurePaperSchema() {
@@ -97,6 +100,50 @@ public class SchemaCompatibilityInitializer implements ApplicationRunner {
         }
     }
 
+    /**
+     * Ensure rag_session table exists for RAG chat sessions
+     */
+    private void ensureRagSessionSchema() {
+        if (!tableExists("rag_session")) {
+            executeIgnore("""
+                    CREATE TABLE rag_session (
+                        id VARCHAR(64) NOT NULL COMMENT '会话ID(UUID)',
+                        user_id VARCHAR(100) NOT NULL COMMENT '用户ID',
+                        title VARCHAR(200) DEFAULT '新会话' COMMENT '会话标题',
+                        create_time BIGINT NOT NULL COMMENT '创建时间戳',
+                        last_active_time BIGINT NOT NULL COMMENT '最后活跃时间戳',
+                        message_count INT DEFAULT 0 COMMENT '消息数量',
+                        PRIMARY KEY (id),
+                        KEY idx_rag_session_user (user_id),
+                        KEY idx_rag_session_last_active (last_active_time)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='RAG知识问答会话表'
+                    """);
+            log.info("Created rag_session table");
+        }
+    }
+
+    /**
+     * Ensure rag_message table exists for RAG chat messages
+     */
+    private void ensureRagMessageSchema() {
+        if (!tableExists("rag_message")) {
+            executeIgnore("""
+                    CREATE TABLE rag_message (
+                        id BIGINT NOT NULL AUTO_INCREMENT COMMENT '消息ID',
+                        session_id VARCHAR(64) NOT NULL COMMENT '会话ID',
+                        role VARCHAR(20) NOT NULL COMMENT '角色: user/assistant',
+                        content TEXT NOT NULL COMMENT '消息内容',
+                        sources TEXT DEFAULT NULL COMMENT '参考来源(JSON)',
+                        create_time BIGINT NOT NULL COMMENT '创建时间戳',
+                        PRIMARY KEY (id),
+                        KEY idx_rag_message_session (session_id),
+                        KEY idx_rag_message_create_time (create_time)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='RAG知识问答消息表'
+                    """);
+            log.info("Created rag_message table");
+        }
+    }
+
     private boolean tableExists(String tableName) {
         String sql = """
                 SELECT COUNT(*)
@@ -136,6 +183,17 @@ public class SchemaCompatibilityInitializer implements ApplicationRunner {
         if (!columnExists(tableName, columnName)) {
             executeIgnore(alterSql);
         }
+    }
+
+    /**
+     * Ensure t_student_training_question has judge_result column
+     */
+    private void ensureTrainingQuestionJudgeResult() {
+        if (!tableExists("t_student_training_question")) {
+            return;
+        }
+        addColumnIfMissing("t_student_training_question", "judge_result",
+                "ALTER TABLE t_student_training_question ADD COLUMN `judge_result` TEXT DEFAULT NULL COMMENT '判题结果JSON' AFTER `submit_time`");
     }
 
     private void executeIgnore(String sql) {

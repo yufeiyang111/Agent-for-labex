@@ -5,6 +5,7 @@ import com.labex.entity.RagMessage;
 import com.labex.entity.RagSession;
 import com.labex.mapper.RagMessageMapper;
 import com.labex.mapper.RagSessionMapper;
+import com.labex.rag.cache.RagCacheService;
 import com.labex.rag.dto.SessionDTO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,8 +16,9 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * Session Memory using MySQL
- * Persists chat sessions and messages to database
+ * Session Memory using MySQL + Redis Cache
+ * Persists chat sessions and messages to database,
+ * caches history and sources in Redis for fast access
  */
 @Slf4j
 @Service
@@ -24,11 +26,13 @@ public class SessionMemory {
 
     private final RagSessionMapper sessionMapper;
     private final RagMessageMapper messageMapper;
+    private final RagCacheService ragCacheService;
 
     @Autowired
-    public SessionMemory(RagSessionMapper sessionMapper, RagMessageMapper messageMapper) {
+    public SessionMemory(RagSessionMapper sessionMapper, RagMessageMapper messageMapper, RagCacheService ragCacheService) {
         this.sessionMapper = sessionMapper;
         this.messageMapper = messageMapper;
+        this.ragCacheService = ragCacheService;
     }
 
     /**
@@ -74,6 +78,9 @@ public class SessionMemory {
 
             // Update session last active time and message count
             updateSessionActivity(sessionId);
+
+            // Invalidate Redis cache so next read gets fresh data
+            ragCacheService.invalidateHistory(sessionId);
         } catch (Exception e) {
             log.error("Failed to add message: {}", e.getMessage());
         }
@@ -95,20 +102,30 @@ public class SessionMemory {
             messageMapper.insert(message);
 
             updateSessionActivity(sessionId);
+
+            // Invalidate Redis cache so next read gets fresh data with sources
+            ragCacheService.invalidateHistory(sessionId);
         } catch (Exception e) {
             log.error("Failed to add message: {}", e.getMessage());
         }
     }
 
     /**
-     * Get session history
+     * Get session history (Redis cache first, then MySQL)
      */
     public List<Map<String, Object>> getHistory(String sessionId, int limit) {
         try {
+            // 1. Try Redis cache first
+            List<Map<String, Object>> cached = ragCacheService.getCachedHistory(sessionId);
+            if (cached != null) {
+                log.debug("History cache hit for session: {}", sessionId);
+                return cached.stream().limit(limit).collect(Collectors.toList());
+            }
+
+            // 2. Cache miss - query MySQL
             List<RagMessage> messages = messageMapper.selectBySessionId(sessionId);
 
-            return messages.stream()
-                    .limit(limit)
+            List<Map<String, Object>> history = messages.stream()
                     .map(msg -> {
                         Map<String, Object> message = new HashMap<>();
                         message.put("role", msg.getRole());
@@ -118,6 +135,11 @@ public class SessionMemory {
                         return message;
                     })
                     .collect(Collectors.toList());
+
+            // 3. Cache the full history in Redis
+            ragCacheService.cacheHistory(sessionId, history);
+
+            return history.stream().limit(limit).collect(Collectors.toList());
         } catch (Exception e) {
             log.error("Failed to get history for session {}: {}", sessionId, e.getMessage(), e);
             return new ArrayList<>();
@@ -169,6 +191,9 @@ public class SessionMemory {
             // Delete session
             sessionMapper.deleteById(sessionId);
 
+            // Invalidate Redis cache
+            ragCacheService.invalidateSession(sessionId);
+
             log.info("Deleted session: {}", sessionId);
         } catch (Exception e) {
             log.error("Failed to delete session: {}", e.getMessage());
@@ -189,6 +214,9 @@ public class SessionMemory {
                 session.setMessageCount(0);
                 sessionMapper.updateById(session);
             }
+
+            // Invalidate Redis cache
+            ragCacheService.invalidateSession(sessionId);
         } catch (Exception e) {
             log.error("Failed to clear session: {}", e.getMessage());
         }

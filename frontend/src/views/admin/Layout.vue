@@ -1,12 +1,11 @@
-<template>
+﻿<template>
   <div class="admin-layout">
     <el-container>
       <!-- 侧边栏 -->
       <el-aside :width="isCollapsed ? '64px' : '220px'" class="sidebar">
         <div class="logo">
-          <img src="@/assets/logo.png" alt="Labex" class="logo-img" v-if="!isCollapsed" />
+          <AppIcon :size="isCollapsed ? 34 : 36" compact />
           <span v-if="!isCollapsed" class="logo-text">Labex</span>
-          <span v-else class="logo-collapse">L</span>
         </div>
 
         <el-menu
@@ -96,6 +95,7 @@ import { ref, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessageBox, ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores/user'
+import AppIcon from '@/components/AppIcon.vue'
 import {
   Odometer,
   User,
@@ -160,17 +160,12 @@ const handleCommand = async (command) => {
   background: #ffffff;
 }
 
-.logo-img {
-  width: 32px;
-  height: 32px;
-  margin-right: 10px;
-}
-
 .logo-text {
   color: #1d1d1f;
   font-size: 18px;
   font-weight: 700;
   letter-spacing: -0.5px;
+  margin-left: 10px;
 }
 
 .logo-collapse {

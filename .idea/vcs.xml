@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="VcsDirectoryMappings">
+    <mapping directory="" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/agent-skills" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/cortex-ai-skills" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/feishu-doc-webify" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/gpt-image-2-gen-skill" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/skills/feishu-doc-webify" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/skills/gpt-image-2-gen-skill" vcs="Git" />
+  </component>
+</project>

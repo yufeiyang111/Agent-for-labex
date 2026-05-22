@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="dashboard" v-loading="loading">
     <el-row :gutter="16" class="stats-row">
       <el-col :xs="24" :sm="12" :lg="6">

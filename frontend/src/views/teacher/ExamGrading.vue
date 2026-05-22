@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="grading-page">
     <!-- 面包屑导航 -->
     <el-breadcrumb separator="/" class="breadcrumb">
@@ -76,6 +76,10 @@
             <div class="stat-label">待批学生</div>
           </div>
           <div class="stat-card">
+            <div class="stat-value">{{ gradedStudents.length }}</div>
+            <div class="stat-label">已批学生</div>
+          </div>
+          <div class="stat-card">
             <div class="stat-value">{{ totalPending }}</div>
             <div class="stat-label">待批题目</div>
           </div>
@@ -135,42 +139,71 @@
 
         <!-- 学生列表 -->
         <div class="students-section">
-          <div class="section-title">待批改学生</div>
-          <div class="student-list" v-if="pendingStudents.length > 0">
-            <div
-              v-for="student in paginatedStudents"
-              :key="student.studentId"
-              class="student-item"
-              @click="openGradingDialog(student)"
-            >
-              <div class="student-info">
-                <div class="student-avatar">{{ student.studentName?.charAt(0) || 'S' }}</div>
-                <div class="student-details">
-                  <div class="student-name">{{ student.studentName }}</div>
-                  <div class="student-meta">{{ student.studentNo }}</div>
+          <el-tabs v-model="studentTab" class="student-tabs">
+            <el-tab-pane label="待批改" name="pending">
+              <div class="student-list" v-if="pendingStudents.length > 0">
+                <div
+                  v-for="student in paginatedStudents"
+                  :key="student.studentId"
+                  class="student-item"
+                  @click="openGradingDialog(student)"
+                >
+                  <div class="student-info">
+                    <div class="student-avatar pending">{{ student.studentName?.charAt(0) || 'S' }}</div>
+                    <div class="student-details">
+                      <div class="student-name">{{ student.studentName }}</div>
+                      <div class="student-meta">{{ student.studentNo }}</div>
+                    </div>
+                  </div>
+                  <div class="student-score">
+                    <span class="score-text">待批 {{ student.pendingCount }} 题</span>
+                    <span class="score-auto">自动 {{ student.autoScore || 0 }} 分</span>
+                  </div>
+                  <el-icon class="item-arrow"><ArrowRight /></el-icon>
                 </div>
               </div>
-              <div class="student-score">
-                <span class="score-text">待批 {{ student.pendingCount }} 题</span>
-                <span class="score-auto">自动 {{ student.autoScore || 0 }} 分</span>
+              <div v-else class="empty-student-list">
+                <el-empty description="没有待批改的学生" :image-size="60" />
               </div>
-              <el-icon class="item-arrow"><ArrowRight /></el-icon>
-            </div>
-          </div>
-          <div v-else class="empty-student-list">
-            <el-empty description="没有待批改的学生" :image-size="60" />
-          </div>
-          <el-pagination
-            v-if="pendingStudents.length > 0"
-            v-model:current-page="pagination.page"
-            v-model:page-size="pagination.pageSize"
-            :page-sizes="[10, 20, 50]"
-            :total="pendingStudents.length"
-            layout="total, prev, pager, next"
-            @size-change="handlePageChange"
-            @current-change="handlePageChange"
-            class="list-pagination"
-          />
+              <el-pagination
+                v-if="pendingStudents.length > 0"
+                v-model:current-page="pagination.page"
+                v-model:page-size="pagination.pageSize"
+                :page-sizes="[10, 20, 50]"
+                :total="pendingStudents.length"
+                layout="total, prev, pager, next"
+                @size-change="handlePageChange"
+                @current-change="handlePageChange"
+                class="list-pagination"
+              />
+            </el-tab-pane>
+
+            <el-tab-pane label="已批改" name="graded">
+              <div class="student-list" v-if="gradedStudents.length > 0">
+                <div
+                  v-for="student in gradedStudents"
+                  :key="student.studentId"
+                  class="student-item graded"
+                >
+                  <div class="student-info">
+                    <div class="student-avatar graded">{{ student.studentName?.charAt(0) || 'S' }}</div>
+                    <div class="student-details">
+                      <div class="student-name">{{ student.studentName }}</div>
+                      <div class="student-meta">{{ student.studentNo }}</div>
+                    </div>
+                  </div>
+                  <div class="student-score">
+                    <span class="score-final">总分 {{ student.finalScore || 0 }} 分</span>
+                    <span class="score-time">{{ formatDateTime(student.gradedAt) }}</span>
+                  </div>
+                  <el-tag type="success" size="small">已完成</el-tag>
+                </div>
+              </div>
+              <div v-else class="empty-student-list">
+                <el-empty description="暂无已批改的学生" :image-size="60" />
+              </div>
+            </el-tab-pane>
+          </el-tabs>
         </div>
       </div>
 
@@ -227,10 +260,12 @@ const invigilationLoading = ref(false)
 const loadingMoreEvents = ref(false)
 const loadingMoreExams = ref(false)
 const sidebarCollapsed = ref(false)
+const studentTab = ref('pending')
 
 const examList = ref([])
 const selectedExamId = ref(null)
 const pendingStudents = ref([])
+const gradedStudents = ref([])
 
 const gradingDialogVisible = ref(false)
 const currentStudent = ref(null)
@@ -348,6 +383,11 @@ async function loadPendingStudents(examId) {
   pendingStudents.value = res.data || []
 }
 
+async function loadGradedStudents(examId) {
+  const res = await teacherApi.grading.getGradedStudents(examId)
+  gradedStudents.value = res.data || []
+}
+
 async function loadInvigilationEvents(examId) {
   if (!examId) {
     resetInvigilationState()
@@ -390,7 +430,7 @@ async function handleExamClick(examId) {
   pagination.value.page = 1
   loading.value = true
   try {
-    await Promise.all([loadPendingStudents(examId), loadInvigilationEvents(examId)])
+    await Promise.all([loadPendingStudents(examId), loadGradedStudents(examId), loadInvigilationEvents(examId)])
   } catch {
     ElMessage.error('加载考试数据失败')
   } finally {
@@ -665,7 +705,7 @@ async function submitGrades() {
 
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 16px;
 }
 
@@ -805,6 +845,17 @@ async function submitGrades() {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 }
 
+.student-tabs {
+  :deep(.el-tabs__header) {
+    margin-bottom: 16px;
+  }
+
+  :deep(.el-tabs__item) {
+    font-size: 15px;
+    font-weight: 600;
+  }
+}
+
 .section-title {
   font-size: 15px;
   font-weight: 600;
@@ -840,6 +891,16 @@ async function submitGrades() {
   transform: translateX(4px);
 }
 
+.student-item.graded {
+  cursor: default;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+}
+
+.student-item.graded:hover {
+  transform: none;
+}
+
 .student-info {
   display: flex;
   align-items: center;
@@ -858,6 +919,14 @@ async function submitGrades() {
   justify-content: center;
   font-size: 16px;
   font-weight: 600;
+}
+
+.student-avatar.pending {
+  background: #f59e0b;
+}
+
+.student-avatar.graded {
+  background: #4caf50;
 }
 
 .student-details {
@@ -894,6 +963,17 @@ async function submitGrades() {
 .score-auto {
   font-size: 12px;
   color: #6e6e73;
+}
+
+.score-final {
+  font-size: 14px;
+  font-weight: 700;
+  color: #4caf50;
+}
+
+.score-time {
+  font-size: 11px;
+  color: #9ca3af;
 }
 
 .item-arrow {
@@ -1005,6 +1085,10 @@ async function submitGrades() {
     width: 100%;
     max-height: none;
     position: static;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
   }
 
   .event-item {

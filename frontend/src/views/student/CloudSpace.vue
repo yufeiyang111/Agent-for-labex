@@ -1,16 +1,16 @@
-﻿<template>
+<template>
   <div class="cs-shell">
     <div class="cs-left">
       <div class="cs-panel-header">
-        <h2>????</h2>
+        <h2>项目列表</h2>
         <div class="cs-header-actions">
           <button class="cs-btn cs-btn-primary" @click="showCreate = true">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            <span>??</span>
+            <span>新建</span>
           </button>
           <button class="cs-btn cs-btn-outline" @click="triggerUpload">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-            <span>??</span>
+            <span>上传</span>
           </button>
           <input ref="uploadInput" type="file" accept=".zip" hidden @change="handleUpload" />
         </div>
@@ -18,19 +18,31 @@
       <div class="cs-list" v-loading="listLoading">
         <div v-if="!listLoading && projects.length === 0" class="cs-empty">
           <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="1.5"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-          <p>????</p>
-          <p class="cs-empty-hint">???????????</p>
+          <p>暂无项目</p>
+          <p class="cs-empty-hint">点击上方按钮新建或上传项目</p>
         </div>
         <TransitionGroup name="proj-list" tag="div">
           <div v-for="proj in projects" :key="proj.projectId" class="cs-item" :class="{ active: selectedId === proj.projectId }" @click="selectProject(proj)">
-            <div class="cs-item-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg></div>
+            <div class="cs-item-icon">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+            </div>
             <div class="cs-item-body">
               <div class="cs-item-name">{{ proj.projectName }}</div>
-              <div class="cs-item-meta">{{ proj.fileCount || 0 }} ???</div>
+              <div class="cs-item-meta">{{ proj.fileCount || 0 }} 个文件</div>
             </div>
             <div class="cs-item-actions">
-              <button class="cs-btn cs-btn-ghost cs-btn-sm" :title="'??????'" @click.stop="enterWorkspace(proj)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg></button>
-              <button class="cs-btn cs-btn-ghost cs-btn-sm cs-btn-danger" :title="'????'" @click.stop="deleteProject(proj)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg></button>
+              <button class="cs-btn cs-btn-ghost cs-btn-sm" title="编辑名称" @click.stop="startRename(proj)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              </button>
+              <button class="cs-btn cs-btn-ghost cs-btn-sm" title="进入工作空间" @click.stop="enterWorkspace(proj)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+              </button>
+              <button class="cs-btn cs-btn-ghost cs-btn-sm" title="导出项目" @click.stop="exportProject(proj)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              </button>
+              <button class="cs-btn cs-btn-ghost cs-btn-sm cs-btn-danger" title="删除项目" @click.stop="deleteProject(proj)">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              </button>
             </div>
           </div>
         </TransitionGroup>
@@ -39,21 +51,26 @@
     <div class="cs-right">
       <div v-if="!selectedProject" class="cs-right-empty">
         <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#d1d5db" stroke-width="1"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-        <p>??????????</p>
+        <p>请选择一个项目</p>
       </div>
       <div v-else class="cs-right-panel">
         <div class="cs-panel-header cs-right-header">
-          <div class="cs-right-title"><h3>{{ selectedProject.projectName }}</h3><span class="cs-right-meta">{{ selectedProject.fileCount || 0 }} ???</span></div>
+          <div class="cs-right-title">
+            <h3>{{ selectedProject.projectName }}</h3>
+            <span class="cs-right-meta">{{ selectedProject.fileCount || 0 }} 个文件</span>
+          </div>
           <button class="cs-btn cs-btn-primary" @click="enterWorkspace(selectedProject)">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
-            <span>??????</span>
+            <span>打开工作空间</span>
           </button>
         </div>
         <div class="cs-tree-panel" v-loading="treeLoading">
           <TransitionGroup name="ftn-list" tag="div">
             <FileTreeNode v-for="child in fileTree" :key="child.path" :node="child" :selected-path="selectedPath" :load-children="loadTreeChildren" @select="onFileSelect"/>
           </TransitionGroup>
-          <div v-if="!treeLoading && fileTree.length === 0" class="cs-empty" style="padding:24px"><p>???</p></div>
+          <div v-if="!treeLoading && fileTree.length === 0" class="cs-empty" style="padding:24px">
+            <p>项目为空</p>
+          </div>
         </div>
       </div>
     </div>
@@ -61,10 +78,10 @@
       <Transition name="modal">
         <div v-if="showCreate" class="cs-overlay" @click.self="showCreate = false">
           <div class="cs-modal">
-            <h3>????</h3>
-            <input v-model="newProjectName" class="cs-input" :placeholder="'???????'" @keyup.enter="createProject" />
+            <h3>新建项目</h3>
+            <input v-model="newProjectName" class="cs-input" placeholder="请输入项目名称" @keyup.enter="createProject" />
             <div class="cs-template-section">
-              <p class="cs-template-label">????????</p>
+              <p class="cs-template-label">选择模板（可选）</p>
               <div class="cs-template-list">
                 <button v-for="tpl in templates" :key="tpl.key" class="cs-template-item" :class="{ active: selectedTemplate === tpl.key }" @click="selectedTemplate = selectedTemplate === tpl.key ? null : tpl.key">
                   <span class="cs-template-icon">{{ tpl.icon }}</span>
@@ -73,8 +90,22 @@
               </div>
             </div>
             <div class="cs-modal-actions">
-              <button class="cs-btn cs-btn-outline" @click="showCreate = false">??</button>
-              <button class="cs-btn cs-btn-primary" @click="createProject">??</button>
+              <button class="cs-btn cs-btn-outline" @click="showCreate = false">取消</button>
+              <button class="cs-btn cs-btn-primary" @click="createProject">创建</button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+    <Teleport to="body">
+      <Transition name="modal">
+        <div v-if="showRename" class="cs-overlay" @click.self="showRename = false">
+          <div class="cs-modal">
+            <h3>编辑项目名称</h3>
+            <input v-model="renameValue" class="cs-input" placeholder="请输入新的项目名称" @keyup.enter="confirmRename" />
+            <div class="cs-modal-actions">
+              <button class="cs-btn cs-btn-outline" @click="showRename = false">取消</button>
+              <button class="cs-btn cs-btn-primary" @click="confirmRename">确认</button>
             </div>
           </div>
         </div>
@@ -82,12 +113,14 @@
     </Teleport>
   </div>
 </template>
+
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { projectApi } from '@/api'
 import FileTreeNode from '@/components/cloud/FileTreeNode.vue'
+
 const router = useRouter()
 const projects = ref([])
 const selectedId = ref(null)
@@ -100,23 +133,179 @@ const uploadInput = ref(null)
 const showCreate = ref(false)
 const newProjectName = ref('')
 const selectedTemplate = ref(null)
+const showRename = ref(false)
+const renameValue = ref('')
+const renamingProject = ref(null)
+
 const templates = [
   { key: 'vue', name: 'Vue', icon: 'V' },
   { key: 'react', name: 'React', icon: 'R' },
   { key: 'springboot', name: 'Spring Boot', icon: 'S' },
   { key: 'flask', name: 'Flask', icon: 'F' },
+  { key: 'empty', name: '空项目', icon: 'E' },
 ]
-async function loadProjects() { listLoading.value = true; try { const r = await projectApi.list(); projects.value = r.data || [] } catch (e) { projects.value = [] } finally { listLoading.value = false } }
-async function selectProject(proj) { selectedId.value = proj.projectId; selectedProject.value = proj; selectedPath.value = ''; treeLoading.value = true; try { const r = await projectApi.getTree(proj.projectId, ''); fileTree.value = r.data || [] } catch (e) { fileTree.value = [] } finally { treeLoading.value = false } }
-async function loadTreeChildren(dirPath) { if (!selectedProject.value) return []; try { const r = await projectApi.getTree(selectedProject.value.projectId, dirPath); return r.data || [] } catch (e) { return [] } }
-function onFileSelect(path) { selectedPath.value = path }
-function enterWorkspace(proj) { if (!proj || !proj.projectId) return; router.push({ name: 'CloudWorkspace', params: { projectId: proj.projectId } }) }
-async function createProject() { const name = newProjectName.value.trim(); if (!name) { ElMessage.warning('???????'); return }; try { if (selectedTemplate.value) { await projectApi.createWithTemplate(name, selectedTemplate.value) } else { await projectApi.createEmpty(name) }; ElMessage.success('??????'); showCreate.value = false; newProjectName.value = ''; selectedTemplate.value = null; await loadProjects() } catch (e) { ElMessage.error('????') } }
-function triggerUpload() { uploadInput.value?.click() }
-async function handleUpload(e) { const f = e.target.files[0]; if (!f) return; try { await projectApi.upload(f); ElMessage.success('????'); await loadProjects() } catch (e) { ElMessage.error('????') } finally { e.target.value = '' } }
-async function deleteProject(proj) { try { await ElMessageBox.confirm('??????? \"' + proj.projectName + '\" \uff1f', '????', { confirmButtonText: '????', cancelButtonText: '??', type: 'warning' }); await projectApi.delete(proj.projectId); ElMessage.success('????'); if (selectedId.value === proj.projectId) { selectedProject.value = null; selectedId.value = null; fileTree.value = [] }; await loadProjects() } catch (e) { if (e !== 'cancel' && e !== 'close') { ElMessage.error('????') } } }
-onMounted(() => { loadProjects() })
+
+async function loadProjects() {
+  listLoading.value = true
+  try {
+    const r = await projectApi.list()
+    projects.value = r.data || []
+  } catch (e) {
+    projects.value = []
+  } finally {
+    listLoading.value = false
+  }
+}
+
+async function selectProject(proj) {
+  selectedId.value = proj.projectId
+  selectedProject.value = proj
+  selectedPath.value = ''
+  treeLoading.value = true
+  try {
+    const r = await projectApi.getTree(proj.projectId, '')
+    fileTree.value = r.data || []
+  } catch (e) {
+    fileTree.value = []
+  } finally {
+    treeLoading.value = false
+  }
+}
+
+async function loadTreeChildren(dirPath) {
+  if (!selectedProject.value) return []
+  try {
+    const r = await projectApi.getTree(selectedProject.value.projectId, dirPath)
+    return r.data || []
+  } catch (e) {
+    return []
+  }
+}
+
+function onFileSelect(path) {
+  selectedPath.value = path
+}
+
+function enterWorkspace(proj) {
+  if (!proj || !proj.projectId) return
+  router.push({ name: 'CloudWorkspace', params: { projectId: proj.projectId } })
+}
+
+async function createProject() {
+  const name = newProjectName.value.trim()
+  if (!name) {
+    ElMessage.warning('请输入项目名称')
+    return
+  }
+  try {
+    if (selectedTemplate.value && selectedTemplate.value !== 'empty') {
+      await projectApi.createWithTemplate(name, selectedTemplate.value)
+    } else {
+      await projectApi.createEmpty(name)
+    }
+    ElMessage.success('项目创建成功')
+    showCreate.value = false
+    newProjectName.value = ''
+    selectedTemplate.value = null
+    await loadProjects()
+  } catch (e) {
+    ElMessage.error('创建失败: ' + (e?.response?.data?.message || e?.message || '未知错误'))
+  }
+}
+
+function triggerUpload() {
+  uploadInput.value?.click()
+}
+
+async function handleUpload(e) {
+  const f = e.target.files[0]
+  if (!f) return
+  try {
+    await projectApi.upload(f)
+    ElMessage.success('上传成功')
+    await loadProjects()
+  } catch (e) {
+    ElMessage.error('上传失败: ' + (e?.response?.data?.message || e?.message || '未知错误'))
+  } finally {
+    e.target.value = ''
+  }
+}
+
+async function deleteProject(proj) {
+  try {
+    await ElMessageBox.confirm(
+      '确定要删除项目 "' + proj.projectName + '" 吗？删除后无法恢复。',
+      '删除确认',
+      {
+        confirmButtonText: '确认删除',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+    await projectApi.delete(proj.projectId)
+    ElMessage.success('项目已删除')
+    if (selectedId.value === proj.projectId) {
+      selectedProject.value = null
+      selectedId.value = null
+      fileTree.value = []
+    }
+    await loadProjects()
+  } catch (e) {
+    if (e !== 'cancel' && e !== 'close') {
+      ElMessage.error('删除失败: ' + (e?.response?.data?.message || e?.message || '未知错误'))
+    }
+  }
+}
+
+function startRename(proj) {
+  renamingProject.value = proj
+  renameValue.value = proj.projectName
+  showRename.value = true
+}
+
+async function confirmRename() {
+  const name = renameValue.value.trim()
+  if (!name) {
+    ElMessage.warning('请输入项目名称')
+    return
+  }
+  if (!renamingProject.value) return
+  try {
+    await projectApi.renameProject(renamingProject.value.projectId, name)
+    ElMessage.success('项目名称已更新')
+    showRename.value = false
+    if (selectedProject.value && selectedProject.value.projectId === renamingProject.value.projectId) {
+      selectedProject.value.projectName = name
+    }
+    await loadProjects()
+  } catch (e) {
+    ElMessage.error('重命名失败: ' + (e?.response?.data?.message || e?.message || '未知错误'))
+  }
+}
+
+async function exportProject(proj) {
+  try {
+    const r = await projectApi.exportProject(proj.projectId)
+    const blob = r.data instanceof Blob ? r.data : new Blob([r.data], { type: 'application/zip' })
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = (proj.projectName || 'project') + '.zip'
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    window.URL.revokeObjectURL(url)
+    ElMessage.success('导出成功')
+  } catch (e) {
+    ElMessage.error('导出失败: ' + (e?.response?.data?.message || e?.message || '未知错误'))
+  }
+}
+
+onMounted(() => {
+  loadProjects()
+})
 </script>
+
 <style scoped>
 .cs-shell { display: flex; height: calc(100vh - 120px); background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.04); }
 .cs-left { width: 300px; border-right: 1px solid #f0f0f0; display: flex; flex-direction: column; background: #fafbfc; flex-shrink: 0; }

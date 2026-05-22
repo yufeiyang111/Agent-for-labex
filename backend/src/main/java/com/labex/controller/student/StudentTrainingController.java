@@ -3,11 +3,14 @@ package com.labex.controller.student;
 import com.labex.common.Result;
 import com.labex.entity.*;
 import com.labex.service.*;
+import com.labex.entity.QuestionTestCase;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.Authentication;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -31,6 +34,13 @@ public class StudentTrainingController {
 
     @Autowired
     private StudentTrainingQuestionService studentTrainingQuestionService;
+    @Autowired
+    private CodeExecutionService codeExecutionService;
+    @Autowired
+    private QuestionTestCaseService questionTestCaseService;
+
+    @Autowired
+    private ObjectMapper objectMapper;
 
     private Integer getStudentId(Authentication auth) {
         return Integer.parseInt(auth.getName());
@@ -96,6 +106,9 @@ public class StudentTrainingController {
                 item.put("language", q.getLanguage());
                 item.put("templateCode", q.getTemplateCode());
                 item.put("ioMode", q.getIoMode());
+                if (q.getType() != null && q.getType() == 6) {
+                    item.put("testCaseCount", questionTestCaseService.findByQuestionId(q.getId()).size());
+                }
                 // Answer key NOT included here — shown after submission
             }
             return item;
@@ -218,8 +231,35 @@ public class StudentTrainingController {
                     status = "MANUAL_REFER";
                 }
                 case 6 -> {
-                    score = 0;
-                    status = "NEEDS_CODE_RUN";
+                    List<QuestionTestCase> testCases = questionTestCaseService.lambdaQuery()
+                            .eq(QuestionTestCase::getQuestionId, q.getId())
+                            .orderByAsc(QuestionTestCase::getSortIndex)
+                            .list();
+                    if (testCases == null || testCases.isEmpty()) {
+                        score = 0;
+                        status = "NO_TEST_CASES";
+                    } else {
+                        String lang = q.getLanguage() != null ? q.getLanguage() : "java";
+                        Map<String, Object> judge = codeExecutionService.executeAndGrade(myAnswer, lang, testCases);
+                        int totalWeight = 0;
+                        int passedWeight = 0;
+                        if (judge.containsKey("totalWeight")) totalWeight = ((Number) judge.get("totalWeight")).intValue();
+                        if (judge.containsKey("passedWeight")) passedWeight = ((Number) judge.get("passedWeight")).intValue();
+                        if (totalWeight > 0) {
+                            score = (int) Math.round((double) maxScore * passedWeight / totalWeight);
+                        } else {
+                            score = 0;
+                        }
+                        status = score == maxScore ? "CORRECT" : (score > 0 ? "PARTIAL" : "WRONG");
+                        autoScore += score;
+                        qr.put("judgeResult", judge);
+                        // Persist judge result as JSON
+                        try {
+                            answer.setJudgeResult(objectMapper.writeValueAsString(judge));
+                        } catch (JsonProcessingException e) {
+                            log.warn("Failed to serialize judge result", e);
+                        }
+                    }
                 }
                 default -> {
                     score = 0;
@@ -312,6 +352,14 @@ public class StudentTrainingController {
             item.put("question", q != null ? q.getQuestion() : "");
             item.put("type", q != null ? q.getType() : null);
             item.put("options", q != null ? q.getOptions() : null);
+            // Parse judge result from stored JSON
+            if (a.getJudgeResult() != null) {
+                try {
+                    item.put("judgeResult", objectMapper.readValue(a.getJudgeResult(), Map.class));
+                } catch (Exception e) {
+                    log.warn("Failed to parse judge result for question {}", a.getQuestionId(), e);
+                }
+            }
             return item;
         }).collect(Collectors.toList());
 
@@ -323,6 +371,73 @@ public class StudentTrainingController {
         result.put("submitTime", attempt.getSubmitTime());
         result.put("questionResults", questionResults);
 
+        return Result.success(result);
+    }
+
+    @PostMapping("/{trainingSetId}/question/{questionId}/run-tests")
+    public Result<Map<String, Object>> runProgrammingTests(
+            @PathVariable Integer trainingSetId,
+            @PathVariable Integer questionId,
+            @RequestParam String code,
+            @RequestParam(defaultValue = "java") String language) {
+        Question question = questionService.getById(questionId);
+        if (question == null || question.getType() == null || question.getType() != 6) {
+            return Result.error("题目不是编程题");
+        }
+        if (!"java".equals(language) && !"c".equals(language)) {
+            return Result.error("仅支持Java/C语言");
+        }
+
+        List<QuestionTestCase> testCases = questionTestCaseService.findByQuestionId(questionId);
+        if (testCases.isEmpty()) {
+            return Result.error("未配置测试点");
+        }
+
+        Map<String, Object> judge = codeExecutionService.executeAndGrade(code, language, testCases);
+        int passedCount = 0;
+        Object detailsObj = judge.get("details");
+        if (detailsObj instanceof List<?> detailList) {
+            for (Object item : detailList) {
+                if (item instanceof Map<?, ?> detail && Boolean.TRUE.equals(detail.get("passed"))) {
+                    passedCount++;
+                }
+            }
+        }
+
+        String status = "NONE_PASS";
+        String compileError = null;
+        if (detailsObj instanceof List<?> detailList && !detailList.isEmpty()) {
+            Object first = detailList.get(0);
+            if (first instanceof Map<?, ?> firstMap && firstMap.get("error") != null) {
+                status = "COMPILE_ERROR";
+                compileError = String.valueOf(firstMap.get("error"));
+            }
+        }
+        if (!"COMPILE_ERROR".equals(status)) {
+            if (passedCount == testCases.size()) {
+                status = "ALL_PASS";
+            } else if (passedCount > 0) {
+                status = "PARTIAL_PASS";
+            }
+        }
+
+        Map<String, Object> result = new HashMap<>(judge);
+        result.put("passedCount", passedCount);
+        result.put("totalCount", testCases.size());
+        result.put("status", status);
+        result.put("compileError", compileError);
+        return Result.success(result);
+    }
+
+    @PostMapping("/run-code")
+    public Result<Map<String, Object>> runCode(@RequestParam String code, @RequestParam String language) {
+        if (code == null || code.isBlank()) {
+            return Result.error("代码不能为空");
+        }
+        if (!"java".equals(language) && !"c".equals(language)) {
+            return Result.error("仅支持Java和C语言");
+        }
+        Map<String, Object> result = codeExecutionService.runCode(code, language, "");
         return Result.success(result);
     }
 

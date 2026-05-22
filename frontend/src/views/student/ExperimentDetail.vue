@@ -106,7 +106,7 @@
                 <el-radio
                   v-for="(option, idx) in parseOptions(currentQuestion.experimentItemAnswer)"
                   :key="idx"
-                  :label="String.fromCharCode(65 + idx)"
+                  :value="String.fromCharCode(65 + idx)"
                 >
                   {{ option }}
                 </el-radio>
@@ -115,8 +115,8 @@
             <template v-else-if="currentQuestion.experimentItemType === 2">
               <!-- 判断题 -->
               <el-radio-group v-model="currentAnswer" @change="handleAnswerChange">
-                <el-radio label="A">正确</el-radio>
-                <el-radio label="B">错误</el-radio>
+                <el-radio value="A">正确</el-radio>
+                <el-radio value="B">错误</el-radio>
               </el-radio-group>
             </template>
             <template v-else-if="currentQuestion.experimentItemType === 3">

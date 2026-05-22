@@ -126,17 +126,74 @@
                 <el-option label="Java" value="java" />
                 <el-option label="C" value="c" />
               </el-select>
+              <el-button type="primary" @click="runTests(currentQuestion)" :loading="runningQuestionId === currentQuestion.questionId" :disabled="submitted">
+                运行测试
+              </el-button>
+              <el-button @click="runCode(currentQuestion)" :loading="codeRunning && codeRunningQuestionId === currentQuestion.questionId" :disabled="submitted">
+                运行代码
+              </el-button>
+              <span class="test-count" v-if="currentQuestion.testCaseCount !== undefined">测试点：{{ currentQuestion.testCaseCount }}</span>
               <span class="template-hint" v-if="currentQuestion.templateCode">有模板代码</span>
             </div>
-            <el-input
+
+            <MonacoEditor
               v-model="answers[currentQuestion.questionId]"
-              type="textarea"
-              :rows="14"
-              :disabled="submitted"
-              class="code-input"
-              placeholder="在此编写代码..."
+              :language="programmingLang[currentQuestion.questionId] || 'java'"
+              height="320px"
               @input="debouncedSave(currentQuestion)"
             />
+
+            <!-- Judge panel: test case results -->
+            <div class="judge-panel" v-if="judgeResults[currentQuestion.questionId]">
+              <div class="judge-summary">
+                <el-tag :type="judgeStatusType(judgeResults[currentQuestion.questionId].status)">
+                  {{ judgeStatusText(judgeResults[currentQuestion.questionId].status) }}
+                </el-tag>
+                <span>通过 {{ judgeResults[currentQuestion.questionId].passedCount || 0 }} / {{ judgeResults[currentQuestion.questionId].totalCount || 0 }}</span>
+              </div>
+
+              <div v-if="judgeResults[currentQuestion.questionId].compileError" class="compile-error">
+                <strong>编译错误：</strong>
+                <pre>{{ judgeResults[currentQuestion.questionId].compileError }}</pre>
+              </div>
+
+              <el-table
+                v-if="judgeResults[currentQuestion.questionId].details && judgeResults[currentQuestion.questionId].details.length"
+                :data="judgeResults[currentQuestion.questionId].details"
+                size="small"
+                border
+              >
+                <el-table-column label="测试点" width="130">
+                  <template #default="{ row, $index }">{{ row.name || `test_${$index + 1}` }}</template>
+                </el-table-column>
+                <el-table-column label="提示" min-width="120">
+                  <template #default="{ row }">{{ row.hint || '-' }}</template>
+                </el-table-column>
+                <el-table-column label="内存(KB)" width="110">
+                  <template #default="{ row }">{{ row.memoryKb ?? '-' }}</template>
+                </el-table-column>
+                <el-table-column label="用时(ms)" width="110">
+                  <template #default="{ row }">{{ row.timeMs ?? '-' }}</template>
+                </el-table-column>
+                <el-table-column label="结果" width="120">
+                  <template #default="{ row }">
+                    <el-tag :type="row.passed ? 'success' : 'danger'">{{ row.resultText || (row.passed ? '答案正确' : '答案错误') }}</el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column label="得分" width="100">
+                  <template #default="{ row, $index }">
+                    {{ calcCaseScoreText(currentQuestion, judgeResults[currentQuestion.questionId], row, $index) }}
+                  </template>
+                </el-table-column>
+                <el-table-column prop="actualOutput" label="实际输出" min-width="220" show-overflow-tooltip />
+              </el-table>
+            </div>
+
+            <!-- Simple code output (from runCode) -->
+            <div v-if="codeOutput[currentQuestion.questionId] && !judgeResults[currentQuestion.questionId]" class="code-output">
+              <div class="code-output-header">运行结果</div>
+              <pre class="code-output-body" :class="{ 'output-error': codeOutput[currentQuestion.questionId]?.error }">{{ codeOutput[currentQuestion.questionId]?.output || codeOutput[currentQuestion.questionId]?.error || formatOutput(codeOutput[currentQuestion.questionId]) }}</pre>
+            </div>
           </template>
 
           <!-- Fallback -->
@@ -152,7 +209,7 @@
             <div class="result-label">你的答案：</div>
             <div class="result-value">{{ formatAnswer(resultMap[currentQuestion.questionId]?.myAnswer, currentQuestion.type) || '(未作答)' }}</div>
           </div>
-          <div class="result-item">
+          <div class="result-item" v-if="currentQuestion.type !== 6">
             <div class="result-label">正确答案：</div>
             <div class="result-value correct-answer">{{ resultMap[currentQuestion.questionId]?.correctAnswer || '(无)' }}</div>
           </div>
@@ -164,6 +221,30 @@
             得分：<span :class="getResult(currentQuestion)?.status === 'CORRECT' ? 'score-correct' : 'score-wrong'">
               {{ resultMap[currentQuestion.questionId]?.score ?? '-' }} / {{ getQuestionScore(currentQuestion) }}
             </span>
+          </div>
+
+          <!-- Judge details for programming questions after submit -->
+          <div v-if="currentQuestion.type === 6 && resultMap[currentQuestion.questionId]?.judgeResult" class="judge-panel">
+            <div class="judge-summary">
+              <el-tag :type="judgeStatusType(resultMap[currentQuestion.questionId]?.status)">
+                {{ judgeStatusText(resultMap[currentQuestion.questionId]?.status) }}
+              </el-tag>
+            </div>
+            <el-table
+              :data="resultMap[currentQuestion.questionId]?.judgeResult?.details || []"
+              size="small"
+              border
+            >
+              <el-table-column label="测试点" width="130">
+                <template #default="{ row, $index }">{{ row.name || `test_${$index + 1}` }}</template>
+              </el-table-column>
+              <el-table-column label="结果" width="120">
+                <template #default="{ row }">
+                  <el-tag :type="row.passed ? 'success' : 'danger'">{{ row.passed ? '通过' : '失败' }}</el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column prop="actualOutput" label="实际输出" min-width="220" show-overflow-tooltip />
+            </el-table>
           </div>
         </section>
       </main>
@@ -193,6 +274,26 @@
           </div>
         </div>
         <el-table :data="submitResult.questionResults || []" stripe size="small" height="300">
+          <el-table-column type="expand" v-if="hasJudgeResult">
+            <template #default="{ row }">
+              <div v-if="row.judgeResult" class="result-judge-detail">
+                <div class="judge-summary" style="margin-bottom:8px">
+                  <span>通过 {{ countPassed(row.judgeResult) }} / {{ (row.judgeResult.details || []).length }}</span>
+                </div>
+                <el-table :data="row.judgeResult.details || []" size="small" border>
+                  <el-table-column label="测试点" width="130">
+                    <template #default="{ row: tc, $index }">{{ tc.name || `test_${$index + 1}` }}</template>
+                  </el-table-column>
+                  <el-table-column label="结果" width="100">
+                    <template #default="{ row: tc }">
+                      <el-tag :type="tc.passed ? 'success' : 'danger'" size="small">{{ tc.passed ? '通过' : '失败' }}</el-tag>
+                    </template>
+                  </el-table-column>
+                  <el-table-column prop="actualOutput" label="输出" min-width="200" show-overflow-tooltip />
+                </el-table>
+              </div>
+            </template>
+          </el-table-column>
           <el-table-column label="题目" min-width="200">
             <template #default="{ row }">{{ shortText(row.question, 60) }}</template>
           </el-table-column>
@@ -202,7 +303,7 @@
           <el-table-column label="状态" width="100">
             <template #default="{ row }">
               <el-tag :type="row.status === 'CORRECT' ? 'success' : (row.status === 'WRONG' ? 'danger' : 'warning')" size="small">
-                {{ row.status === 'CORRECT' ? '正确' : (row.status === 'WRONG' ? '错误' : (row.status === 'MANUAL_REFER' ? '待批改' : '待运行')) }}
+                {{ row.status === 'CORRECT' ? '正确' : (row.status === 'WRONG' ? '错误' : (row.status === 'PARTIAL' ? '部分正确' : (row.status === 'MANUAL_REFER' ? '待批改' : '待运行'))) }}
               </el-tag>
             </template>
           </el-table-column>
@@ -222,6 +323,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft } from '@element-plus/icons-vue'
 import { trainingApi } from '@/api'
+import MonacoEditor from '@/components/MonacoEditor.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -234,7 +336,12 @@ const currentIndex = ref(0)
 const answers = reactive({})
 const fillAnswers = reactive({})
 const multiAnswers = reactive({})
+const codeRunning = ref(false)
+const codeRunningQuestionId = ref(null)
+const codeOutput = reactive({})
 const programmingLang = reactive({})
+const judgeResults = reactive({})
+const runningQuestionId = ref(null)
 const submitted = ref(false)
 const submitting = ref(false)
 const retrying = ref(false)
@@ -261,6 +368,15 @@ const correctCount = computed(() => {
 const wrongCount = computed(() => {
   return (submitResult.value?.questionResults || []).filter((r) => r.status === 'WRONG').length
 })
+
+const hasJudgeResult = computed(() => {
+  return (submitResult.value?.questionResults || []).some((r) => r.judgeResult && r.type === 6)
+})
+
+function countPassed(judgeResult) {
+  if (!judgeResult?.details) return 0
+  return judgeResult.details.filter((d) => d.passed).length
+}
 
 const typeMap = { 1: '填空', 2: '单选', 3: '多选', 4: '判断', 5: '简答', 6: '编程', 7: '综合' }
 
@@ -321,7 +437,73 @@ function formatAnswer(answer, type) {
       return answer
     }
   }
+  // Programming: try to extract code from JSON wrapping
+  if (type === 6) {
+    try {
+      const parsed = JSON.parse(answer)
+      if (parsed && parsed.code) return parsed.code
+    } catch { /* ignore */ }
+  }
   return answer
+}
+
+function formatOutput(result) {
+  if (!result) return '(no output)'
+  return JSON.stringify(result, null, 2)
+}
+
+function judgeStatusType(status) {
+  if (status === 'ALL_PASS') return 'success'
+  if (status === 'PARTIAL_PASS') return 'warning'
+  return 'danger'
+}
+
+function judgeStatusText(status) {
+  if (status === 'ALL_PASS') return '答案正确'
+  if (status === 'PARTIAL_PASS') return '部分通过'
+  if (status === 'COMPILE_ERROR') return '编译错误'
+  return '答案错误'
+}
+
+function calcCaseScoreText(question, judge, row, index) {
+  const full = Number(question?.score || 10)
+  const details = judge?.details || []
+  const weights = details.map((d) => Number(d?.weight || 1))
+  const totalWeight = Number(judge?.totalWeight || weights.reduce((a, b) => a + b, 0) || 0)
+  if (!totalWeight || !details.length) return row?.passed ? `${full}/${full}` : `0/${full}`
+
+  const basePoints = weights.map((w) => Math.floor((full * w) / totalWeight))
+  let used = basePoints.reduce((a, b) => a + b, 0)
+  let remain = Math.max(0, full - used)
+  for (let i = 0; i < basePoints.length && remain > 0; i++) {
+    basePoints[i] += 1
+    remain--
+  }
+
+  const caseFull = basePoints[index] ?? 0
+  const earned = row?.passed ? caseFull : 0
+  return `${earned}/${caseFull}`
+}
+
+function serializeProgrammingAnswer(questionId) {
+  return JSON.stringify({
+    language: programmingLang[questionId] === 'c' ? 'c' : 'java',
+    code: answers[questionId] || ''
+  })
+}
+
+function parseProgrammingAnswer(value) {
+  if (!value) return { language: 'java', code: '' }
+  try {
+    const parsed = JSON.parse(value)
+    if (parsed && typeof parsed === 'object' && parsed.code !== undefined) {
+      return {
+        language: parsed.language === 'c' ? 'c' : 'java',
+        code: parsed.code || ''
+      }
+    }
+  } catch { /* ignore */ }
+  return { language: 'java', code: value }
 }
 
 function switchQuestion(step) {
@@ -345,6 +527,13 @@ async function loadData() {
     trainingSet.value = tsRes.data
     questions.value = qRes.data || []
 
+    // Initialize programming language from question data
+    questions.value.forEach((q) => {
+      if (q.type === 6) {
+        programmingLang[q.questionId] = q.language || 'java'
+      }
+    })
+
     // Check if there's a saved answer from an unsubmitted attempt
     try {
       const recordsRes = await trainingApi.student.myRecords(trainingSetId)
@@ -362,20 +551,37 @@ async function loadData() {
               } catch {
                 multiAnswers[sa.questionId] = []
               }
+              answers[sa.questionId] = sa.myAnswer
             } else if (sa.type === 1) {
               const parts = sa.myAnswer.split('|||')
               parts.forEach((val, idx) => {
                 fillAnswers[sa.questionId + '_' + idx] = val
               })
               answers[sa.questionId] = sa.myAnswer
+            } else if (sa.type === 6) {
+              const parsed = parseProgrammingAnswer(sa.myAnswer)
+              answers[sa.questionId] = parsed.code
+              programmingLang[sa.questionId] = parsed.language
             } else {
               answers[sa.questionId] = sa.myAnswer
             }
           }
         })
+      } else {
+        // No unsubmitted attempt: pre-fill template code for programming questions
+        questions.value.forEach((q) => {
+          if (q.type === 6 && q.templateCode && !answers[q.questionId]) {
+            answers[q.questionId] = q.templateCode
+          }
+        })
       }
     } catch {
-      // No saved answers, that's fine
+      // No saved answers: pre-fill template code
+      questions.value.forEach((q) => {
+        if (q.type === 6 && q.templateCode && !answers[q.questionId]) {
+          answers[q.questionId] = q.templateCode
+        }
+      })
     }
   } catch {
     ElMessage.error('加载数据失败')
@@ -414,7 +620,11 @@ function debouncedSave(question) {
 
 async function saveAnswer(question) {
   try {
-    const answer = answers[question.questionId] || ''
+    let answer = answers[question.questionId] || ''
+    // Serialize programming answers with language info
+    if (question.type === 6) {
+      answer = serializeProgrammingAnswer(question.questionId)
+    }
     await trainingApi.student.saveAnswer(trainingSetId, question.questionId, answer)
   } catch {
     // silent
@@ -440,6 +650,8 @@ async function handleSubmit() {
           parts.push(fillAnswers[q.questionId + '_' + i] || '')
         }
         answer = parts.join('|||')
+      } else if (q.type === 6) {
+        answer = serializeProgrammingAnswer(q.questionId)
       }
       await trainingApi.student.saveAnswer(trainingSetId, q.questionId, answer)
     }
@@ -474,6 +686,8 @@ async function handleRetry() {
     Object.keys(answers).forEach((k) => delete answers[k])
     Object.keys(fillAnswers).forEach((k) => delete fillAnswers[k])
     Object.keys(multiAnswers).forEach((k) => delete multiAnswers[k])
+    Object.keys(judgeResults).forEach((k) => delete judgeResults[k])
+    Object.keys(codeOutput).forEach((k) => delete codeOutput[k])
     resultDialogVisible.value = false
     ElMessage.success('已重置，请重新作答')
   } catch {
@@ -484,6 +698,52 @@ async function handleRetry() {
 }
 
 onMounted(loadData)
+
+async function runCode(question) {
+  const code = answers[question.questionId]
+  const lang = programmingLang[question.questionId] || 'java'
+  if (!code || !code.trim()) {
+    ElMessage.warning('请先编写代码')
+    return
+  }
+  codeRunning.value = true
+  codeRunningQuestionId.value = question.questionId
+  codeOutput[question.questionId] = null
+  try {
+    const res = await trainingApi.runCode(code, lang)
+    codeOutput[question.questionId] = res.data || { output: '(no output)' }
+  } catch (e) {
+    codeOutput[question.questionId] = { error: e?.response?.data?.message || e?.message || 'Run failed' }
+  } finally {
+    codeRunning.value = false
+    codeRunningQuestionId.value = null
+  }
+}
+
+async function runTests(question) {
+  const code = answers[question.questionId]
+  const lang = programmingLang[question.questionId] || 'java'
+  if (!code || !code.trim()) {
+    ElMessage.warning('请先编写代码')
+    return
+  }
+  runningQuestionId.value = question.questionId
+  try {
+    const res = await trainingApi.student.runProgrammingTests(
+      trainingSetId,
+      question.questionId,
+      code,
+      lang
+    )
+    judgeResults[question.questionId] = res.data || {}
+    // Also clear simple code output when showing judge results
+    delete codeOutput[question.questionId]
+  } catch (e) {
+    ElMessage.error(e?.response?.data?.message || e?.message || '运行测试失败')
+  } finally {
+    runningQuestionId.value = null
+  }
+}
 </script>
 
 <style lang="scss" scoped>
@@ -678,9 +938,49 @@ onMounted(loadData)
   margin-bottom: 10px;
 }
 
+.code-editor-section { margin-bottom: 8px; }
+.code-actions { margin-bottom: 10px; display: flex; gap: 8px; }
+.code-output { border: 1px solid #e4e7ed; border-radius: 4px; overflow: hidden; margin-top: 8px; }
+.code-output-header { padding: 8px 12px; background: #f5f7fa; font-size: 13px; font-weight: 500; color: #606266; border-bottom: 1px solid #e4e7ed; }
+.code-output-body { padding: 12px; margin: 0; font-family: Consolas,monospace; font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-break: break-all; background: #fff; color: #303133; max-height: 200px; overflow-y: auto; }
+.code-output-body.output-error { color: #f56c6c; background: #fef0f0; }
+
 .template-hint {
   font-size: 12px;
   color: #667085;
+}
+
+.test-count {
+  color: #667085;
+  font-size: 13px;
+}
+
+.judge-panel {
+  margin-top: 12px;
+  border: 1px solid #d9dee7;
+  border-radius: 8px;
+  padding: 12px;
+  background: #fcfdff;
+}
+
+.judge-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.compile-error {
+  margin-bottom: 10px;
+}
+
+.compile-error pre {
+  margin: 8px 0 0;
+  background: #1f2937;
+  color: #f9fafb;
+  padding: 10px;
+  border-radius: 6px;
+  white-space: pre-wrap;
 }
 
 :deep(.code-input textarea) {
@@ -765,6 +1065,12 @@ onMounted(loadData)
       }
     }
   }
+}
+
+.result-judge-detail {
+  padding: 12px;
+  background: #fafbfc;
+  border-radius: 6px;
 }
 
 @media (max-width: 980px) {

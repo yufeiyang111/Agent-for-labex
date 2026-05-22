@@ -1,11 +1,11 @@
-<template>
+﻿<template>
   <div class="layout">
     <!-- 侧边栏 -->
     <aside class="sidebar" :class="{ collapsed: isCollapse }">
       <div class="logo-container">
         <div class="logo">
+          <AppIcon :size="isCollapse ? 34 : 38" compact />
           <span v-if="!isCollapse">Labex</span>
-          <span v-else>L</span>
         </div>
       </div>
 
@@ -78,6 +78,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
 import { Fold, Expand } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
+import AppIcon from '@/components/AppIcon.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -168,9 +169,12 @@ const handleCommand = async (command) => {
     overflow: hidden;
 
     .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
       font-size: 20px;
       font-weight: 700;
-      color: #4caf50;
+      color: #0f172a;
       letter-spacing: -0.5px;
     }
   }
