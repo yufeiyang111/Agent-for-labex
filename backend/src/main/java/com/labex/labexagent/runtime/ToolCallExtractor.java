@@ -7,7 +7,22 @@ import java.util.regex.Pattern;
  * Exception performing whole class analysis ignored.
  */
 public class ToolCallExtractor {
-    private static final String[] KNOWN_TOOLS = new String[]{"list_files", "read_file", "write_file", "edit_file", "search_code", "run_command", "apply_patch", "retrieve_context", "run_tests", "execute_code", "web_search", "create_plan"};
+    private static final String[] KNOWN_TOOLS = new String[]{
+            "list_files", "list",
+            "read_file", "read",
+            "write_file", "write",
+            "edit_file", "edit",
+            "apply_patch", "patch",
+            "search_code", "grep", "glob",
+            "run_command", "shell", "bash",
+            "retrieve_context", "run_tests", "execute_code",
+            "web_search", "websearch", "web_fetch", "webfetch",
+            "understand_image", "image",
+            "project_overview", "repo_overview", "repo_clone", "external_directory",
+            "lsp_symbols", "diagnostics",
+            "create_plan", "todo_write", "todowrite", "todo",
+            "task", "question", "skill"
+    };
 
     public static String extractToolName(String content) {
         Pattern jsonTool;
@@ -128,4 +143,3 @@ public class ToolCallExtractor {
         return s.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "");
     }
 }
-

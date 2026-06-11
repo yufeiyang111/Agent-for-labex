@@ -31,6 +31,14 @@ public class AgentFileChange {
     private String afterContent;
     @TableField(value="diff_text")
     private String diff;
+    @TableField(value="snapshot_before_ref")
+    private String snapshotBeforeRef;
+    @TableField(value="snapshot_after_ref")
+    private String snapshotAfterRef;
+    @TableField(value="snapshot_paths")
+    private String snapshotPaths;
+    @TableField(value="snapshot_status")
+    private String snapshotStatus;
     @TableField(value="status")
     private String status;
     @TableField(value="create_time")
@@ -90,6 +98,22 @@ public class AgentFileChange {
 
     public String getDiff() {
         return this.diff;
+    }
+
+    public String getSnapshotBeforeRef() {
+        return this.snapshotBeforeRef;
+    }
+
+    public String getSnapshotAfterRef() {
+        return this.snapshotAfterRef;
+    }
+
+    public String getSnapshotPaths() {
+        return this.snapshotPaths;
+    }
+
+    public String getSnapshotStatus() {
+        return this.snapshotStatus;
     }
 
     public String getStatus() {
@@ -162,6 +186,22 @@ public class AgentFileChange {
 
     public void setDiff(String diff) {
         this.diff = diff;
+    }
+
+    public void setSnapshotBeforeRef(String snapshotBeforeRef) {
+        this.snapshotBeforeRef = snapshotBeforeRef;
+    }
+
+    public void setSnapshotAfterRef(String snapshotAfterRef) {
+        this.snapshotAfterRef = snapshotAfterRef;
+    }
+
+    public void setSnapshotPaths(String snapshotPaths) {
+        this.snapshotPaths = snapshotPaths;
+    }
+
+    public void setSnapshotStatus(String snapshotStatus) {
+        this.snapshotStatus = snapshotStatus;
     }
 
     public void setStatus(String status) {
@@ -339,4 +379,3 @@ public class AgentFileChange {
         return "AgentFileChange(changeId=" + this.getChangeId() + ", changeSetId=" + this.getChangeSetId() + ", taskId=" + this.getTaskId() + ", conversationId=" + this.getConversationId() + ", studentId=" + this.getStudentId() + ", projectId=" + this.getProjectId() + ", relativePath=" + this.getRelativePath() + ", changeType=" + this.getChangeType() + ", beforeHash=" + this.getBeforeHash() + ", beforeContent=" + this.getBeforeContent() + ", afterContent=" + this.getAfterContent() + ", diff=" + this.getDiff() + ", status=" + this.getStatus() + ", createTime=" + String.valueOf(this.getCreateTime()) + ", updateTime=" + String.valueOf(this.getUpdateTime()) + ", appliedTime=" + String.valueOf(this.getAppliedTime()) + ", rejectedTime=" + String.valueOf(this.getRejectedTime()) + ", undoneTime=" + String.valueOf(this.getUndoneTime()) + ")";
     }
 }
-

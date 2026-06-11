@@ -5,24 +5,65 @@ import com.labex.labexagent.runtime.AgentContext;
 import com.labex.labexagent.tool.AgentTool;
 import com.labex.labexagent.tool.ToolDefinition;
 import com.labex.labexagent.tool.ToolResult;
-import java.net.URLEncoder;
+import com.labex.labexagent.tool.ToolSupport;
+import com.labex.rag.service.WebSearchService;
 import org.springframework.stereotype.Component;
 
 @Component
-public class WebSearchTool
-implements AgentTool {
-    public ToolDefinition definition() {
-        return ToolDefinition.builder().name("web_search").description("\u641c\u7d22\u4e92\u8054\u7f51\u83b7\u53d6\u5b9e\u65f6\u4fe1\u606f\u3002\u5f53\u524d\u65e0\u641c\u7d22 API key \u65f6\u8fd4\u56de\u53ef\u6267\u884c\u641c\u7d22\u5efa\u8bae\u3002").stringProperty("query", "\u641c\u7d22\u5173\u952e\u8bcd", true).build();
+public class WebSearchTool implements AgentTool {
+    private final WebSearchService webSearchService;
+
+    public WebSearchTool(WebSearchService webSearchService) {
+        this.webSearchService = webSearchService;
     }
 
-    public ToolResult execute(AgentContext context, JsonObject args) throws Exception {
-        String query;
-        String string = query = args.has("query") ? args.get("query").getAsString() : "";
-        if (query.isEmpty()) {
+    public ToolDefinition definition() {
+        return ToolDefinition.builder()
+                .name("web_search")
+                .description("Search the web and read page excerpts for current or external information. Use exact names, versions, and dates in the query.")
+                .stringProperty("query", "Search query", true)
+                .intProperty("max_results", "Maximum results to return, default 10", false)
+                .intProperty("fetch_pages", "How many result pages to read, default 5", false)
+                .build();
+    }
+
+    public ToolResult execute(AgentContext context, JsonObject args) {
+        String query = ToolSupport.stringArgMulti(args, "", "query", "q", "search");
+        if (query.isBlank()) {
             return ToolResult.failed("query is required");
         }
-        String result = "\u641c\u7d22\u5efa\u8bae: " + query + "\nGoogle \u641c\u7d22\u94fe\u63a5: https://www.google.com/search?q=" + URLEncoder.encode(query, "UTF-8") + "\n\u6ce8\u610f: \u5f53\u524d\u65e0\u641c\u7d22 API key\uff0c\u8bf7\u624b\u52a8\u8bbf\u95ee\u4e0a\u8ff0\u94fe\u63a5\u83b7\u53d6\u4fe1\u606f\u3002";
-        return ToolResult.ok((String)result);
+        int maxResults = Math.min(30, Math.max(3, ToolSupport.intArg(args, "max_results", 10)));
+        int fetchPages = Math.min(maxResults, Math.max(0, ToolSupport.intArg(args, "fetch_pages", Math.min(6, maxResults))));
+        WebSearchService.SearchBundle bundle = webSearchService.search(query, maxResults, fetchPages);
+        StringBuilder out = new StringBuilder();
+        out.append("Web search query: ").append(query).append('\n');
+        if (!bundle.getKeywords().isEmpty()) {
+            out.append("Display keywords: ").append(String.join(", ", bundle.getKeywords())).append('\n');
+        }
+        if (!bundle.getExactPhrases().isEmpty()) {
+            out.append("Exact phrases that must be preserved: ").append(String.join(", ", bundle.getExactPhrases())).append('\n');
+        }
+        out.append("Important: only entries with page_body_fetched=true are verified web evidence. exact_entity_match=false means the result may discuss a nearby but different version/name.\n\n");
+
+        int index = 1;
+        for (WebSearchService.WebSearchResult result : bundle.getResults()) {
+            String content = result.getContent() == null ? "" : result.getContent();
+            out.append(index++).append(". ").append(result.getTitle()).append('\n');
+            out.append("url: ").append(result.getUrl()).append('\n');
+            out.append("engine: ").append(result.getEngine()).append('\n');
+            out.append("page_body_fetched: ").append(!content.isBlank()).append('\n');
+            out.append("exact_entity_match: ").append(result.isExactMatch()).append('\n');
+            if (result.getPublishedAt() != null && !result.getPublishedAt().isBlank()) {
+                out.append("published_or_updated: ").append(result.getPublishedAt()).append('\n');
+            }
+            if (result.getSnippet() != null && !result.getSnippet().isBlank()) {
+                out.append("snippet: ").append(ToolSupport.limit(result.getSnippet(), 700)).append('\n');
+            }
+            if (!content.isBlank()) {
+                out.append("page_excerpt: ").append(ToolSupport.limit(content, 2200)).append('\n');
+            }
+            out.append('\n');
+        }
+        return ToolResult.ok(out.toString());
     }
 }
-

@@ -185,6 +185,27 @@ export function useAgentStream() {
           taskId: data.taskId
         })
         break
+
+      case 'PERMISSION_ASK': {
+        const permissionRequest = {
+          requestId: data.requestId,
+          toolName: data.toolName,
+          input: data.input,
+          summary: data.summary,
+          matchedRulePermission: data.matchedRulePermission,
+          matchedRulePattern: data.matchedRulePattern
+        }
+        assistantMsg.toolCalls.push({
+          name: 'permission_ask',
+          args: { toolName: data.toolName, summary: data.summary },
+          summary: '需要权限: ' + data.summary,
+          result: null,
+          status: 'waiting_approval',
+          permissionRequest,
+          startTime: Date.now()
+        })
+        break
+      }
     }
   }
 

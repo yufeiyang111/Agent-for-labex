@@ -4,9 +4,13 @@ import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.labex.controller.student.ProjectCommandSafety;
 import com.labex.entity.AgentConversation;
 import com.labex.entity.AgentTask;
 import com.labex.entity.StudentProject;
+import com.labex.labexagent.diff.DiffService;
+import com.labex.labexagent.diff.GitSnapshotService;
+import com.labex.labexagent.diff.PendingChange;
 import com.labex.labexagent.dto.AgentStreamRequest;
 import com.labex.labexagent.prompt.LabexSystemPrompt;
 import com.labex.labexagent.runtime.AgentCancellationRegistry;
@@ -14,6 +18,9 @@ import com.labex.labexagent.runtime.AgentContext;
 import com.labex.labexagent.runtime.AgentContextManager;
 import com.labex.labexagent.runtime.AgentSsePublisher;
 import com.labex.labexagent.runtime.ToolCallExtractor;
+import com.labex.labexagent.lsp.DiagnosticsService;
+import com.labex.labexagent.permission.*;
+import com.labex.labexagent.tool.ToolSupport;
 import com.labex.labexagent.service.AgentConversationService;
 import com.labex.labexagent.service.AgentTaskService;
 import com.labex.labexagent.service.TokenTracker;
@@ -86,8 +93,12 @@ public class AgentLoopEngine {
     private final TokenTracker tokenTracker;
     private final AgentSkillService skillService;
     private final AgentMcpServerService mcpServerService;
+    private final PermissionService permissionService;
+    private final DiagnosticsService diagnosticsService;
+    private final GitSnapshotService gitSnapshotService;
+    private final DiffService diffService;
 
-    public AgentLoopEngine(StudentProjectService s, ToolRegistry t, AgentContextManager c, AgentCancellationRegistry cr, @Lazy MiniMaxChat mm, @Lazy OllamaChat oc, RagConfig r, AgentConversationService cs, AgentTaskService ts, LlmProviderFactory pf, AgentModelConfigService mcs, TokenTracker tt, AgentSkillService skillService, AgentMcpServerService mcpServerService) {
+    public AgentLoopEngine(StudentProjectService s, ToolRegistry t, AgentContextManager c, AgentCancellationRegistry cr, @Lazy MiniMaxChat mm, @Lazy OllamaChat oc, RagConfig r, AgentConversationService cs, AgentTaskService ts, LlmProviderFactory pf, AgentModelConfigService mcs, TokenTracker tt, AgentSkillService skillService, AgentMcpServerService mcpServerService, PermissionService permissionService, DiagnosticsService diagnosticsService, GitSnapshotService gitSnapshotService, DiffService diffService) {
         this.studentProjectService = s;
         this.toolRegistry = t;
         this.contextManager = c;
@@ -102,6 +113,10 @@ public class AgentLoopEngine {
         this.tokenTracker = tt;
         this.skillService = skillService;
         this.mcpServerService = mcpServerService;
+        this.permissionService = permissionService;
+        this.diagnosticsService = diagnosticsService;
+        this.gitSnapshotService = gitSnapshotService;
+        this.diffService = diffService;
     }
 
     public SseEmitter start(Integer studentId, Integer projectId, AgentStreamRequest request) {
@@ -163,6 +178,7 @@ public class AgentLoopEngine {
             this.conversationService.saveUserMessage(conv, request.getMessage());
             task = this.taskService.createTask(studentId, project, conv.getConversationId(), request.getSessionId(), mode, request.getMessage());
             ctx = AgentContext.create((String)request.getSessionId(), (Integer)studentId, (StudentProject)project, (String)conv.getConversationId(), (Long)task.getTaskId());
+            ctx.setMode(mode);
             this.appendRunLog(runLog, "\n## Runtime metadata\n\n- Conversation: `" + conv.getConversationId() + "`\n- Task: `" + task.getTaskId() + "`\n- Mode: `" + mode + "`\n- Iteration limit: `none`\n");
             String toolDefinitions = this.buildToolDefinitions();
             String sysPrompt = LabexSystemPrompt.buildSystemPrompt((StudentProject)project, (String)toolDefinitions);
@@ -176,7 +192,7 @@ public class AgentLoopEngine {
             String checkpoint = this.readAgentCheckpoint(project);
             String globalSkills = this.skillService.buildPromptContext(studentId);
             String mcpContext = this.mcpServerService.buildPromptContext(studentId);
-            msgs.add(Map.of("role", "user", "content", this.buildContextMessage(projectRules, memoryContext, sessionContext, recentRunLog, checkpoint, globalSkills, mcpContext)));
+            msgs.add(Map.of("role", "user", "content", this.buildModePolicy(mode) + "\n\n" + this.buildContextMessage(projectRules, memoryContext, sessionContext, recentRunLog, checkpoint, globalSkills, mcpContext)));
             msgs.add(Map.of("role", "user", "content", request.getMessage()));
             this.sendEvent(sse, conv, "SESSION", Map.of("sessionId", request.getSessionId(), "conversationId", conv.getConversationId(), "taskId", task.getTaskId(), "iterationLimit", "none", "logPath", this.workspaceRelativeLogPath(project, runLog)));
             this.writeAgentCheckpoint(project, request, task, ctx, "running", "Session started, preparing first model call.", "", "", runLog);
@@ -299,7 +315,7 @@ public class AgentLoopEngine {
                                             sameToolCount = 0;
                                             lastToolSignature = toolSignature;
                                         }
-                                        ToolResult res = this.execTool(tn, ta, ctx);
+                                        ToolResult res = this.execTool(tn, ta, ctx, sse, conv);
                                         this.appendToolResult(runLog, res);
                                         this.writeAgentCheckpoint(project, request, task, ctx, res.isSuccess() ? "tool_success" : "tool_failed", "Tool `" + this.safeLogText(tn) + "` returned.", tn, this.compactToolResultForCheckpoint(tn, res), runLog);
                                         this.sendObserve(sse, conv, i, tn, res, task.getTaskId());
@@ -339,7 +355,7 @@ public class AgentLoopEngine {
                                         this.sendThought(sse, conv, i, this.visibleActionSummary(invTool, parsedArgs), this.buildToolThought(invTool, parsedArgs, true), task.getTaskId());
                                     }
                                     this.sendEvent(sse, conv, "TOOL_CALL", Map.of("iteration", i, "tool", invTool, "arguments", parsedArgs, "summary", this.visibleActionSummary(invTool, parsedArgs), "content", this.visibleActionDetail(invTool, parsedArgs), "taskId", task.getTaskId()));
-                                    ToolResult res = this.execTool(invTool, parsedArgs, ctx);
+                                    ToolResult res = this.execTool(invTool, parsedArgs, ctx, sse, conv);
                                     this.appendToolResult(runLog, res);
                                     this.writeAgentCheckpoint(project, request, task, ctx, res.isSuccess() ? "tool_success" : "tool_failed", "Recovered and executed tool `" + this.safeLogText(invTool) + "`.", invTool, this.compactToolResultForCheckpoint(invTool, res), runLog);
                                     this.sendObserve(sse, conv, i, invTool, res, task.getTaskId());
@@ -471,17 +487,209 @@ public class AgentLoopEngine {
         }
     }
 
-    private ToolResult execTool(String name, JsonObject args, AgentContext ctx) {
+    private ToolResult execTool(String name, JsonObject args, AgentContext ctx, AgentSsePublisher sse, AgentConversation conv) {
         AgentTool t = this.toolRegistry.get(name);
         if (t == null) {
             return ToolResult.failed((String)("Unknown tool: " + name));
         }
+        boolean explicitlyApproved = false;
         try {
-            return t.execute(ctx, args);
+            String mode = ctx.getMode();
+            List<PermissionRule> defaultRules = DefaultPermissionRuleset.getRulesForAgent(mode);
+            String inputStr = this.permissionInput(name, args);
+            PermissionService.PermissionEvaluation eval = permissionService.evaluate(name, inputStr, defaultRules, ctx.getSessionId(), ctx.getProject().getProjectId());
+            switch (eval.getAction()) {
+                case DENY:
+                    PermissionRule matched = eval.getMatchedRule();
+                    String denyMsg = "Permission denied by " + mode + " agent rules: tool '" + name
+                        + "' matching rule (" + (matched != null ? matched.getPermission() + "=" + matched.getAction() : "default deny")
+                        + "). Switch to build mode for write operations.";
+                    log.warn(denyMsg);
+                    return ToolResult.failed(denyMsg);
+                case ASK:
+                    PermissionRule askRule = eval.getMatchedRule();
+                    PermissionService.PermissionApprovalResult approvalResult = this.requestToolApproval(
+                            ctx,
+                            sse,
+                            conv,
+                            name,
+                            inputStr,
+                            this.visibleActionSummary(name, args),
+                            askRule != null ? askRule.getPermission() : "*",
+                            askRule != null ? askRule.getPattern() : "*"
+                    );
+                    if (!approvalResult.isGranted()) {
+                        String feedback = approvalResult.getFeedback();
+                        String rejectMessage = feedback == null || feedback.isBlank()
+                                ? "Permission rejected by user."
+                                : "Permission rejected by user: " + feedback;
+                        return ToolResult.failed(rejectMessage);
+                    }
+                    explicitlyApproved = true;
+                    break;
+                case ALLOW:
+                    PermissionRule allowRule = eval.getMatchedRule();
+                    if (this.isShellTool(name)
+                            && allowRule != null
+                            && allowRule.getPermission() != null
+                            && allowRule.getPermission().equals(name)
+                            && allowRule.getPattern() != null
+                            && !"*".equals(allowRule.getPattern())) {
+                        explicitlyApproved = true;
+                    }
+                    break;
+            }
+            if (this.isShellTool(name)) {
+                ProjectCommandSafety.SafetyCheck safety = ProjectCommandSafety.check(inputStr, explicitlyApproved);
+                if (!safety.allowed()) {
+                    if (!safety.approvalRequired()) {
+                        return ToolResult.failed(safety.message());
+                    }
+                    PermissionService.PermissionApprovalResult approvalResult = this.requestToolApproval(
+                            ctx,
+                            sse,
+                            conv,
+                            name,
+                            inputStr,
+                            safety.message(),
+                            name,
+                            safety.matchedRule() == null || safety.matchedRule().isBlank() ? "*" : safety.matchedRule() + "*"
+                    );
+                    if (!approvalResult.isGranted()) {
+                        String feedback = approvalResult.getFeedback();
+                        return ToolResult.failed(feedback == null || feedback.isBlank()
+                                ? "Permission rejected by user."
+                                : "Permission rejected by user: " + feedback);
+                    }
+                    explicitlyApproved = true;
+                }
+                if (explicitlyApproved) {
+                    args.addProperty("allow_dangerous", true);
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Permission check failed: {}", e.getMessage());
+            return ToolResult.failed("Permission check failed: " + e.getMessage());
+        }
+        try {
+            GitSnapshotService.Snapshot beforeSnapshot = null;
+            boolean snapshotCommand = this.shouldSnapshotCommandTool(name);
+            if (snapshotCommand) {
+                beforeSnapshot = this.gitSnapshotService.capture(ctx.getProject(), "before " + name + " task " + ctx.getTaskId());
+            }
+            ToolResult result = t.execute(ctx, args);
+            if (snapshotCommand && result.isSuccess() && !result.isApprovalRequired()) {
+                GitSnapshotService.Snapshot afterSnapshot = this.gitSnapshotService.capture(ctx.getProject(), "after " + name + " task " + ctx.getTaskId());
+                List<PendingChange> changes = this.diffService.recordSnapshotDiff(ctx.getStudentId(), ctx.getProject(), ctx.getConversationId(), ctx.getTaskId(), name, beforeSnapshot, afterSnapshot);
+                if (!changes.isEmpty()) {
+                    this.attachSnapshotChanges(result, changes);
+                }
+            }
+            // Auto-diagnostics after write operations
+            if (result.isSuccess() && result.getDiff() != null && !result.getDiff().isBlank()
+                && (name.equals("write_file") || name.equals("edit_file") || name.equals("apply_patch"))) {
+                try {
+                    String filePath = result.getDiff();
+                    Path resolved = ToolSupport.resolve(ctx, filePath);
+                    if (Files.isRegularFile(resolved)) {
+                        String content = Files.readString(resolved);
+                        List<DiagnosticsService.Diagnostic> diags = diagnosticsService.analyze(resolved, content);
+                        if (!diags.isEmpty()) {
+                            long errCount = diags.stream()
+                                .filter(d -> d.getSeverity() == DiagnosticsService.DiagnosticSeverity.ERROR).count();
+                            long warnCount = diags.stream()
+                                .filter(d -> d.getSeverity() == DiagnosticsService.DiagnosticSeverity.WARNING).count();
+                            StringBuilder diagMsg = new StringBuilder("\n\n[Auto-diagnostics] ");
+                            diagMsg.append(errCount).append(" error(s), ").append(warnCount).append(" warning(s)");
+                            for (DiagnosticsService.Diagnostic d : diags) {
+                                diagMsg.append("\n- [").append(d.getSeverity()).append("] Line ").append(d.getLine()).append(": ").append(d.getMessage());
+                            }
+                            String existingContent = result.getContent();
+                            result.setContent(existingContent + diagMsg.toString());
+                        }
+                    }
+                } catch (Exception diagEx) {
+                    log.debug("Auto-diagnostics failed: {}", diagEx.getMessage());
+                }
+            }
+            return result;
         }
         catch (Exception e) {
             return ToolResult.failed((String)e.getMessage());
         }
+    }
+
+    private PermissionService.PermissionApprovalResult requestToolApproval(AgentContext ctx, AgentSsePublisher sse, AgentConversation conv, String toolName, String input, String summary, String permission, String pattern) throws Exception {
+        PermissionApprovalRequest approval = permissionService.beginApproval(
+                ctx.getProject().getProjectId(),
+                ctx.getSessionId(),
+                toolName,
+                input,
+                summary,
+                permission,
+                pattern
+        );
+        LinkedHashMap<String, Object> data = new LinkedHashMap<>();
+        data.put("requestId", approval.getRequestId());
+        data.put("sessionId", approval.getSessionId());
+        data.put("toolName", approval.getToolName());
+        data.put("input", approval.getInput());
+        data.put("summary", approval.getSummary());
+        data.put("matchedRulePermission", approval.getMatchedRulePermission());
+        data.put("matchedRulePattern", approval.getMatchedRulePattern());
+        data.put("createdAt", approval.getCreatedAt());
+        this.sendEvent(sse, conv, "PERMISSION_ASK", data);
+        return permissionService.awaitApproval(approval.getRequestId());
+    }
+
+    private boolean isShellTool(String name) {
+        return "shell".equals(name) || "bash".equals(name);
+    }
+
+    private boolean shouldSnapshotCommandTool(String name) {
+        return this.isShellTool(name);
+    }
+
+    private void attachSnapshotChanges(ToolResult result, List<PendingChange> changes) {
+        StringBuilder diff = new StringBuilder();
+        int shown = 0;
+        for (PendingChange change : changes) {
+            if (change.getDiff() != null && !change.getDiff().isBlank() && shown++ < 20) {
+                diff.append(change.getDiff()).append('\n');
+            }
+        }
+        if (result.getPendingChangeId() == null) {
+            result.setPendingChangeId(changes.get(0).getId());
+        }
+        if (result.getDiff() == null || result.getDiff().isBlank()) {
+            result.setDiff(this.limitForContext(diff.toString(), 60000));
+        }
+        String content = result.getContent() == null ? "" : result.getContent();
+        result.setContent(content + "\n\n[Workspace snapshot] Recorded " + changes.size() + " file change(s). You can undo them in the Changes panel.");
+    }
+
+    private String permissionInput(String name, JsonObject args) {
+        if (args == null) {
+            return "";
+        }
+        String direct = this.firstString(args,
+                "command", "cmd", "file_path", "path", "url", "query", "pattern", "name", "server");
+        if (direct != null && !direct.isBlank()) {
+            return direct.trim();
+        }
+        return args.toString();
+    }
+
+    private String firstString(JsonObject args, String... keys) {
+        for (String key : keys) {
+            if (args.has(key) && !args.get(key).isJsonNull()) {
+                String value = args.get(key).getAsString();
+                if (value != null && !value.isBlank()) {
+                    return value;
+                }
+            }
+        }
+        return "";
     }
 
     private void sendObserve(AgentSsePublisher sse, AgentConversation conv, int i, String tn, ToolResult r, Long tid) throws Exception {
@@ -1041,6 +1249,28 @@ public class AgentLoopEngine {
         });
         String finalContent = contentBuf.toString();
         this.sendEvent(sse, conv, "FINAL", Map.of("content", finalContent, "summary", "Generated final response"));
+    }
+
+    private String buildModePolicy(String mode) {
+        if ("plan".equals(mode)) {
+            return """
+<agent_mode name="plan">
+You are in planning mode. Do not edit files, write files, apply patches, or run shell commands.
+Use read/search/project overview tools to understand the workspace, then produce a concrete implementation plan.
+</agent_mode>""";
+        }
+        if ("explore".equals(mode)) {
+            return """
+<agent_mode name="explore">
+You are in exploration mode. Prefer fast read, grep, glob, project overview, web search, and diagnostics tools.
+Do not modify workspace files. Return findings, options, and exact file references.
+</agent_mode>""";
+        }
+        return """
+<agent_mode name="build">
+You are in build mode. You may modify files when needed, but ask for approval when a permission prompt is raised.
+Keep changes scoped, verify with available checks, and report remaining risk clearly.
+</agent_mode>""";
     }
 
     private String buildContextMessage(String projectRules, String memoryContext, String sessionContext, String recentRunLog, String checkpoint, String globalSkills, String mcpContext) {

@@ -17,6 +17,8 @@ import java.nio.file.Path;
 import java.nio.file.attribute.FileAttribute;
 import java.security.MessageDigest;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -29,11 +31,13 @@ public class DiffService {
     private final StudentProjectService studentProjectService;
     private final AgentTaskService taskService;
     private final AgentFileChangeMapper fileChangeMapper;
+    private final GitSnapshotService snapshotService;
 
-    public DiffService(StudentProjectService studentProjectService, AgentTaskService taskService, AgentFileChangeMapper fileChangeMapper) {
+    public DiffService(StudentProjectService studentProjectService, AgentTaskService taskService, AgentFileChangeMapper fileChangeMapper, GitSnapshotService snapshotService) {
         this.studentProjectService = studentProjectService;
         this.taskService = taskService;
         this.fileChangeMapper = fileChangeMapper;
+        this.snapshotService = snapshotService;
     }
 
     public PendingChange stage(Integer studentId, StudentProject project, String relativePath, String beforeContent, String afterContent) {
@@ -83,7 +87,8 @@ public class DiffService {
     }
 
     public PendingChange apply(Integer studentId, String changeId) throws Exception {
-        PendingChange change = this.loadChange(studentId, changeId, "pending");
+        AgentFileChange fileChange = this.loadFileChange(studentId, changeId, "pending");
+        PendingChange change = fileChange == null ? null : this.toPendingChange(fileChange);
         if (change == null || !change.getStudentId().equals(studentId)) {
             throw new IllegalArgumentException("Change not found");
         }
@@ -91,6 +96,7 @@ public class DiffService {
         if (project == null) {
             throw new IllegalArgumentException("Project not found");
         }
+        GitSnapshotService.Snapshot beforeSnapshot = this.snapshotService.capture(project, "before " + change.getRelativePath());
         Path root = Path.of(project.getWorkspacePath(), new String[0]).toAbsolutePath().normalize();
         Path file = root.resolve(change.getRelativePath()).normalize();
         if (!file.startsWith(root)) {
@@ -102,10 +108,28 @@ public class DiffService {
             Files.createDirectories(file.getParent(), new FileAttribute[0]);
             Files.writeString(file, change.getAfterContent(), StandardCharsets.UTF_8, new OpenOption[0]);
         }
+        GitSnapshotService.Snapshot afterSnapshot = this.snapshotService.capture(project, "after " + change.getRelativePath());
+        List<GitSnapshotService.ChangedFile> snapshotFiles = this.snapshotService.usablePair(beforeSnapshot, afterSnapshot)
+                ? this.snapshotService.changedFiles(project, beforeSnapshot, afterSnapshot).stream()
+                    .filter(f -> change.getRelativePath().equals(f.path()) || change.getRelativePath().equals(f.oldPath()))
+                    .toList()
+                : List.of();
+        if (snapshotFiles.isEmpty() && beforeSnapshot.available() && afterSnapshot.available() && !beforeSnapshot.ref().equals(afterSnapshot.ref())) {
+            snapshotFiles = List.of(new GitSnapshotService.ChangedFile(change.getChangeType(), "", change.getRelativePath()));
+        }
         this.studentProjectService.refreshProjectMetadata(studentId, change.getProjectId());
         this.pendingChanges.remove(changeId);
         this.appliedChanges.put(changeId, change);
-        this.fileChangeMapper.update(null, (((new LambdaUpdateWrapper<AgentFileChange>().eq(AgentFileChange::getChangeId, changeId)).set(AgentFileChange::getStatus, "applied")).set(AgentFileChange::getAppliedTime, LocalDateTime.now())).set(AgentFileChange::getUpdateTime, LocalDateTime.now()));
+        LambdaUpdateWrapper<AgentFileChange> update = (((new LambdaUpdateWrapper<AgentFileChange>().eq(AgentFileChange::getChangeId, changeId)).set(AgentFileChange::getStatus, "applied")).set(AgentFileChange::getAppliedTime, LocalDateTime.now())).set(AgentFileChange::getUpdateTime, LocalDateTime.now());
+        if (beforeSnapshot.available() && afterSnapshot.available()) {
+            update.set(AgentFileChange::getSnapshotBeforeRef, beforeSnapshot.ref())
+                    .set(AgentFileChange::getSnapshotAfterRef, afterSnapshot.ref())
+                    .set(AgentFileChange::getSnapshotPaths, this.snapshotService.serializePaths(snapshotFiles))
+                    .set(AgentFileChange::getSnapshotStatus, this.snapshotService.usablePair(beforeSnapshot, afterSnapshot) ? "captured" : "clean");
+        } else {
+            update.set(AgentFileChange::getSnapshotStatus, "unavailable");
+        }
+        this.fileChangeMapper.update(null, update);
         this.taskService.updateTask(change.getTaskId(), "completed", "\u4fee\u6539\u5df2\u81ea\u52a8\u5e94\u7528", "Agent \u5df2\u81ea\u52a8\u5e94\u7528\u4fee\u6539\uff0c\u53ef\u5728 Changes \u64a4\u9500");
         return change;
     }
@@ -121,7 +145,8 @@ public class DiffService {
     }
 
     public PendingChange undo(Integer studentId, String changeId) throws Exception {
-        PendingChange change = this.loadChange(studentId, changeId, "applied");
+        AgentFileChange fileChange = this.loadFileChange(studentId, changeId, "applied");
+        PendingChange change = fileChange == null ? null : this.toPendingChange(fileChange);
         if (change == null || !change.getStudentId().equals(studentId)) {
             throw new IllegalArgumentException("Applied change not found");
         }
@@ -131,17 +156,72 @@ public class DiffService {
         if (!file.startsWith(root)) {
             throw new IllegalArgumentException("Unsafe file path");
         }
-        if ("create".equalsIgnoreCase(change.getChangeType())) {
-            Files.deleteIfExists(file);
-        } else {
-            Files.createDirectories(file.getParent(), new FileAttribute[0]);
-            Files.writeString(file, change.getBeforeContent(), StandardCharsets.UTF_8, new OpenOption[0]);
+        boolean restoredBySnapshot = fileChange != null
+                && fileChange.getSnapshotBeforeRef() != null
+                && fileChange.getSnapshotPaths() != null
+                && this.snapshotService.restore(project, fileChange.getSnapshotBeforeRef(), fileChange.getSnapshotPaths());
+        if (!restoredBySnapshot) {
+            if ("create".equalsIgnoreCase(change.getChangeType())) {
+                Files.deleteIfExists(file);
+            } else {
+                Files.createDirectories(file.getParent(), new FileAttribute[0]);
+                Files.writeString(file, change.getBeforeContent(), StandardCharsets.UTF_8, new OpenOption[0]);
+            }
         }
         this.studentProjectService.refreshProjectMetadata(studentId, change.getProjectId());
         this.appliedChanges.remove(changeId);
         this.fileChangeMapper.update(null, (((new LambdaUpdateWrapper<AgentFileChange>().eq(AgentFileChange::getChangeId, changeId)).set(AgentFileChange::getStatus, "undone")).set(AgentFileChange::getUndoneTime, LocalDateTime.now())).set(AgentFileChange::getUpdateTime, LocalDateTime.now()));
         this.taskService.updateTask(change.getTaskId(), "cancelled", "\u4fee\u6539\u5df2\u64a4\u9500", "\u7528\u6237\u64a4\u9500\u4e86\u5df2\u5e94\u7528\u4fee\u6539");
         return change;
+    }
+
+    public List<PendingChange> recordSnapshotDiff(Integer studentId, StudentProject project, String conversationId, Long taskId, String source, GitSnapshotService.Snapshot beforeSnapshot, GitSnapshotService.Snapshot afterSnapshot) {
+        if (!this.snapshotService.usablePair(beforeSnapshot, afterSnapshot)) {
+            return List.of();
+        }
+        List<GitSnapshotService.ChangedFile> changedFiles = this.snapshotService.changedFiles(project, beforeSnapshot, afterSnapshot);
+        if (changedFiles.isEmpty()) {
+            return List.of();
+        }
+        AgentChangeSet changeSet = this.taskService.getOrCreateOpenChangeSet(studentId, project.getProjectId(), conversationId, taskId);
+        List<PendingChange> recorded = new ArrayList<>();
+        for (GitSnapshotService.ChangedFile changedFile : changedFiles) {
+            if (recorded.size() >= 200) {
+                break;
+            }
+            String id = UUID.randomUUID().toString();
+            String type = snapshotChangeType(changedFile.status());
+            String beforeContent = this.snapshotService.readTextAt(project, beforeSnapshot.ref(), changedFile.oldPath() == null || changedFile.oldPath().isBlank() ? changedFile.path() : changedFile.oldPath());
+            String afterContent = this.snapshotService.readTextAt(project, afterSnapshot.ref(), changedFile.path());
+            AgentFileChange fileChange = new AgentFileChange();
+            fileChange.setChangeId(id);
+            fileChange.setChangeSetId(changeSet.getChangeSetId());
+            fileChange.setTaskId(taskId);
+            fileChange.setConversationId(conversationId);
+            fileChange.setStudentId(studentId);
+            fileChange.setProjectId(project.getProjectId());
+            fileChange.setRelativePath(changedFile.path());
+            fileChange.setChangeType(type);
+            fileChange.setBeforeHash(this.sha256(beforeContent));
+            fileChange.setBeforeContent(beforeContent);
+            fileChange.setAfterContent(afterContent);
+            fileChange.setDiff(this.snapshotService.diffForFile(project, beforeSnapshot, afterSnapshot, changedFile));
+            fileChange.setSnapshotBeforeRef(beforeSnapshot.ref());
+            fileChange.setSnapshotAfterRef(afterSnapshot.ref());
+            fileChange.setSnapshotPaths(this.snapshotService.serializePaths(List.of(changedFile)));
+            fileChange.setSnapshotStatus("captured");
+            fileChange.setStatus("applied");
+            fileChange.setCreateTime(LocalDateTime.now());
+            fileChange.setUpdateTime(LocalDateTime.now());
+            fileChange.setAppliedTime(LocalDateTime.now());
+            this.fileChangeMapper.insert(fileChange);
+            recorded.add(this.toPendingChange(fileChange));
+        }
+        this.taskService.incrementChangeCount(changeSet.getChangeSetId());
+        if (!recorded.isEmpty()) {
+            this.taskService.updateTask(taskId, "running", "\u8bb0\u5f55\u547d\u4ee4\u53d8\u66f4", (source == null ? "tool" : source) + " modified " + recorded.size() + " file(s)");
+        }
+        return recorded;
     }
 
     public PendingChange get(Integer studentId, String changeId) {
@@ -178,7 +258,7 @@ public class DiffService {
     }
 
     private PendingChange loadChange(Integer studentId, String changeId, String requiredStatus) {
-        AgentFileChange fileChange = (AgentFileChange)this.fileChangeMapper.selectOne(((new LambdaQueryWrapper<AgentFileChange>().eq(AgentFileChange::getChangeId, changeId)).eq(AgentFileChange::getStudentId, studentId)).eq(requiredStatus != null, AgentFileChange::getStatus, requiredStatus));
+        AgentFileChange fileChange = this.loadFileChange(studentId, changeId, requiredStatus);
         if (fileChange != null) {
             return this.toPendingChange(fileChange);
         }
@@ -193,6 +273,10 @@ public class DiffService {
             return null;
         }
         return memory;
+    }
+
+    private AgentFileChange loadFileChange(Integer studentId, String changeId, String requiredStatus) {
+        return (AgentFileChange)this.fileChangeMapper.selectOne(((new LambdaQueryWrapper<AgentFileChange>().eq(AgentFileChange::getChangeId, changeId)).eq(AgentFileChange::getStudentId, studentId)).eq(requiredStatus != null, AgentFileChange::getStatus, requiredStatus));
     }
 
     private PendingChange toPendingChange(AgentFileChange fileChange) {
@@ -213,5 +297,18 @@ public class DiffService {
             return "";
         }
     }
-}
 
+    private String snapshotChangeType(String status) {
+        String s = status == null ? "" : status.toUpperCase();
+        if (s.startsWith("A")) {
+            return "create";
+        }
+        if (s.startsWith("D")) {
+            return "delete";
+        }
+        if (s.startsWith("R")) {
+            return "rename";
+        }
+        return "modify";
+    }
+}

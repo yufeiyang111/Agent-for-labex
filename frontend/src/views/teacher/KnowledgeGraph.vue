@@ -47,7 +47,7 @@
       </el-col>
     </el-row>
 
-    <!-- Tabs: Knowledge Points | Topics -->
+    <!-- Tabs: Knowledge Points | Topics | Graph Visualization -->
     <el-tabs v-model="activeTab" class="kg-tabs">
       <el-tab-pane label="知识点" name="points">
         <div class="tab-toolbar">
@@ -110,6 +110,10 @@
             </template>
           </el-table-column>
         </el-table>
+      </el-tab-pane>
+
+      <el-tab-pane label="知识图谱" name="graph">
+        <KnowledgeGraphVisualization :topic-id="filterTopicId" />
       </el-tab-pane>
     </el-tabs>
 
@@ -193,6 +197,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, MagicStick, Connection } from '@element-plus/icons-vue'
 import { kgApi, studentApi, teacherApi } from '@/api'
+import KnowledgeGraphVisualization from '@/components/kg/KnowledgeGraphVisualization.vue'
 
 const activeTab = ref('points')
 
@@ -504,7 +509,16 @@ onMounted(() => {
 }
 .stat-value { font-size: 28px; font-weight: 700; color: #409eff; }
 .stat-label { font-size: 13px; color: #909399; margin-top: 4px; }
-.kg-tabs { background: #fff; border-radius: 10px; padding: 16px 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.04); }
+.kg-tabs {
+  background: #fff;
+  border-radius: 10px;
+  padding: 16px 20px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+  min-height: 650px;
+}
+:deep(.el-tab-pane) {
+  min-height: 600px;
+}
 .tab-toolbar { display: flex; align-items: center; margin-bottom: 14px; }
 .points-table { margin-top: 8px; }
 .kp-name { margin-right: 8px; font-weight: 500; }

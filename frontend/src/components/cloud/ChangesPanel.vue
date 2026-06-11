@@ -22,6 +22,7 @@
         </span>
         <span class="cp-file-name" :title="change.relativePath || change.file">{{ shortenPath(change.relativePath || change.file) }}</span>
         <span class="cp-status-badge" :class="'cp-status-' + (change.status || 'applied')">{{ change.status || 'applied' }}</span>
+        <span v-if="change.snapshotStatus === 'captured'" class="cp-snapshot-badge" title="Git snapshot rollback enabled">Git</span>
         <button class="cp-undo-btn" v-if="change.status === 'applied'" @click.stop="undoChange(change)" title="Undo this change">
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>
         </button>
@@ -68,7 +69,8 @@ import { ElMessageBox, ElMessage } from 'element-plus'
 
 const props = defineProps({
   changes: { type: Array, default: () => [] },
-  projectId: { type: [Number, String], default: null }
+  projectId: { type: [Number, String], default: null },
+  refreshKey: { type: [Number, String], default: 0 }
 })
 
 const emit = defineEmits(['revert', 'undo'])
@@ -99,14 +101,18 @@ const allChanges = computed(() => {
   return merged
 })
 
-onMounted(async () => {
+async function loadBackendChanges() {
   if (props.projectId) {
     try {
       const r = await projectApi.agentChanges(props.projectId)
       backendChanges.value = r.data || []
     } catch (e) { /* ignore */ }
   }
-})
+}
+
+onMounted(loadBackendChanges)
+
+watch(() => props.refreshKey, loadBackendChanges)
 
 function toggleFile(change) {
   const id = change.changeId || change.file
@@ -275,6 +281,15 @@ async function undoChange(change) {
 .cp-status-applied { background: #1e7e34; color: #fff; }
 .cp-status-pending { background: #c08a30; color: #fff; }
 .cp-status-undone { background: #666; color: #ccc; }
+.cp-snapshot-badge {
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: #16324f;
+  color: #8bc4ff;
+  border: 1px solid #245f92;
+  flex-shrink: 0;
+}
 .cp-undo-btn {
   width: 18px; height: 18px; display: none; align-items: center;
   justify-content: center; border: none; background: transparent;

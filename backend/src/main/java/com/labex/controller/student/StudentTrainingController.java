@@ -231,16 +231,22 @@ public class StudentTrainingController {
                     status = "MANUAL_REFER";
                 }
                 case 6 -> {
-                    List<QuestionTestCase> testCases = questionTestCaseService.lambdaQuery()
-                            .eq(QuestionTestCase::getQuestionId, q.getId())
-                            .orderByAsc(QuestionTestCase::getSortIndex)
-                            .list();
+                    List<QuestionTestCase> testCases = questionTestCaseService.findByQuestionId(q.getId());
                     if (testCases == null || testCases.isEmpty()) {
                         score = 0;
                         status = "NO_TEST_CASES";
                     } else {
+                        // Parse programming answer JSON wrapper to extract code and language
                         String lang = q.getLanguage() != null ? q.getLanguage() : "java";
-                        Map<String, Object> judge = codeExecutionService.executeAndGrade(myAnswer, lang, testCases);
+                        String codeForJudge = myAnswer;
+                        if (myAnswer != null && myAnswer.trim().startsWith("{") && myAnswer.contains("\"code\"")) {
+                            codeForJudge = extractJsonLikeValue(myAnswer, "code");
+                            String parsedLang = extractJsonLikeValue(myAnswer, "language");
+                            if (StringUtils.hasText(parsedLang)) {
+                                lang = "c".equalsIgnoreCase(parsedLang) ? "c" : "java";
+                            }
+                        }
+                        Map<String, Object> judge = codeExecutionService.executeAndGrade(codeForJudge, lang, testCases);
                         int totalWeight = 0;
                         int passedWeight = 0;
                         if (judge.containsKey("totalWeight")) totalWeight = ((Number) judge.get("totalWeight")).intValue();
@@ -252,6 +258,7 @@ public class StudentTrainingController {
                         }
                         status = score == maxScore ? "CORRECT" : (score > 0 ? "PARTIAL" : "WRONG");
                         autoScore += score;
+                        judge.put("status", status);
                         qr.put("judgeResult", judge);
                         // Persist judge result as JSON
                         try {
@@ -324,6 +331,13 @@ public class StudentTrainingController {
         newAttempt.setScore(0);
         studentTrainingService.save(newAttempt);
 
+        // Delete old unsubmitted answers so they don't leak into the new attempt
+        if (lastAttempt != null) {
+            studentTrainingQuestionService.lambdaUpdate()
+                    .eq(StudentTrainingQuestion::getAttemptId, lastAttempt.getId())
+                    .remove();
+        }
+
         return Result.success(Map.of(
                 "attemptId", newAttempt.getId(),
                 "attemptCount", newAttempt.getAttemptCount()
@@ -355,10 +369,24 @@ public class StudentTrainingController {
             // Parse judge result from stored JSON
             if (a.getJudgeResult() != null) {
                 try {
-                    item.put("judgeResult", objectMapper.readValue(a.getJudgeResult(), Map.class));
+                    Map<?, ?> storedJudge = objectMapper.readValue(a.getJudgeResult(), Map.class);
+                    item.put("judgeResult", storedJudge);
+                    // Derive status from stored judge result if this is a programming question
+                    if (q != null && q.getType() != null && q.getType() == 6) {
+                        Object storedStatus = storedJudge.get("status");
+                        if (storedStatus != null) {
+                            item.put("status", storedStatus.toString());
+                        }
+                    }
                 } catch (Exception e) {
                     log.warn("Failed to parse judge result for question {}", a.getQuestionId(), e);
                 }
+            }
+            // Fetch question details for type-specific fields
+            if (q != null) {
+                item.put("isProgramming", q.getIsProgramming());
+                item.put("language", q.getLanguage());
+                item.put("templateCode", q.getTemplateCode());
             }
             return item;
         }).collect(Collectors.toList());
@@ -379,7 +407,8 @@ public class StudentTrainingController {
             @PathVariable Integer trainingSetId,
             @PathVariable Integer questionId,
             @RequestParam String code,
-            @RequestParam(defaultValue = "java") String language) {
+            @RequestParam(defaultValue = "java") String language,
+            Authentication auth) {
         Question question = questionService.getById(questionId);
         if (question == null || question.getType() == null || question.getType() != 6) {
             return Result.error("题目不是编程题");
@@ -393,7 +422,49 @@ public class StudentTrainingController {
             return Result.error("未配置测试点");
         }
 
-        Map<String, Object> judge = codeExecutionService.executeAndGrade(code, language, testCases);
+        // If code is already JSON-wrapped (from saveAnswer), extract the actual code
+        String actualCode = code;
+        String actualLang = language;
+        if (code != null && code.trim().startsWith("{") && code.contains("\"code\"")) {
+            String extractedCode = extractJsonLikeValue(code, "code");
+            String extractedLang = extractJsonLikeValue(code, "language");
+            if (extractedCode != null) actualCode = extractedCode;
+            if (extractedLang != null && !extractedLang.isBlank()) actualLang = extractedLang;
+        }
+
+        // Save code and run result to the current attempt for persistence
+        if (auth != null) {
+            try {
+                Integer studentId = getStudentId(auth);
+                StudentTraining attempt = findOrCreateAttempt(trainingSetId, studentId);
+                StudentTrainingQuestion stq = studentTrainingQuestionService.lambdaQuery()
+                        .eq(StudentTrainingQuestion::getTrainingSetId, trainingSetId)
+                        .eq(StudentTrainingQuestion::getStudentId, studentId)
+                        .eq(StudentTrainingQuestion::getQuestionId, questionId)
+                        .eq(StudentTrainingQuestion::getAttemptId, attempt.getId())
+                        .one();
+
+                String serializedAnswer = "{\"language\":\"" + actualLang + "\",\"code\":\"" + actualCode.replace("\"", "\\\"") + "\"}";
+                if (stq == null) {
+                    stq = new StudentTrainingQuestion();
+                    stq.setTrainingSetId(trainingSetId);
+                    stq.setStudentId(studentId);
+                    stq.setQuestionId(questionId);
+                    stq.setAttemptId(attempt.getId());
+                    stq.setMyAnswer(serializedAnswer);
+                    stq.setSubmitTime(LocalDateTime.now());
+                    studentTrainingQuestionService.save(stq);
+                } else {
+                    stq.setMyAnswer(serializedAnswer);
+                    stq.setSubmitTime(LocalDateTime.now());
+                    studentTrainingQuestionService.updateById(stq);
+                }
+            } catch (Exception e) {
+                log.warn("Failed to persist run-tests result: {}", e.getMessage());
+            }
+        }
+
+        Map<String, Object> judge = codeExecutionService.executeAndGrade(actualCode, actualLang, testCases);
         int passedCount = 0;
         Object detailsObj = judge.get("details");
         if (detailsObj instanceof List<?> detailList) {
@@ -420,6 +491,27 @@ public class StudentTrainingController {
                 status = "PARTIAL_PASS";
             }
         }
+        judge.put("status", status);
+
+        // Also persist judge result to StudentTrainingQuestion if auth is available
+        if (auth != null) {
+            try {
+                Integer studentId = getStudentId(auth);
+                StudentTraining attempt = findOrCreateAttempt(trainingSetId, studentId);
+                StudentTrainingQuestion stq = studentTrainingQuestionService.lambdaQuery()
+                        .eq(StudentTrainingQuestion::getTrainingSetId, trainingSetId)
+                        .eq(StudentTrainingQuestion::getStudentId, studentId)
+                        .eq(StudentTrainingQuestion::getQuestionId, questionId)
+                        .eq(StudentTrainingQuestion::getAttemptId, attempt.getId())
+                        .one();
+                if (stq != null) {
+                    stq.setJudgeResult(objectMapper.writeValueAsString(judge));
+                    studentTrainingQuestionService.updateById(stq);
+                }
+            } catch (Exception e) {
+                log.warn("Failed to persist judge result: {}", e.getMessage());
+            }
+        }
 
         Map<String, Object> result = new HashMap<>(judge);
         result.put("passedCount", passedCount);
@@ -427,6 +519,10 @@ public class StudentTrainingController {
         result.put("status", status);
         result.put("compileError", compileError);
         return Result.success(result);
+    }
+
+    private String serializeProgrammingAnswer(String code, String language) {
+        return "{\"language\":\"" + language + "\",\"code\":\"" + code.replace("\"", "\\\"") + "\"}";
     }
 
     @PostMapping("/run-code")
@@ -511,5 +607,41 @@ public class StudentTrainingController {
                 .replaceAll("\\s+", " ")
                 .replaceAll("\\p{Punct}+", "")
                 .toLowerCase();
+    }
+
+    private String extractJsonLikeValue(String text, String key) {
+        if (!StringUtils.hasText(text) || !StringUtils.hasText(key)) return null;
+        String marker = "\"" + key + "\"";
+        int keyIdx = text.indexOf(marker);
+        if (keyIdx < 0) return null;
+        int colonIdx = text.indexOf(':', keyIdx);
+        if (colonIdx < 0) return null;
+        int firstQuote = text.indexOf('"', colonIdx + 1);
+        if (firstQuote < 0) return null;
+        int endQuote = firstQuote + 1;
+        StringBuilder value = new StringBuilder();
+        boolean escape = false;
+        while (endQuote < text.length()) {
+            char ch = text.charAt(endQuote);
+            if (escape) {
+                switch (ch) {
+                    case 'n' -> value.append('\n');
+                    case 'r' -> value.append('\r');
+                    case 't' -> value.append('\t');
+                    case '"' -> value.append('"');
+                    case '\\' -> value.append('\\');
+                    default -> value.append(ch);
+                }
+                escape = false;
+            } else if (ch == '\\') {
+                escape = true;
+            } else if (ch == '"') {
+                break;
+            } else {
+                value.append(ch);
+            }
+            endQuote++;
+        }
+        return value.toString();
     }
 }

@@ -99,6 +99,12 @@
                     @click="selectConversation(c)">
                     <span class="ai-session-title">{{ c.title || '新对话' }}</span>
                     <span class="ai-session-time">{{ c.createTime?.substring(0, 16) || '' }}</span>
+                    <button class="ai-session-action" @click.stop="forkConversation(c)" title="从此会话创建分支">
+                      分支
+                    </button>
+                    <button class="ai-session-action" @click.stop="compactConversation(c)" title="压缩上下文">
+                      压缩
+                    </button>
                     <button class="ai-session-del" @click.stop="deleteConversation(c)" title="删除">
                       <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                     </button>
@@ -116,6 +122,12 @@
               </button>
               <button class="ai-topbar-btn" @click="clearMessages" title="清空会话">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              </button>
+              <button class="ai-topbar-btn" @click="forkCurrentConversation" title="分支当前会话">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="6" r="3"/><circle cx="18" cy="18" r="3"/><path d="M8.5 8.5C11 12 13 14 15.5 15.5"/><path d="M6 9v4a5 5 0 0 0 5 5h4"/></svg>
+              </button>
+              <button class="ai-topbar-btn" @click="compactCurrentConversation" title="压缩当前上下文">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 14h6v6"/><path d="M20 10h-6V4"/><path d="M14 10l6-6"/><path d="M10 14l-6 6"/></svg>
               </button>
               <button class="ai-topbar-btn" title="设置">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
@@ -206,7 +218,7 @@
                             <div v-if="item.data._open" class="ai-thinking-body">{{ item.data.content }}</div>
                           </Transition>
                         </div>
-                        <ToolCallCard v-else-if="item.type === 'tool'" :call="item.data" />
+                        <ToolCallCard v-else-if="item.type === 'tool'" :call="item.data" @permission="handlePermissionDecision" />
                       </template>
                     </template>
                     <!-- Current Thinking (streaming) -->
@@ -277,6 +289,17 @@
               </div>
               <div class="ai-input-bottom">
                 <div class="ai-input-tools">
+                  <div class="ai-mode-switch" title="切换 Agent 工作模式">
+                    <button
+                      v-for="mode in agentModes"
+                      :key="mode.key"
+                      type="button"
+                      :class="{ active: agentMode === mode.key }"
+                      @click="agentMode = mode.key"
+                    >
+                      {{ mode.label }}
+                    </button>
+                  </div>
                   <button class="ai-tool-btn" title="修改模型配置" @click="showModelConfig = !showModelConfig">
                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
                     <span>模型</span>
@@ -308,7 +331,7 @@
 
           <!-- ==================== REVIEW TAB (Changes) ==================== -->
           <div v-if="activeAiTab === 'review'" class="ai-content ai-content-nopad">
-            <ChangesPanel :changes="sessionChanges" :project-id="projectId" @revert="revertChange" @undo="onUndoChange" />
+            <ChangesPanel :changes="sessionChanges" :project-id="projectId" :refresh-key="changesRefreshKey" @revert="revertChange" @undo="onUndoChange" />
           </div>
 
           <!-- ==================== USAGE TAB ==================== -->
@@ -737,6 +760,7 @@ const renamingItemPath = ref('')
 const messages = ref([])
 const agentInput = ref('')
 const agentLoading = ref(false)
+const agentMode = ref('build')
 const msgContainer = ref(null)
 const aiInputRef = ref(null)
 const detectedLang = ref('plaintext')
@@ -835,6 +859,12 @@ const currentModelName = computed(() => {
   }
   return 'MiniMax'
 })
+
+const agentModes = [
+  { key: 'build', label: '构建' },
+  { key: 'plan', label: '规划' },
+  { key: 'explore', label: '探索' },
+]
 
 const aiTabs = [
   { key: 'chat', label: '对话', icon: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>' },
@@ -1126,7 +1156,7 @@ async function sendMessage() {
       body: JSON.stringify({
         sessionId,
         conversationId: currentAgentSession.value?.conversationId,
-        mode: 'agent',
+        mode: agentMode.value,
         message: q,
         activePath: activePath.value || '',
         modelConfigId: selectedModelConfigId.value || null
@@ -1219,7 +1249,30 @@ function handleAgentEvent(event, assistantMsg) {
           last.hasDiff = true
           trackFileChange(data, last)
         }
+        if (data.pendingChangeId) {
+          changesRefreshKey.value++
+        }
       }
+      break
+    case 'PERMISSION_ASK':
+      {
+        const last = assistantMsg.toolCalls[assistantMsg.toolCalls.length - 1]
+        if (last && last.status === 'running' && last.name === data.toolName) {
+          last.status = 'waiting_approval'
+          last.permissionRequest = data
+          last.summary = data.summary || last.summary
+          break
+        }
+      }
+      assistantMsg.toolCalls.push({
+        name: 'permission_ask',
+        args: { toolName: data.toolName, input: data.input },
+        summary: data.summary || `${data.toolName} 需要确认`,
+        result: null,
+        status: 'waiting_approval',
+        permissionRequest: data,
+        _order: (assistantMsg._nextOrder = (assistantMsg._nextOrder || 0) + 1)
+      })
       break
     case 'PLAN_UPDATE':
       assistantMsg.plan = data.summary || data.plan || null
@@ -1295,6 +1348,23 @@ function trackFileChange(data, toolCall) {
   }
 }
 
+async function handlePermissionDecision({ call, action }) {
+  const request = call?.permissionRequest
+  if (!request?.requestId) return
+  try {
+    call.status = action === 'reject' ? 'error' : 'running'
+    call.result = action === 'reject' ? '已拒绝执行' : '已确认，等待工具继续执行...'
+    await projectApi.agentApprovePermission(projectId.value, {
+      requestId: request.requestId,
+      action,
+      feedback: action === 'reject' ? '用户拒绝了本次工具调用' : ''
+    })
+  } catch (e) {
+    call.status = 'error'
+    call.result = '权限确认提交失败：' + (e?.response?.data?.message || e?.message || '未知错误')
+  }
+}
+
 async function revertChange(change) {
   if (!change || !change.file) return
   try {
@@ -1336,6 +1406,7 @@ const currentAgentSession = ref(null)
 const selectedModelConfigId = ref(null)
 const modelConfigs = ref([])
 const sessionChanges = ref([])
+const changesRefreshKey = ref(0)
 
 async function loadModelConfigs() {
   try {
@@ -1530,6 +1601,20 @@ function replayHistoryEvent(type, data, msg) {
       break
     case 'OBSERVE':
       if (msg.toolCalls && msg.toolCalls.length > 0) { const l = msg.toolCalls[msg.toolCalls.length - 1]; l.result = data.result || data.content; l.status = data.success !== false ? 'completed' : 'error' }
+      if (data.pendingChangeId) changesRefreshKey.value++
+      break
+    case 'PERMISSION_ASK':
+      if (msg.toolCalls && msg.toolCalls.length > 0) {
+        const l = msg.toolCalls[msg.toolCalls.length - 1]
+        if (l.status === 'running' && l.name === data.toolName) {
+          l.status = 'waiting_approval'
+          l.permissionRequest = data
+          l.summary = data.summary || l.summary
+          break
+        }
+      }
+      msg.toolCalls = msg.toolCalls || []
+      msg.toolCalls.push({ name: 'permission_ask', args: { toolName: data.toolName, input: data.input }, summary: data.summary || `${data.toolName} 需要确认`, result: null, status: 'waiting_approval', permissionRequest: data, _order: (msg._nextOrder = (msg._nextOrder || 0) + 1) })
       break
     case 'PLAN_UPDATE':
       msg.plan = data.summary || data.plan || null; msg.planJson = data.planJson || null
@@ -1554,6 +1639,56 @@ function replayHistoryEvent(type, data, msg) {
       tokenUsage.value.conversationTotal = data.conversationTotal || tokenUsage.value.totalTokens
       break
   }
+}
+
+async function forkConversation(c) {
+  if (!c?.conversationId) return
+  try {
+    const r = await projectApi.agentForkConversation(projectId.value, c.conversationId)
+    if (r.code === 0 && r.data?.conversationId) {
+      await loadConversations()
+      await loadConversationMessages(r.data.conversationId)
+      showSessions.value = false
+      ElMessage.success('已创建会话分支')
+    } else {
+      ElMessage.error(r.message || '创建分支失败')
+    }
+  } catch (e) {
+    ElMessage.error('创建分支失败：' + (e?.response?.data?.message || e?.message || '未知错误'))
+  }
+}
+
+async function forkCurrentConversation() {
+  if (!currentAgentSession.value?.conversationId) {
+    ElMessage.info('当前还没有可分支的会话')
+    return
+  }
+  const c = conversations.value.find(x => x.conversationId === currentAgentSession.value.conversationId)
+  await forkConversation(c || { conversationId: currentAgentSession.value.conversationId })
+}
+
+async function compactConversation(c) {
+  if (!c?.conversationId) return
+  try {
+    const r = await projectApi.agentCompactConversation(projectId.value, c.conversationId)
+    if (r.code === 0) {
+      await loadConversations()
+      ElMessage.success('上下文已压缩，后续对话会携带摘要')
+    } else {
+      ElMessage.error(r.message || '压缩失败')
+    }
+  } catch (e) {
+    ElMessage.error('压缩失败：' + (e?.response?.data?.message || e?.message || '未知错误'))
+  }
+}
+
+async function compactCurrentConversation() {
+  if (!currentAgentSession.value?.conversationId) {
+    ElMessage.info('当前还没有可压缩的会话')
+    return
+  }
+  const c = conversations.value.find(x => x.conversationId === currentAgentSession.value.conversationId)
+  await compactConversation(c || { conversationId: currentAgentSession.value.conversationId })
 }
 
 async function deleteConversation(c) {
@@ -2749,7 +2884,33 @@ function startResize(e) {
 }
 .ai-input-tools {
   display: flex;
+  align-items: center;
   gap: 2px;
+  flex-wrap: wrap;
+}
+.ai-mode-switch {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px;
+  border-radius: 8px;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  margin-right: 4px;
+}
+.ai-mode-switch button {
+  height: 24px;
+  border: none;
+  background: transparent;
+  color: #6b7280;
+  border-radius: 6px;
+  padding: 0 8px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.ai-mode-switch button.active {
+  background: #111827;
+  color: #fff;
+  box-shadow: 0 1px 4px rgba(17, 24, 39, 0.14);
 }
 .ai-tool-btn {
   display: inline-flex;
@@ -3616,7 +3777,7 @@ function startResize(e) {
   position: absolute;
   top: calc(100% + 4px);
   right: 0;
-  width: 220px;
+  width: 290px;
   max-height: 280px;
   overflow-y: auto;
   background: #fff;
@@ -3639,6 +3800,26 @@ function startResize(e) {
 .ai-session-item.active { background: #eff6ff; color: #1e40af; }
 .ai-session-title { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ai-session-time { font-size: 10px; color: #9ca3af; margin-left: 8px; flex-shrink: 0; }
+.ai-session-action {
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  color: #6b7280;
+  height: 22px;
+  border-radius: 5px;
+  padding: 0 6px;
+  margin-left: 4px;
+  cursor: pointer;
+  opacity: 0;
+  font-size: 10px;
+  transition: opacity 0.1s, border-color 0.12s, color 0.12s;
+}
+.ai-session-item:hover .ai-session-action {
+  opacity: 1;
+}
+.ai-session-action:hover {
+  border-color: #93c5fd;
+  color: #2563eb;
+}
 .ai-session-del { border: none; background: none; padding: 2px 4px; cursor: pointer; opacity: 0; transition: opacity 0.1s; }
 .ai-session-item:hover .ai-session-del { opacity: 1; }
 .ai-session-empty { padding: 12px; text-align: center; font-size: 12px; color: #9ca3af; }

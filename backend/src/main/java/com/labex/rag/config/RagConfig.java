@@ -18,7 +18,11 @@ public class RagConfig {
 
     private String miniMaxBaseUrl = "https://api.minimaxi.com/v1";
 
+    private String miniMaxApiHost;
+
     private String miniMaxModel = "MiniMax-M2.7";
+
+    private boolean imageUnderstandingEnabled = true;
 
     private int maxContextChunks = 10;
 

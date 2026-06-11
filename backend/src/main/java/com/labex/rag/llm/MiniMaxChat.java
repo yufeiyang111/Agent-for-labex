@@ -1,12 +1,21 @@
 package com.labex.rag.llm;
 
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import com.labex.rag.config.RagConfig;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
+import java.util.function.Consumer;
 
 /**
  * MiniMax LLM Service
@@ -122,13 +131,150 @@ public class MiniMaxChat implements LLMChat {
         }
     }
 
-    /**
-     * Generate streaming response (simplified - non-streaming for now)
-     */
     public String chatStream(String prompt, String context, String question) {
-        // For simplicity, return non-streaming response
-        // Streaming can be implemented with WebFlux or SSE
         return chat(prompt, context, question);
+    }
+
+    public void chatStream(String prompt, String context, String question, Consumer<StreamChunk> onChunk) {
+        HttpURLConnection connection = null;
+        try {
+            String apiKey = ragConfig.getMiniMaxApiKey();
+            if (apiKey == null || apiKey.isBlank()) {
+                onChunk.accept(StreamChunk.error("LLM API key not configured. Please set rag.mini-max-api-key in application.yml"));
+                return;
+            }
+
+            String url = ragConfig.getMiniMaxBaseUrl().replaceAll("/$", "") + "/text/chatcompletion_v2";
+            String fullSystemPrompt = prompt + "\n\nContext:\n" + context;
+
+            List<Map<String, Object>> messages = new ArrayList<>();
+            messages.add(Map.of("role", "user", "content", fullSystemPrompt + "\n\n用户问题: " + question));
+
+            Map<String, Object> requestBody = new HashMap<>();
+            requestBody.put("model", ragConfig.getMiniMaxModel());
+            requestBody.put("messages", messages);
+            requestBody.put("stream", true);
+            requestBody.put("max_tokens", 8192);
+            requestBody.put("max_completion_tokens", 8192);
+            requestBody.put("user_id", "labex-system");
+
+            connection = (HttpURLConnection) URI.create(url).toURL().openConnection();
+            connection.setRequestMethod("POST");
+            connection.setRequestProperty("Content-Type", "application/json");
+            connection.setRequestProperty("Authorization", "Bearer " + apiKey);
+            connection.setRequestProperty("Accept", "text/event-stream");
+            connection.setDoOutput(true);
+            connection.setConnectTimeout(15000);
+            connection.setReadTimeout(300000);
+
+            try (OutputStream outputStream = connection.getOutputStream()) {
+                outputStream.write(new com.google.gson.Gson().toJson(requestBody).getBytes(StandardCharsets.UTF_8));
+            }
+
+            int status = connection.getResponseCode();
+            if (status != 200) {
+                String errorBody = readAll(connection.getErrorStream());
+                onChunk.accept(StreamChunk.error("MiniMax stream API error " + status + ": " + errorBody));
+                return;
+            }
+
+            try (BufferedReader reader = new BufferedReader(
+                    new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8))) {
+                String line;
+                boolean[] emittedDelta = {false};
+                String[] lastMessageContent = {""};
+                while ((line = reader.readLine()) != null) {
+                    if (line.isBlank() || !line.startsWith("data:")) {
+                        continue;
+                    }
+                    String data = line.substring(5).trim();
+                    if ("[DONE]".equals(data)) {
+                        onChunk.accept(StreamChunk.completed());
+                        break;
+                    }
+                    parseStreamData(data, onChunk, emittedDelta, lastMessageContent);
+                }
+            }
+        } catch (Exception e) {
+            log.error("MiniMax stream error: {}", e.getMessage(), e);
+            onChunk.accept(StreamChunk.error("LLM stream error: " + e.getMessage()));
+        } finally {
+            if (connection != null) {
+                connection.disconnect();
+            }
+        }
+    }
+
+    private void parseStreamData(
+            String data,
+            Consumer<StreamChunk> onChunk,
+            boolean[] emittedDelta,
+            String[] lastMessageContent) {
+        try {
+            JsonObject root = JsonParser.parseString(data).getAsJsonObject();
+            if (!root.has("choices") || !root.get("choices").isJsonArray() || root.getAsJsonArray("choices").isEmpty()) {
+                return;
+            }
+            JsonObject choice = root.getAsJsonArray("choices").get(0).getAsJsonObject();
+            JsonObject delta = choice.has("delta") && choice.get("delta").isJsonObject()
+                    ? choice.getAsJsonObject("delta")
+                    : null;
+            if (delta != null && delta.has("content") && !delta.get("content").isJsonNull()) {
+                String content = delta.get("content").getAsString();
+                if (!content.isEmpty()) {
+                    emittedDelta[0] = true;
+                    onChunk.accept(StreamChunk.text(content));
+                }
+            }
+
+            if (emittedDelta[0]) {
+                return;
+            }
+            JsonObject message = choice.has("message") && choice.get("message").isJsonObject()
+                    ? choice.getAsJsonObject("message")
+                    : null;
+            if (message != null && message.has("content") && !message.get("content").isJsonNull()) {
+                String content = message.get("content").getAsString();
+                String previous = lastMessageContent[0] == null ? "" : lastMessageContent[0];
+                String deltaContent = content.startsWith(previous) ? content.substring(previous.length()) : content;
+                lastMessageContent[0] = content;
+                if (!deltaContent.isEmpty()) {
+                    onChunk.accept(StreamChunk.text(deltaContent));
+                }
+            }
+        } catch (Exception parseError) {
+            log.debug("MiniMax stream chunk parse skipped: {}", parseError.getMessage());
+        }
+    }
+
+    private String readAll(java.io.InputStream stream) {
+        if (stream == null) {
+            return "";
+        }
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(stream, StandardCharsets.UTF_8))) {
+            StringBuilder builder = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                builder.append(line).append('\n');
+            }
+            return builder.toString();
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
+    public record StreamChunk(String type, String content, boolean finished) {
+        public static StreamChunk text(String content) {
+            return new StreamChunk("text_delta", content, false);
+        }
+
+        public static StreamChunk completed() {
+            return new StreamChunk("done", "", true);
+        }
+
+        public static StreamChunk error(String content) {
+            return new StreamChunk("error", content, true);
+        }
     }
 
     public Map<String, Object> chatWithTools(String sysPrompt, ArrayList<Map<String, Object>> msgs, List<Map<String, Object>> tools) {

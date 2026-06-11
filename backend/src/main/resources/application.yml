@@ -111,8 +111,12 @@ rag:
   mini-max-api-key: sk-cp-RXPtq9jNm3nrU4uqccKuuu-PE3Yh-79mPvgjOKflViPPWtDRWkSV2_9TFKXOQTxUkKlENtgATd3umSRMm5llkLmCoeClpeH9OYx5DWvOr5M2sI-XXxHfXOE
   # MiniMax API 基础地址
   mini-max-base-url: https://api.minimaxi.com/v1
+  # MiniMax Coding Plan 工具 API Host；需与 API Key 地区一致
+  mini-max-api-host: https://api.minimaxi.com
   # MiniMax 模型
   mini-max-model: MiniMax-M2.7
+  # 是否启用图片理解工具
+  image-understanding-enabled: true
   # 最大上下文块数
   max-context-chunks: 10
   # 块大小（tokens）

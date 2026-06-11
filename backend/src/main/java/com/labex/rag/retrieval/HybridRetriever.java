@@ -16,6 +16,8 @@ import java.util.stream.Collectors;
 public class HybridRetriever {
 
     private final Neo4jVectorStore vectorStore;
+    private static final double HIGH_CONFIDENCE_VECTOR_SCORE = 0.78;
+    private static final int MAX_RESULTS_PER_DOCUMENT = 2;
 
     public HybridRetriever(Neo4jVectorStore vectorStore) {
         this.vectorStore = vectorStore;
@@ -29,56 +31,190 @@ public class HybridRetriever {
      * @return List of search results with scores
      */
     public List<Map<String, Object>> search(String query, int topK) {
+        if (query == null || query.isBlank() || topK <= 0) {
+            return new ArrayList<>();
+        }
+
         // Get results from vector store
-        List<Map<String, Object>> vectorResults = vectorStore.searchByVector(query, topK * 2);
+        List<Map<String, Object>> vectorResults = vectorStore.searchByVector(query, Math.max(topK * 5, 20));
+        if (vectorResults.isEmpty()) {
+            return vectorResults;
+        }
+
+        List<String> queryTerms = extractTerms(query);
 
         // Apply simple BM25-like scoring
-        List<Map<String, Object>> bm25Scored = bm25Score(query, vectorResults);
+        List<Map<String, Object>> bm25Scored = bm25Score(queryTerms, vectorResults);
 
         // Combine scores (simple weighted average)
         for (Map<String, Object> result : bm25Scored) {
-            double vectorScore = result.containsKey("score") ? (double) result.get("score") : 0.0;
-            double bm25Score = result.containsKey("bm25Score") ? (double) result.get("bm25Score") : 0.0;
-            result.put("finalScore", 0.6 * vectorScore + 0.4 * bm25Score);
+            double vectorScore = getDouble(result.get("score"));
+            double bm25Score = getDouble(result.get("bm25Score"));
+            double coverageScore = getDouble(result.get("coverageScore"));
+            double titleScore = getDouble(result.get("titleScore"));
+            result.put("vectorScore", vectorScore);
+            result.put("finalScore", 0.58 * vectorScore + 0.24 * bm25Score + 0.13 * coverageScore + 0.05 * titleScore);
         }
 
-        // Sort by final score and return top K
-        return bm25Scored.stream()
+        List<Map<String, Object>> sorted = bm25Scored.stream()
                 .sorted((a, b) -> Double.compare(
-                        (double) b.getOrDefault("finalScore", 0.0),
-                        (double) a.getOrDefault("finalScore", 0.0)))
-                .limit(topK)
+                        getDouble(b.getOrDefault("finalScore", 0.0)),
+                        getDouble(a.getOrDefault("finalScore", 0.0))))
                 .collect(Collectors.toList());
+
+        List<Map<String, Object>> relevant = sorted.stream()
+                .filter(result -> isRelevant(result, queryTerms))
+                .collect(Collectors.toList());
+
+        if (relevant.isEmpty() && !queryTerms.isEmpty()) {
+            log.info("No relevant knowledge chunks after filtering for query: {}", query);
+            return new ArrayList<>();
+        }
+
+        return diversify(relevant.isEmpty() ? sorted : relevant, topK);
     }
 
-    private List<Map<String, Object>> bm25Score(String query, List<Map<String, Object>> documents) {
-        String[] queryTerms = query.toLowerCase().split("\\s+");
+    private List<Map<String, Object>> bm25Score(List<String> queryTerms, List<Map<String, Object>> documents) {
         double avgDocLen = documents.stream()
                 .mapToInt(doc -> ((String) doc.getOrDefault("text", "")).length())
                 .average()
                 .orElse(100.0);
 
         for (Map<String, Object> doc : documents) {
-            String text = ((String) doc.getOrDefault("text", "")).toLowerCase();
+            String text = (((String) doc.getOrDefault("text", "")) + " " +
+                    Objects.toString(doc.get("lectureName"), "") + " " +
+                    Objects.toString(doc.get("documentId"), "")).toLowerCase(Locale.ROOT);
+            String title = Objects.toString(doc.get("lectureName"), "").toLowerCase(Locale.ROOT);
             int docLen = text.length();
 
             double score = 0.0;
-            int termFreq;
+            int lexicalHits = 0;
+            int titleHits = 0;
+            Set<String> matchedTerms = new LinkedHashSet<>();
             for (String term : queryTerms) {
-                termFreq = countOccurrences(text, term);
+                int termFreq = countOccurrences(text, term.toLowerCase(Locale.ROOT));
                 if (termFreq > 0) {
+                    lexicalHits++;
+                    matchedTerms.add(term);
                     // Simplified BM25 formula
                     double tfComponent = (termFreq * (1.2 + 1)) / (termFreq + 1.2 * (1 - 0.75 + 0.75 * docLen / avgDocLen));
                     score += tfComponent;
                 }
+                if (title.contains(term.toLowerCase(Locale.ROOT))) {
+                    titleHits++;
+                }
             }
-            doc.put("bm25Score", score);
+            double termCount = Math.max(queryTerms.size(), 1);
+            double coverageScore = Math.min(1.0, lexicalHits / termCount);
+            double normalizedBm25 = Math.min(1.0, score / Math.max(2.0, termCount));
+            doc.put("bm25Score", normalizedBm25);
+            doc.put("coverageScore", coverageScore);
+            doc.put("titleScore", Math.min(1.0, titleHits / termCount));
+            doc.put("lexicalHits", lexicalHits);
+            doc.put("titleHits", titleHits);
+            doc.put("matchTerms", new ArrayList<>(matchedTerms));
         }
 
         return documents;
     }
 
+    private boolean isRelevant(Map<String, Object> result, List<String> queryTerms) {
+        if (queryTerms.isEmpty()) {
+            return true;
+        }
+        int lexicalHits = ((Number) result.getOrDefault("lexicalHits", 0)).intValue();
+        int titleHits = ((Number) result.getOrDefault("titleHits", 0)).intValue();
+        double vectorScore = getDouble(result.get("vectorScore"));
+        return lexicalHits > 0 || titleHits > 0 || vectorScore >= HIGH_CONFIDENCE_VECTOR_SCORE;
+    }
+
+    private List<Map<String, Object>> diversify(List<Map<String, Object>> sorted, int topK) {
+        List<Map<String, Object>> selected = new ArrayList<>();
+        Map<String, Integer> perDocument = new HashMap<>();
+        for (Map<String, Object> result : sorted) {
+            if (selected.size() >= topK) {
+                break;
+            }
+            String documentKey = Objects.toString(result.getOrDefault("documentId", result.get("lectureId")), "unknown");
+            int count = perDocument.getOrDefault(documentKey, 0);
+            if (count >= MAX_RESULTS_PER_DOCUMENT) {
+                continue;
+            }
+            selected.add(result);
+            perDocument.put(documentKey, count + 1);
+        }
+
+        if (selected.size() < topK) {
+            Set<Object> selectedIds = selected.stream()
+                    .map(result -> result.getOrDefault("id", result.get("documentId")))
+                    .collect(Collectors.toSet());
+            for (Map<String, Object> result : sorted) {
+                if (selected.size() >= topK) {
+                    break;
+                }
+                Object id = result.getOrDefault("id", result.get("documentId"));
+                if (selectedIds.add(id)) {
+                    selected.add(result);
+                }
+            }
+        }
+        return selected;
+    }
+
+    private List<String> extractTerms(String query) {
+        String normalized = query == null ? "" : query.toLowerCase(Locale.ROOT)
+                .replaceAll("[\\p{Cntrl}]+", " ")
+                .replaceAll("\\s+", " ")
+                .trim();
+        Set<String> terms = new LinkedHashSet<>();
+        Set<String> stopWords = Set.of(
+                "the", "and", "for", "with", "from", "this", "that", "image", "content",
+                "about", "what", "how", "why", "when", "where", "which",
+                "图片", "内容", "用户", "问题", "主要", "可见", "文字", "信息", "截图",
+                "工具", "结果", "分析", "说明", "回答", "这个", "一个", "如果", "可以",
+                "进行", "相关", "识别", "看看", "查看", "解释", "一下", "根据", "帮我"
+        );
+
+        java.util.regex.Matcher latinMatcher = java.util.regex.Pattern
+                .compile("\\b[a-z][a-z0-9+#./-]{1,30}\\b")
+                .matcher(normalized);
+        while (latinMatcher.find() && terms.size() < 18) {
+            String term = latinMatcher.group();
+            if (!stopWords.contains(term)) {
+                terms.add(term);
+            }
+        }
+
+        java.util.regex.Matcher chineseMatcher = java.util.regex.Pattern
+                .compile("[\\u4e00-\\u9fa5]{2,24}")
+                .matcher(normalized);
+        while (chineseMatcher.find() && terms.size() < 28) {
+            String phrase = chineseMatcher.group();
+            if (!stopWords.contains(phrase)) {
+                terms.add(phrase);
+            }
+            if (phrase.length() > 4) {
+                for (int size = 4; size >= 2 && terms.size() < 28; size--) {
+                    for (int i = 0; i + size <= phrase.length() && terms.size() < 28; i++) {
+                        String gram = phrase.substring(i, i + size);
+                        if (!stopWords.contains(gram)) {
+                            terms.add(gram);
+                        }
+                    }
+                }
+            }
+        }
+        return new ArrayList<>(terms);
+    }
+
+    private double getDouble(Object value) {
+        return value instanceof Number number ? number.doubleValue() : 0.0;
+    }
+
     private int countOccurrences(String text, String term) {
+        if (text == null || term == null || term.isBlank()) {
+            return 0;
+        }
         int count = 0;
         int index = 0;
         while ((index = text.indexOf(term, index)) != -1) {

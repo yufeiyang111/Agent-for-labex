@@ -1,5 +1,8 @@
 package com.labex.kg.service;
 
+import com.labex.kg.dto.GraphDataDTO;
+import com.labex.kg.dto.GraphDataDTO.GraphEdge;
+import com.labex.kg.dto.GraphDataDTO.GraphNode;
 import com.labex.kg.dto.KnowledgePointDTO;
 import com.labex.kg.dto.TopicDTO;
 import com.labex.kg.repository.KnowledgeGraphRepository;
@@ -76,6 +79,82 @@ public class KnowledgeGraphService {
 
     public Map<String, Object> getStats() {
         return repository.getStats();
+    }
+
+    // ==================== Graph Visualization ====================
+
+    /**
+     * 获取图谱节点统计信息
+     */
+    public Map<String, Object> getGraphStats() {
+        return repository.getGraphStats();
+    }
+
+    /**
+     * 获取知识图谱可视化数据
+     * @param topicId 可选，按主题筛选
+     * @param nodeTypes 要显示的节点类型
+     * @param maxNodes 每种类型最大节点数
+     * @param centerNodeId 中心节点ID（用于单节点展开）
+     * @return 图谱数据（节点和边）
+     */
+    public GraphDataDTO getGraphData(String topicId, List<String> nodeTypes, int maxNodes, String centerNodeId) {
+        Map<String, Object> rawData = repository.getGraphData(topicId, nodeTypes, maxNodes, centerNodeId);
+        GraphDataDTO dto = new GraphDataDTO();
+
+        // 转换节点
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> rawNodes = (List<Map<String, Object>>) rawData.getOrDefault("nodes", new ArrayList<>());
+        List<GraphNode> nodes = new ArrayList<>();
+        for (Map<String, Object> rawNode : rawNodes) {
+            GraphNode node = new GraphNode();
+            node.setId(Objects.toString(rawNode.get("id"), null));
+            node.setType(Objects.toString(rawNode.get("type"), null));
+            node.setLabel(Objects.toString(rawNode.get("label"), "未知"));
+            @SuppressWarnings("unchecked")
+            Map<String, Object> props = (Map<String, Object>) rawNode.get("properties");
+            node.setProperties(props != null ? props : new HashMap<>());
+            nodes.add(node);
+        }
+        dto.setNodes(nodes);
+
+        // 转换边
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> rawEdges = (List<Map<String, Object>>) rawData.getOrDefault("edges", new ArrayList<>());
+        List<GraphEdge> edges = new ArrayList<>();
+        for (Map<String, Object> rawEdge : rawEdges) {
+            GraphEdge edge = new GraphEdge();
+            edge.setSource(Objects.toString(rawEdge.get("source"), null));
+            edge.setTarget(Objects.toString(rawEdge.get("target"), null));
+            edge.setType(Objects.toString(rawEdge.get("type"), null));
+            @SuppressWarnings("unchecked")
+            Map<String, Object> props = (Map<String, Object>) rawEdge.get("properties");
+            edge.setProperties(props != null ? props : new HashMap<>());
+            edges.add(edge);
+        }
+        dto.setEdges(edges);
+
+        return dto;
+    }
+
+    /** 获取知识点完整详情（含关联信息） */
+    public Map<String, Object> getKnowledgePointFullDetail(String kpId) {
+        return repository.getKnowledgePointFullDetail(kpId);
+    }
+
+    /** 获取题目完整详情（含关联知识点） */
+    public Map<String, Object> getQuestionFullDetail(Integer questionId) {
+        return repository.getQuestionFullDetail(questionId);
+    }
+
+    /** 获取讲义完整详情（含关联知识点） */
+    public Map<String, Object> getDocumentFullDetail(String lectureId) {
+        return repository.getDocumentFullDetail(lectureId);
+    }
+
+    /** 获取主题完整详情（含知识点列表） */
+    public Map<String, Object> getTopicFullDetail(String topicId) {
+        return repository.getTopicFullDetail(topicId);
     }
 
     // ==================== DTO Mapping ====================

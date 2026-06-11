@@ -77,7 +77,8 @@ public class LectureController {
             @RequestParam(defaultValue = "1") Integer page,
             @RequestParam(defaultValue = "20") Integer pageSize,
             @RequestParam(required = false) Integer type,
-            @RequestParam(required = false) String category) {
+            @RequestParam(required = false) String category,
+            @RequestParam(required = false) String keyword) {
         Integer teacherId = getCurrentTeacherId();
         LambdaQueryWrapper<Lecture> wrapper = new LambdaQueryWrapper<>();
         if (teacherId != null) {
@@ -88,6 +89,9 @@ public class LectureController {
         }
         if (category != null && !category.isEmpty()) {
             wrapper.eq(Lecture::getCategory, category);
+        }
+        if (keyword != null && !keyword.isEmpty()) {
+            wrapper.like(Lecture::getLectureName, keyword);
         }
         wrapper.orderByDesc(Lecture::getLectureId);
         Page<Lecture> p = lectureService.page(new Page<>(page, pageSize), wrapper);

@@ -16,6 +16,15 @@ public class AgentContext {
     private List<String> transcript;
     private List<PlanItem> plan;
     private int currentPlanIndex;
+    private String mode = "agent";
+
+    public boolean isPlanMode() {
+        return "plan".equals(mode);
+    }
+
+    public boolean isExploreMode() {
+        return "explore".equals(mode);
+    }
 
     public static AgentContext create(String sessionId, Integer studentId, StudentProject project, String conversationId, Long taskId) {
         return new AgentContext(sessionId, studentId, project, conversationId, taskId, Path.of(project.getWorkspacePath(), new String[0]).toAbsolutePath().normalize(), new ArrayList(), new ArrayList(), 0);
@@ -133,6 +142,9 @@ public class AgentContext {
         this.currentPlanIndex = currentPlanIndex;
     }
 
+    public String getMode() { return mode; }
+    public void setMode(String mode) { this.mode = mode; }
+
     public boolean equals(Object o) {
         if (o == this) {
             return true;
@@ -228,6 +240,7 @@ public class AgentContext {
         this.transcript = transcript;
         this.plan = plan;
         this.currentPlanIndex = currentPlanIndex;
+        this.mode = "agent";
     }
 
     public static class PlanItem {

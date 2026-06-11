@@ -25,6 +25,18 @@ public class RagMessage {
     @TableField("sources")
     private String sources;
 
+    @TableField("retrieval_mode")
+    private String retrievalMode;
+
+    @TableField("search_keywords")
+    private String searchKeywords;
+
+    @TableField("thinking_trace")
+    private String thinkingTrace;
+
+    @TableField("attachments")
+    private String attachments;
+
     @TableField("create_time")
     private Long createTime;
 }

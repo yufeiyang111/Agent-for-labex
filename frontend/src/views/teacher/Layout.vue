@@ -108,6 +108,7 @@ const menuList = computed(() => {
       { path: '/teacher/homework', title: '作业管理', icon: 'Collection' },
       { path: '/teacher/training-set', title: '题目训练', icon: 'List' },
       { path: '/teacher/knowledge-graph', title: '知识图谱', icon: 'Share' },
+      { path: '/teacher/ai-question-generator', title: 'AI题目生成', icon: 'MagicStick' },
       { path: '/teacher/profile', title: '个人中心', icon: 'UserFilled' }
     ]
   } else {

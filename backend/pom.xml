@@ -126,6 +126,12 @@
             <version>${mysql.version}</version>
         </dependency>
 
+        <!-- Jackson Java 8 Date/Time Support -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-jsr310</artifactId>
+        </dependency>
+
         <!-- Druid Connection Pool -->
         <dependency>
             <groupId>com.alibaba</groupId>
@@ -177,6 +183,13 @@
             <version>3.14.0</version>
         </dependency>
 
+        <!-- LSP4J (Language Server Protocol) -->
+        <dependency>
+            <groupId>org.eclipse.lsp4j</groupId>
+            <artifactId>org.eclipse.lsp4j</artifactId>
+            <version>0.21.0</version>
+        </dependency>
+
         <!-- Test Dependencies -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -186,6 +199,11 @@
         <dependency>
             <groupId>org.springframework.security</groupId>
             <artifactId>spring-security-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>

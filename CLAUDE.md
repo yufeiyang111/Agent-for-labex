@@ -22,6 +22,9 @@ cd frontend
 npm install                          # Install deps
 npm run dev                          # Dev server on :3000 (proxies /api to :8080)
 npm run build                        # Production build to dist/
+npm run test                         # Run tests with Vitest
+npm run test:ui                      # Run tests with UI
+npm run test:coverage                # Run tests with coverage report
 ```
 
 ### AI Services (must be running for RAG features)
@@ -34,6 +37,12 @@ The `code_exec/` directory is **runtime output only** (compiled student code bin
 ### Docker
 ```bash
 docker-compose up -d                  # MySQL 8 (port 3307), Redis 7, Backend, Frontend
+```
+
+### Windows One-Click Scripts
+```bash
+start-all.bat                         # Start all services (Redis, Neo4j, Embedding, Backend, Frontend) in separate windows
+close-all.bat                         # Stop all services
 ```
 
 ## Database credentials (direct mode)
@@ -70,7 +79,8 @@ Key patterns:
 - **Response wrapper**: `Result<T>` with `.code` (0=success), `.message`, `.data`, `.timestamp`
 - **DB**: MyBatis-Plus 3.5.5, Druid pool, logical delete enabled
 - **Schema compatibility**: `SchemaCompatibilityInitializer` auto-adds missing columns on startup — add new columns here, not raw SQL. There is **no DDL in the repo** (init.sql is empty).
-- **No tests exist** — `backend/src/test/` is empty despite test deps in pom.xml
+- **No backend tests** — `backend/src/test/` is empty despite test deps in pom.xml
+- **Frontend tests**: Vitest with jsdom, setup in `frontend/tests/setup.js`, component tests in `frontend/tests/components/`
 - **Single config file** — `application.yml` serves all environments (Docker uses `--spring.profiles.active=prod` but no `application-prod.yml` exists)
 - **Code execution** base path: `D:/workfordasan/code_exec` (compile-and-run sandbox for student Java/C code)
 
@@ -135,9 +145,13 @@ Key patterns:
 
 ## Cloud IDE / AI Agent (`labexagent/`)
 
-- MCP-based tool execution, file change tracking via `AgentChangeSet` / `AgentFileChange`
+- **Agent loop**: `AgentLoopEngine.java` (30 iteration limit), SSE streaming frontend via `frontend/src/composables/useAgentStream.js`
+- **LLM providers**: `LlmProvider` interface, `OpenAiCompatibleProvider` main impl, falls back to global MiniMax config
+- **27 tools** registered in `ToolRegistry`: `read_file`, `write_file`, `edit_file`, `shell`, `glob`, `grep`, `web_search`, `understand_image`, `diagnostics`, `apply_patch`, `create_plan`, `execute_code`, etc.
+- **Diff management**: `DiffService` + `GitSnapshotService` for file change tracking, apply/reject/undo via `AgentChangeSet` / `AgentFileChange`
+- **Permission system**: `PermissionService` + `DefaultPermissionRuleset` controls tool execution access
+- **LSP diagnostics**: `DiagnosticsService` for code analysis
 - Agent conversations stored in `t_agent_conversation`, `t_agent_message`, `t_agent_task`
-- Verification pipeline via `AgentVerification`, token usage in `AgentTokenUsage`
 - `StudentProject` ties student cloud workspaces to agent sessions
 
 ## Key Implementation Notes
@@ -148,3 +162,4 @@ Key patterns:
 - **File upload**: Configured via `upload-path: D:/workfordasan/uploads`, max 100MB
 - **Schema changes**: Add new columns to `SchemaCompatibilityInitializer.java` (not raw SQL migrations)
 - **Controller response**: Always wrap in `Result.success(data)` or `Result.error(message)`
+- **Stress tests**: `tests/stress/stress_test.sh` for load testing

@@ -130,7 +130,61 @@ public class AgentConversationService {
         List<AgentMessage> recent = this.messageMapper.selectList(new LambdaQueryWrapper<AgentMessage>().eq(AgentMessage::getConversationId, conversationId).eq(AgentMessage::getStudentId, studentId).eq(AgentMessage::getProjectId, projectId).orderByDesc(AgentMessage::getMessageId).last("LIMIT 80"));
         String summary = this.rebuildCompactedSummary(conversation, recent, "Manual compacted context");
         this.persistSummary(conversation, summary);
+        conversation.setCompactedAt(LocalDateTime.now());
+        this.conversationMapper.update(null, new LambdaUpdateWrapper<AgentConversation>()
+                .eq(AgentConversation::getConversationId, conversation.getConversationId())
+                .set(AgentConversation::getCompactedAt, conversation.getCompactedAt())
+                .set(AgentConversation::getUpdateTime, LocalDateTime.now()));
         return summary;
+    }
+
+    public AgentConversation forkConversation(Integer studentId, Integer projectId, String conversationId, Long messageId) {
+        AgentConversation source = this.getOwnedConversation(studentId, projectId, conversationId);
+        if (source == null) {
+            throw new IllegalArgumentException("Conversation not found");
+        }
+
+        AgentConversation child = new AgentConversation();
+        child.setConversationId(UUID.randomUUID().toString());
+        child.setStudentId(studentId);
+        child.setProjectId(projectId);
+        child.setTitle(this.buildForkTitle(source.getTitle()));
+        child.setMode(source.getMode());
+        child.setProvider(source.getProvider());
+        child.setModel(source.getModel());
+        child.setSummary(source.getSummary() == null ? "" : source.getSummary());
+        child.setParentConversationId(source.getConversationId());
+        child.setForkedFromMessageId(messageId);
+        child.setStatus(1);
+        child.setCreateTime(LocalDateTime.now());
+        child.setUpdateTime(LocalDateTime.now());
+        this.conversationMapper.insert(child);
+
+        LambdaQueryWrapper<AgentMessage> query = new LambdaQueryWrapper<AgentMessage>()
+                .eq(AgentMessage::getConversationId, conversationId)
+                .eq(AgentMessage::getStudentId, studentId)
+                .eq(AgentMessage::getProjectId, projectId);
+        if (messageId != null && messageId > 0) {
+            query.le(AgentMessage::getMessageId, messageId);
+        }
+        query.orderByAsc(AgentMessage::getMessageId);
+
+        List<AgentMessage> sourceMessages = this.messageMapper.selectList(query);
+        for (AgentMessage sourceMessage : sourceMessages) {
+            AgentMessage copy = new AgentMessage();
+            copy.setConversationId(child.getConversationId());
+            copy.setStudentId(studentId);
+            copy.setProjectId(projectId);
+            copy.setEventType(sourceMessage.getEventType());
+            copy.setRole(sourceMessage.getRole());
+            copy.setContent(sourceMessage.getContent());
+            copy.setEventData(sourceMessage.getEventData());
+            copy.setCreateTime(sourceMessage.getCreateTime() == null ? LocalDateTime.now() : sourceMessage.getCreateTime());
+            this.messageMapper.insert(copy);
+        }
+        this.saveMessage(child, "SYSTEM", "event", "Conversation forked from " + source.getConversationId(),
+                Map.of("sourceConversationId", source.getConversationId(), "forkedFromMessageId", messageId == null ? "" : messageId));
+        return child;
     }
 
     public MemoryStats getMemoryStats(Integer studentId, Integer projectId, String conversationId) {
@@ -239,6 +293,12 @@ public class AgentConversationService {
     private String buildTitle(String firstMessage) {
         String text = firstMessage == null || firstMessage.isBlank() ? "\u65b0\u5bf9\u8bdd" : firstMessage.trim().replaceAll("\\s+", " ");
         return text.length() > 28 ? text.substring(0, 28) + "..." : text;
+    }
+
+    private String buildForkTitle(String sourceTitle) {
+        String base = sourceTitle == null || sourceTitle.isBlank() ? "\u65b0\u5bf9\u8bdd" : sourceTitle.trim();
+        String title = base + " 分支";
+        return title.length() > 36 ? title.substring(0, 36) + "..." : title;
     }
 
     private int memoryItemLimit(String type) {

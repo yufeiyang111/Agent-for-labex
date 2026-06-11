@@ -8,6 +8,8 @@
         <h2>{{ trainingSet?.name || '答题练习' }}</h2>
       </div>
       <div class="header-right">
+        <span v-if="saving" class="save-indicator saving">保存中...</span>
+        <span v-else-if="saveSuccess" class="save-indicator success">已保存</span>
         <el-button type="primary" @click="handleSubmit" :loading="submitting" :disabled="submitted">
           {{ submitted ? '已提交' : '提交批改' }}
         </el-button>
@@ -129,9 +131,6 @@
               <el-button type="primary" @click="runTests(currentQuestion)" :loading="runningQuestionId === currentQuestion.questionId" :disabled="submitted">
                 运行测试
               </el-button>
-              <el-button @click="runCode(currentQuestion)" :loading="codeRunning && codeRunningQuestionId === currentQuestion.questionId" :disabled="submitted">
-                运行代码
-              </el-button>
               <span class="test-count" v-if="currentQuestion.testCaseCount !== undefined">测试点：{{ currentQuestion.testCaseCount }}</span>
               <span class="template-hint" v-if="currentQuestion.templateCode">有模板代码</span>
             </div>
@@ -140,7 +139,7 @@
               v-model="answers[currentQuestion.questionId]"
               :language="programmingLang[currentQuestion.questionId] || 'java'"
               height="320px"
-              @input="debouncedSave(currentQuestion)"
+              @update:modelValue="debouncedSave(currentQuestion)"
             />
 
             <!-- Judge panel: test case results -->
@@ -189,12 +188,7 @@
               </el-table>
             </div>
 
-            <!-- Simple code output (from runCode) -->
-            <div v-if="codeOutput[currentQuestion.questionId] && !judgeResults[currentQuestion.questionId]" class="code-output">
-              <div class="code-output-header">运行结果</div>
-              <pre class="code-output-body" :class="{ 'output-error': codeOutput[currentQuestion.questionId]?.error }">{{ codeOutput[currentQuestion.questionId]?.output || codeOutput[currentQuestion.questionId]?.error || formatOutput(codeOutput[currentQuestion.questionId]) }}</pre>
-            </div>
-          </template>
+                      </template>
 
           <!-- Fallback -->
           <template v-else>
@@ -336,9 +330,6 @@ const currentIndex = ref(0)
 const answers = reactive({})
 const fillAnswers = reactive({})
 const multiAnswers = reactive({})
-const codeRunning = ref(false)
-const codeRunningQuestionId = ref(null)
-const codeOutput = reactive({})
 const programmingLang = reactive({})
 const judgeResults = reactive({})
 const runningQuestionId = ref(null)
@@ -349,6 +340,8 @@ const resultMap = reactive({})  // questionId -> { score, status, myAnswer, corr
 const submitResult = ref(null)
 const resultDialogVisible = ref(false)
 let debounceTimer = null
+const saving = ref(false)
+const saveSuccess = ref(false)
 
 const currentQuestion = computed(() => questions.value[currentIndex.value] || null)
 
@@ -453,14 +446,14 @@ function formatOutput(result) {
 }
 
 function judgeStatusType(status) {
-  if (status === 'ALL_PASS') return 'success'
-  if (status === 'PARTIAL_PASS') return 'warning'
+  if (status === 'ALL_PASS' || status === 'CORRECT') return 'success'
+  if (status === 'PARTIAL_PASS' || status === 'PARTIAL') return 'warning'
   return 'danger'
 }
 
 function judgeStatusText(status) {
-  if (status === 'ALL_PASS') return '答案正确'
-  if (status === 'PARTIAL_PASS') return '部分通过'
+  if (status === 'ALL_PASS' || status === 'CORRECT') return '答案正确'
+  if (status === 'PARTIAL_PASS' || status === 'PARTIAL') return '部分通过'
   if (status === 'COMPILE_ERROR') return '编译错误'
   return '答案错误'
 }
@@ -534,14 +527,15 @@ async function loadData() {
       }
     })
 
-    // Check if there's a saved answer from an unsubmitted attempt
+    // Check if there's a saved answer from the latest attempt (submitted or not)
     try {
       const recordsRes = await trainingApi.student.myRecords(trainingSetId)
       const records = recordsRes.data || []
-      const latestUnsubmitted = records.find((r) => r.score === null || r.submitTime === null)
-      if (latestUnsubmitted) {
+      // Load the most recent attempt (highest attemptCount)
+      const latestAttempt = records.length > 0 ? records[0] : null
+      if (latestAttempt) {
         // Load saved answers
-        const resultRes = await trainingApi.student.getResult(trainingSetId, latestUnsubmitted.id)
+        const resultRes = await trainingApi.student.getResult(trainingSetId, latestAttempt.id)
         const savedAnswers = resultRes.data?.questionResults || []
         savedAnswers.forEach((sa) => {
           if (sa.questionId && sa.myAnswer) {
@@ -559,16 +553,39 @@ async function loadData() {
               })
               answers[sa.questionId] = sa.myAnswer
             } else if (sa.type === 6) {
+              console.log('[DEBUG loadData] type=6, myAnswer:', sa.myAnswer)
               const parsed = parseProgrammingAnswer(sa.myAnswer)
+              console.log('[DEBUG loadData] parsed:', parsed)
               answers[sa.questionId] = parsed.code
               programmingLang[sa.questionId] = parsed.language
+            } else if (sa.type === 2) {
+              answers[sa.questionId] = sa.myAnswer
             } else {
               answers[sa.questionId] = sa.myAnswer
             }
           }
+          // Restore judge results for programming questions
+          // Only load into judgeResults for UNSUBMITTED attempts (run-tests results)
+          // For submitted attempts, judgeResult is shown in result-section only
+          if (sa.type === 6 && sa.judgeResult && (sa.score === null || sa.submitTime === null)) {
+            judgeResults[sa.questionId] = sa.judgeResult
+          }
+          // Only restore result map if not already set from a submitted attempt
+          // (submitted results have score/judgeResult; loaded records may have null status)
+          if (sa.score !== null || sa.judgeResult) {
+            if (!resultMap[sa.questionId]) {
+              resultMap[sa.questionId] = sa
+              console.log('[DEBUG loadData] resultMap set:', sa.questionId, 'status:', sa.status, 'score:', sa.score)
+            }
+          }
         })
+        // If this was a submitted attempt, mark as submitted
+        if (latestAttempt.score !== null && latestAttempt.submitTime !== null) {
+          submitted.value = true
+          submitResult.value = resultRes.data
+        }
       } else {
-        // No unsubmitted attempt: pre-fill template code for programming questions
+        // No saved answers: pre-fill template code for programming questions
         questions.value.forEach((q) => {
           if (q.type === 6 && q.templateCode && !answers[q.questionId]) {
             answers[q.questionId] = q.templateCode
@@ -587,6 +604,7 @@ async function loadData() {
     ElMessage.error('加载数据失败')
   } finally {
     pageLoading.value = false
+    console.log('[DEBUG loadData] DONE. submitted:', submitted.value, 'resultMap keys:', Object.keys(resultMap), 'resultMap:', JSON.stringify(resultMap, (k, v) => k === 'judgeResult' ? '<judgeResult>' : v, 2))
   }
 }
 
@@ -619,15 +637,19 @@ function debouncedSave(question) {
 }
 
 async function saveAnswer(question) {
+  saving.value = true
+  saveSuccess.value = false
   try {
     let answer = answers[question.questionId] || ''
-    // Serialize programming answers with language info
     if (question.type === 6) {
       answer = serializeProgrammingAnswer(question.questionId)
     }
     await trainingApi.student.saveAnswer(trainingSetId, question.questionId, answer)
+    saveSuccess.value = true
   } catch {
-    // silent
+    // silent autosave failure
+  } finally {
+    saving.value = false
   }
 }
 
@@ -657,11 +679,13 @@ async function handleSubmit() {
     }
 
     const res = await trainingApi.student.submit(trainingSetId)
+    console.log('[DEBUG submit] response:', JSON.stringify(res.data, null, 2))
     submitResult.value = res.data
 
     // Build resultMap
     if (submitResult.value?.questionResults) {
       submitResult.value.questionResults.forEach((r) => {
+        console.log('[DEBUG submit] questionResult:', { questionId: r.questionId, type: r.type, score: r.score, status: r.status, judgeResult: r.judgeResult })
         resultMap[r.questionId] = r
       })
     }
@@ -687,7 +711,6 @@ async function handleRetry() {
     Object.keys(fillAnswers).forEach((k) => delete fillAnswers[k])
     Object.keys(multiAnswers).forEach((k) => delete multiAnswers[k])
     Object.keys(judgeResults).forEach((k) => delete judgeResults[k])
-    Object.keys(codeOutput).forEach((k) => delete codeOutput[k])
     resultDialogVisible.value = false
     ElMessage.success('已重置，请重新作答')
   } catch {
@@ -699,30 +722,10 @@ async function handleRetry() {
 
 onMounted(loadData)
 
-async function runCode(question) {
-  const code = answers[question.questionId]
-  const lang = programmingLang[question.questionId] || 'java'
-  if (!code || !code.trim()) {
-    ElMessage.warning('请先编写代码')
-    return
-  }
-  codeRunning.value = true
-  codeRunningQuestionId.value = question.questionId
-  codeOutput[question.questionId] = null
-  try {
-    const res = await trainingApi.runCode(code, lang)
-    codeOutput[question.questionId] = res.data || { output: '(no output)' }
-  } catch (e) {
-    codeOutput[question.questionId] = { error: e?.response?.data?.message || e?.message || 'Run failed' }
-  } finally {
-    codeRunning.value = false
-    codeRunningQuestionId.value = null
-  }
-}
-
 async function runTests(question) {
   const code = answers[question.questionId]
   const lang = programmingLang[question.questionId] || 'java'
+  console.log('[DEBUG runTests] questionId:', question.questionId, 'code:', code, 'lang:', lang)
   if (!code || !code.trim()) {
     ElMessage.warning('请先编写代码')
     return
@@ -736,8 +739,6 @@ async function runTests(question) {
       lang
     )
     judgeResults[question.questionId] = res.data || {}
-    // Also clear simple code output when showing judge results
-    delete codeOutput[question.questionId]
   } catch (e) {
     ElMessage.error(e?.response?.data?.message || e?.message || '运行测试失败')
   } finally {
@@ -783,6 +784,20 @@ async function runTests(question) {
 .header-right {
   display: flex;
   gap: 8px;
+  align-items: center;
+}
+
+.save-indicator {
+  font-size: 13px;
+  margin-right: 8px;
+}
+
+.save-indicator.saving {
+  color: #667085;
+}
+
+.save-indicator.success {
+  color: #22a06b;
 }
 
 .work-layout {

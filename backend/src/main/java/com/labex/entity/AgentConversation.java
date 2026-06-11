@@ -24,6 +24,12 @@ public class AgentConversation {
     private String model;
     @TableField(value="summary")
     private String summary;
+    @TableField(value="parent_conversation_id")
+    private String parentConversationId;
+    @TableField(value="forked_from_message_id")
+    private Long forkedFromMessageId;
+    @TableField(value="compacted_at")
+    private LocalDateTime compactedAt;
     @TableField(value="status")
     private Integer status;
     @TableField(value="create_time")
@@ -61,6 +67,18 @@ public class AgentConversation {
 
     public String getSummary() {
         return this.summary;
+    }
+
+    public String getParentConversationId() {
+        return this.parentConversationId;
+    }
+
+    public Long getForkedFromMessageId() {
+        return this.forkedFromMessageId;
+    }
+
+    public LocalDateTime getCompactedAt() {
+        return this.compactedAt;
     }
 
     public Integer getStatus() {
@@ -105,6 +123,18 @@ public class AgentConversation {
 
     public void setSummary(String summary) {
         this.summary = summary;
+    }
+
+    public void setParentConversationId(String parentConversationId) {
+        this.parentConversationId = parentConversationId;
+    }
+
+    public void setForkedFromMessageId(Long forkedFromMessageId) {
+        this.forkedFromMessageId = forkedFromMessageId;
+    }
+
+    public void setCompactedAt(LocalDateTime compactedAt) {
+        this.compactedAt = compactedAt;
     }
 
     public void setStatus(Integer status) {
@@ -221,4 +251,3 @@ public class AgentConversation {
         return "AgentConversation(conversationId=" + this.getConversationId() + ", studentId=" + this.getStudentId() + ", projectId=" + this.getProjectId() + ", title=" + this.getTitle() + ", mode=" + this.getMode() + ", provider=" + this.getProvider() + ", model=" + this.getModel() + ", summary=" + this.getSummary() + ", status=" + this.getStatus() + ", createTime=" + String.valueOf(this.getCreateTime()) + ", updateTime=" + String.valueOf(this.getUpdateTime()) + ")";
     }
 }
-

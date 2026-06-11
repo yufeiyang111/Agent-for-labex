@@ -20,6 +20,7 @@ const TeacherHomework = () => import('@/views/teacher/Homework.vue')
 const TeacherProfile = () => import('@/views/teacher/Profile.vue')
 const TeacherKnowledgeGraph = () => import('@/views/teacher/KnowledgeGraph.vue')
 const TeacherTrainingSet = () => import('@/views/teacher/TrainingSet.vue')
+const TeacherAiQuestionGenerator = () => import('@/views/teacher/AiQuestionGenerator.vue')
 
 const AdminLayout = () => import('@/views/admin/Layout.vue')
 const AdminDashboard = () => import('@/views/admin/Dashboard.vue')
@@ -68,7 +69,8 @@ const routes = [
       { path: 'homework', name: 'TeacherHomework', component: TeacherHomework, meta: { title: 'Homework Mgmt', icon: 'Collection' } },
       { path: 'profile', name: 'TeacherProfile', component: TeacherProfile, meta: { title: 'Profile', icon: 'UserFilled' } },
       { path: 'knowledge-graph', name: 'TeacherKnowledgeGraph', component: TeacherKnowledgeGraph, meta: { title: 'Knowledge Graph', icon: 'Share' } },
-      { path: 'training-set', name: 'TeacherTrainingSet', component: TeacherTrainingSet, meta: { title: 'Training Set', icon: 'List' } }
+      { path: 'training-set', name: 'TeacherTrainingSet', component: TeacherTrainingSet, meta: { title: 'Training Set', icon: 'List' } },
+      { path: 'ai-question-generator', name: 'TeacherAiQuestionGenerator', component: TeacherAiQuestionGenerator, meta: { title: 'AI Question Generator', icon: 'MagicStick' } }
     ]
   },
   {

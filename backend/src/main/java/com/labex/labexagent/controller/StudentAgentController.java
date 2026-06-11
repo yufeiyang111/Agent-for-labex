@@ -7,6 +7,8 @@ import com.labex.labexagent.dto.AgentStreamRequest;
 import com.labex.labexagent.runtime.AgentCancellationRegistry;
 import com.labex.labexagent.runtime.AgentLoopEngine;
 import com.labex.labexagent.service.AgentCommandService;
+import com.labex.labexagent.permission.PermissionApprovalRequest;
+import com.labex.labexagent.permission.PermissionService;
 import com.labex.labexagent.service.AgentConversationService;
 import com.labex.labexagent.service.AgentTaskService;
 import com.labex.labexagent.service.TokenTracker;
@@ -32,8 +34,9 @@ public class StudentAgentController {
     private final AgentConversationService conversationService;
     private final AgentTaskService taskService;
     private final TokenTracker tokenTracker;
+    private final PermissionService permissionService;
 
-    public StudentAgentController(AgentLoopEngine agentLoopEngine, AgentCancellationRegistry cancellationRegistry, DiffService diffService, AgentCommandService commandService, AgentConversationService conversationService, AgentTaskService taskService, TokenTracker tokenTracker) {
+    public StudentAgentController(AgentLoopEngine agentLoopEngine, AgentCancellationRegistry cancellationRegistry, DiffService diffService, AgentCommandService commandService, AgentConversationService conversationService, AgentTaskService taskService, TokenTracker tokenTracker, PermissionService permissionService) {
         this.agentLoopEngine = agentLoopEngine;
         this.cancellationRegistry = cancellationRegistry;
         this.diffService = diffService;
@@ -41,6 +44,7 @@ public class StudentAgentController {
         this.conversationService = conversationService;
         this.taskService = taskService;
         this.tokenTracker = tokenTracker;
+        this.permissionService = permissionService;
     }
 
     @GetMapping(value={"/conversations"})
@@ -62,6 +66,45 @@ public class StudentAgentController {
     public Result<Void> deleteConversation(@PathVariable Integer projectId, @PathVariable String conversationId, Authentication auth) {
         this.conversationService.delete(this.getStudentId(auth), projectId, conversationId);
         return Result.success(null);
+    }
+
+    @PostMapping(value={"/conversations/{conversationId}/fork"})
+    public Result<?> forkConversation(@PathVariable Integer projectId, @PathVariable String conversationId, @RequestBody(required = false) Map<String, Object> request, Authentication auth) {
+        try {
+            Long messageId = null;
+            Object rawMessageId = request == null ? null : request.get("messageId");
+            if (rawMessageId instanceof Number number) {
+                messageId = number.longValue();
+            } else if (rawMessageId instanceof String text && !text.isBlank()) {
+                messageId = Long.parseLong(text);
+            }
+            return Result.success(this.conversationService.forkConversation(this.getStudentId(auth), projectId, conversationId, messageId));
+        } catch (Exception e) {
+            return Result.error(e.getMessage());
+        }
+    }
+
+    @PostMapping(value={"/conversations/{conversationId}/compact"})
+    public Result<Map<String, Object>> compactConversation(@PathVariable Integer projectId, @PathVariable String conversationId, Authentication auth) {
+        try {
+            Integer studentId = this.getStudentId(auth);
+            String summary = this.conversationService.compactConversation(studentId, projectId, conversationId);
+            return Result.success(Map.of(
+                    "summary", summary,
+                    "stats", this.conversationService.getMemoryStats(studentId, projectId, conversationId)
+            ));
+        } catch (Exception e) {
+            return Result.error(e.getMessage());
+        }
+    }
+
+    @GetMapping(value={"/conversations/{conversationId}/memory"})
+    public Result<?> conversationMemory(@PathVariable Integer projectId, @PathVariable String conversationId, Authentication auth) {
+        try {
+            return Result.success(this.conversationService.getMemoryStats(this.getStudentId(auth), projectId, conversationId));
+        } catch (Exception e) {
+            return Result.error(e.getMessage());
+        }
     }
 
     @PostMapping(value={"/stream"}, produces={"text/event-stream"})
@@ -166,8 +209,24 @@ public class StudentAgentController {
         }
     }
 
+    @PostMapping(value={"/permission/approve"})
+    public Result<Map<String, Object>> approvePermission(@PathVariable Integer projectId, @RequestBody Map<String, String> request, Authentication auth) {
+        try {
+            String requestId = request.get("requestId");
+            String action = request.get("action");
+            String feedback = request.get("feedback");
+            PermissionService.PermissionApprovalResult result = this.permissionService.reply(requestId, action, feedback);
+            return Result.success(Map.of(
+                    "granted", result.isGranted(),
+                    "remember", result.isRemember(),
+                    "feedback", result.getFeedback() == null ? "" : result.getFeedback()
+            ));
+        } catch (Exception e) {
+            return Result.error(e.getMessage());
+        }
+    }
+
     private Integer getStudentId(Authentication auth) {
         return Integer.parseInt(auth.getName());
     }
 }
-

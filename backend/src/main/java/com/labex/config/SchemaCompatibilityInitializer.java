@@ -26,6 +26,9 @@ public class SchemaCompatibilityInitializer implements ApplicationRunner {
         ensureRagSessionSchema();
         ensureRagMessageSchema();
         ensureTrainingQuestionJudgeResult();
+        ensurePermissionSchema();
+        ensureAgentConversationSchema();
+        ensureAgentFileChangeSchema();
     }
 
     private void ensurePaperSchema() {
@@ -139,9 +142,25 @@ public class SchemaCompatibilityInitializer implements ApplicationRunner {
                         KEY idx_rag_message_session (session_id),
                         KEY idx_rag_message_create_time (create_time)
                     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='RAG知识问答消息表'
-                    """);
+            """);
             log.info("Created rag_message table");
         }
+
+        if (!tableExists("rag_message")) {
+            return;
+        }
+
+        addColumnIfMissing("rag_message", "retrieval_mode",
+                "ALTER TABLE rag_message ADD COLUMN `retrieval_mode` VARCHAR(32) DEFAULT NULL COMMENT 'retrieval mode' AFTER `sources`");
+        addColumnIfMissing("rag_message", "search_keywords",
+                "ALTER TABLE rag_message ADD COLUMN `search_keywords` TEXT DEFAULT NULL COMMENT 'search keywords json' AFTER `retrieval_mode`");
+        addColumnIfMissing("rag_message", "thinking_trace",
+                "ALTER TABLE rag_message ADD COLUMN `thinking_trace` MEDIUMTEXT DEFAULT NULL COMMENT 'visible reasoning summary' AFTER `search_keywords`");
+        addColumnIfMissing("rag_message", "attachments",
+                "ALTER TABLE rag_message ADD COLUMN `attachments` MEDIUMTEXT DEFAULT NULL COMMENT 'message attachments json' AFTER `thinking_trace`");
+
+        executeIgnore("ALTER TABLE rag_message MODIFY COLUMN `content` MEDIUMTEXT NOT NULL COMMENT 'message content'");
+        executeIgnore("ALTER TABLE rag_message MODIFY COLUMN `sources` MEDIUMTEXT DEFAULT NULL COMMENT 'reference sources json'");
     }
 
     private boolean tableExists(String tableName) {
@@ -194,6 +213,68 @@ public class SchemaCompatibilityInitializer implements ApplicationRunner {
         }
         addColumnIfMissing("t_student_training_question", "judge_result",
                 "ALTER TABLE t_student_training_question ADD COLUMN `judge_result` TEXT DEFAULT NULL COMMENT '判题结果JSON' AFTER `submit_time`");
+    }
+
+    private void ensurePermissionSchema() {
+        if (!tableExists("t_agent_permission_rule")) {
+            executeIgnore("""
+                CREATE TABLE t_agent_permission_rule (
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    project_id VARCHAR(64) NOT NULL,
+                    agent VARCHAR(64) NOT NULL DEFAULT 'build',
+                    permission VARCHAR(64) NOT NULL,
+                    pattern VARCHAR(255) NOT NULL DEFAULT '*',
+                    action VARCHAR(16) NOT NULL,
+                    session_id VARCHAR(64) DEFAULT NULL,
+                    created_at BIGINT NOT NULL,
+                    INDEX idx_project_agent (project_id, agent)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Agent permission rules'
+            """);
+            log.info("Created t_agent_permission_rule table");
+        }
+
+        if (!tableExists("t_agent_permission_approval")) {
+            executeIgnore("""
+                CREATE TABLE t_agent_permission_approval (
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    project_id VARCHAR(64) NOT NULL,
+                    permission VARCHAR(64) NOT NULL,
+                    pattern VARCHAR(255) NOT NULL,
+                    created_at BIGINT NOT NULL,
+                    INDEX idx_project (project_id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Agent permission approvals'
+            """);
+            log.info("Created t_agent_permission_approval table");
+        }
+    }
+
+    private void ensureAgentConversationSchema() {
+        if (!tableExists("t_agent_conversation")) {
+            return;
+        }
+        addColumnIfMissing("t_agent_conversation", "parent_conversation_id",
+                "ALTER TABLE t_agent_conversation ADD COLUMN `parent_conversation_id` VARCHAR(64) DEFAULT NULL COMMENT 'parent conversation id' AFTER `summary`");
+        addColumnIfMissing("t_agent_conversation", "forked_from_message_id",
+                "ALTER TABLE t_agent_conversation ADD COLUMN `forked_from_message_id` BIGINT DEFAULT NULL COMMENT 'source message id for fork' AFTER `parent_conversation_id`");
+        addColumnIfMissing("t_agent_conversation", "compacted_at",
+                "ALTER TABLE t_agent_conversation ADD COLUMN `compacted_at` DATETIME DEFAULT NULL COMMENT 'last compacted time' AFTER `forked_from_message_id`");
+        if (!indexExists("t_agent_conversation", "idx_agent_conversation_parent")) {
+            executeIgnore("CREATE INDEX idx_agent_conversation_parent ON t_agent_conversation(parent_conversation_id)");
+        }
+    }
+
+    private void ensureAgentFileChangeSchema() {
+        if (!tableExists("t_agent_file_change")) {
+            return;
+        }
+        addColumnIfMissing("t_agent_file_change", "snapshot_before_ref",
+                "ALTER TABLE t_agent_file_change ADD COLUMN `snapshot_before_ref` VARCHAR(64) DEFAULT NULL COMMENT 'workspace snapshot before change' AFTER `diff_text`");
+        addColumnIfMissing("t_agent_file_change", "snapshot_after_ref",
+                "ALTER TABLE t_agent_file_change ADD COLUMN `snapshot_after_ref` VARCHAR(64) DEFAULT NULL COMMENT 'workspace snapshot after change' AFTER `snapshot_before_ref`");
+        addColumnIfMissing("t_agent_file_change", "snapshot_paths",
+                "ALTER TABLE t_agent_file_change ADD COLUMN `snapshot_paths` MEDIUMTEXT DEFAULT NULL COMMENT 'snapshot restore paths' AFTER `snapshot_after_ref`");
+        addColumnIfMissing("t_agent_file_change", "snapshot_status",
+                "ALTER TABLE t_agent_file_change ADD COLUMN `snapshot_status` VARCHAR(32) DEFAULT NULL COMMENT 'snapshot status' AFTER `snapshot_paths`");
     }
 
     private void executeIgnore(String sql) {

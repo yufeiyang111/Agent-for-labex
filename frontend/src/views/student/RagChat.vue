@@ -1,14 +1,22 @@
 <template>
   <div class="rag-chat-wrapper">
     <div class="rag-chat-container">
-    <!-- 左侧会话列表 -->
     <div class="sidebar">
-      <div class="sidebar-header">
-        <span class="sidebar-title">会话列表</span>
-        <el-button type="primary" size="small" @click="createSession">
-          <el-icon><Plus /></el-icon> 新建会话
-        </el-button>
+      <div class="sidebar-brand">
+        <div>
+          <span class="brand-title">Labex</span>
+          <span class="brand-subtitle">知识问答</span>
+        </div>
       </div>
+
+      <nav class="sidebar-nav" aria-label="知识问答导航">
+        <button type="button" class="sidebar-nav-item active" @click="createSession">
+          <el-icon><Edit /></el-icon>
+          <span>新聊天</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-section-title">最近</div>
       <div class="session-list">
         <div
           v-for="sess in sessions"
@@ -58,18 +66,31 @@
                 {{ Math.ceil(messages.length / 2) }} / {{ MAX_TURNS }} 次对话
               </span>
               <el-button type="primary" link @click="clearHistory">
-                <el-icon><Delete /></el-icon> 清空会话
+                <el-icon><Delete /></el-icon> 清空
               </el-button>
             </div>
           </div>
         </template>
 
-        <div class="chat-messages" ref="messagesContainer">
+        <div class="chat-messages" ref="messagesContainer" @scroll="handleMessagesScroll">
           <!-- 调试信息 -->
           <div style="display:none">{{ messages.length }}</div>
 
           <div v-if="messages.length === 0" class="empty-chat">
-            <el-empty description="开始向知识库提问吧！" />
+            <div class="empty-center">
+              <h1>今天想学习什么？</h1>
+              <div class="empty-suggestions">
+                <button
+                  v-for="item in quickSuggestions"
+                  :key="item.text"
+                  type="button"
+                  @click="applyQuickSuggestion(item)"
+                >
+                  <el-icon><component :is="item.icon" /></el-icon>
+                  <span>{{ item.text }}</span>
+                </button>
+              </div>
+            </div>
           </div>
 
           <div v-for="(msg, index) in messages" :key="index" :class="['message', msg.role]">
@@ -85,8 +106,88 @@
             </div>
             <div class="message-content">
               <div class="message-bubble">
-                <div class="message-text" v-html="formatMessage(msg.content)"></div>
-                <div v-if="msg.sources && msg.sources.length > 0" class="sources">
+                <details v-if="msg.thinkingTrace" class="thinking-panel">
+                  <summary class="thinking-summary">
+                    <span class="summary-left">
+                      <el-icon><Opportunity /></el-icon>
+                      {{ msg.streaming ? '正在深度思考' : '已经完成思考' }}
+                    </span>
+                    <el-icon class="summary-arrow"><ArrowRight /></el-icon>
+                  </summary>
+                  <div class="thinking-timeline">
+                    <div v-for="(section, tIdx) in getThinkingSections(msg.thinkingTrace)" :key="tIdx" class="thinking-step">
+                      <div class="thinking-step-dot"></div>
+                      <div class="thinking-step-body">
+                        <h4>{{ section.title }}</h4>
+                        <p>{{ section.body }}</p>
+                      </div>
+                    </div>
+                  </div>
+                </details>
+
+                <div
+                  v-if="msg.content"
+                  :class="['message-text', { 'streaming-text': msg.streaming }]"
+                  v-html="msg.streaming ? formatStreamingMessage(msg.content) : formatMessage(msg.content)"
+                ></div>
+
+                <div v-if="getMessageAttachments(msg).length > 0" class="message-attachments">
+                  <button
+                    v-for="(attachment, aIdx) in getMessageAttachments(msg)"
+                    :key="aIdx"
+                    type="button"
+                    class="message-attachment"
+                    @click="previewImageAttachment(attachment)"
+                  >
+                    <img :src="attachment.url" :alt="attachment.name || '图片附件'" />
+                  </button>
+                </div>
+
+                <details v-if="getMessageSources(msg).length > 0" class="references-panel">
+                  <summary class="references-summary">
+                    <span class="summary-left">
+                      <el-icon><Document /></el-icon>
+                      {{ buildReferencesSummary(msg) }}
+                    </span>
+                    <el-icon class="summary-arrow"><ArrowRight /></el-icon>
+                  </summary>
+                  <div v-if="formatSearchKeywords(msg)" class="references-keywords">
+                    {{ formatSearchKeywords(msg) }}
+                  </div>
+                  <ol class="reference-list">
+                    <li
+                      v-for="(source, sIdx) in getMessageSources(msg)"
+                      :key="sIdx"
+                      :class="['reference-item', getReferenceClass(source)]"
+                    >
+                      <a
+                        v-if="source.type === 'web'"
+                        class="reference-link"
+                        :href="source.url"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        {{ sIdx + 1 }}. {{ source.title || source.url || '网页资料' }}
+                      </a>
+                      <span v-else-if="source.type === 'image'" class="reference-link reference-static">
+                        {{ sIdx + 1 }}. {{ source.title || source.name || '图片理解结果' }}
+                      </span>
+                      <button v-else class="reference-link reference-button" type="button" @click="previewLectureFn(source)">
+                        {{ sIdx + 1 }}. {{ source.lectureName || source.title || '知识库资料' }}
+                      </button>
+                      <p class="reference-snippet">{{ getSourceSnippet(source) }}</p>
+                      <div class="reference-meta">
+                        <span>{{ getReferenceTypeLabel(source) }}</span>
+                        <span v-if="source.score">相关度 {{ (source.score * 100).toFixed(0) }}%</span>
+                        <span v-if="source.type === 'knowledge' || (!source.type && source.lectureId)">点击预览</span>
+                        <span v-if="source.type === 'web'">点击访问</span>
+                        <span v-if="source.type === 'web' && source.contentFetched">已读正文</span>
+                        <span v-if="source.type === 'image'">{{ source.success === false ? '识别失败' : '工具读取' }}</span>
+                      </div>
+                    </li>
+                  </ol>
+                </details>
+                <div v-if="false && msg.sources && msg.sources.length > 0" class="sources legacy-sources">
                   <div class="sources-title">
                     <el-icon><Document /></el-icon>
                     参考资料 ({{ msg.sources.length }})
@@ -116,7 +217,7 @@
               <div class="message-footer">
                 <span class="message-time">{{ formatTime(msg.timestamp) }}</span>
                 <div class="message-actions">
-                  <span v-if="msg.fromKnowledgeBase === false" class="ai-source-badge" title="此回答来自AI自身知识，可能不准确，请谨慎参考">AI 知识</span>
+                  <span v-if="msg.role === 'assistant'" class="ai-source-badge">{{ getModeBadge(msg) }}</span>
                   <button class="action-btn" @click="copyMessage(msg.content)" title="复制内容">
                     <el-icon><CopyDocument /></el-icon>
                   </button>
@@ -125,7 +226,7 @@
             </div>
           </div>
 
-          <div v-if="loading" class="message assistant">
+          <div v-if="loading && !streamingAssistant" class="message assistant">
             <div class="message-avatar">
               <el-avatar :size="36">
                 <img :src="assistantAvatarUrl" @error.once="assistantAvatarError = true" v-if="!assistantAvatarError" />
@@ -142,21 +243,62 @@
           </div>
         </div>
 
-        <div class="chat-input-area">
-          <el-input
-            v-model="question"
-            type="textarea"
-            :rows="3"
-            :placeholder="sessionFull ? '此会话已达对话上限，请新建会话喵~' : '输入您的问题，按 Enter 发送，Shift+Enter 换行...'"
-            @keydown.enter.exact.prevent="sendMessage"
-            :disabled="loading || sessionFull"
-          />
-          <div class="input-actions">
-            <span class="hint">{{ sessionFull ? '已达对话上限，请新建会话' : '按 Enter 发送，Shift+Enter 换行' }}</span>
-            <el-button type="primary" :loading="loading" @click="sendMessage" :disabled="!question.trim() || sessionFull || loading">
-              <el-icon><Promotion /></el-icon> 发送
-            </el-button>
+        <div class="chat-input-area" @paste="handlePaste">
+          <div class="composer-card">
+            <div v-if="pendingAttachments.length > 0" class="pending-attachments">
+              <div
+                v-for="(attachment, index) in pendingAttachments"
+                :key="attachment.id"
+                class="pending-attachment"
+              >
+                <img :src="attachment.url" :alt="attachment.name" />
+                <button type="button" class="remove-attachment" @click="removeAttachment(index)">
+                  <el-icon><Close /></el-icon>
+                </button>
+              </div>
+            </div>
+
+            <el-input
+              v-model="question"
+              type="textarea"
+              :autosize="{ minRows: 2, maxRows: 7 }"
+              :placeholder="sessionFull ? '此会话已达对话上限，请新建会话' : '问问 Labex，搜索网页或课程资料'"
+              @keydown.enter.exact.prevent="sendMessage"
+              :disabled="loading || sessionFull"
+            />
+
+            <div class="composer-bottom">
+              <div class="composer-tools">
+                <button type="button" class="composer-icon-btn" title="上传图片" @click="openImagePicker" :disabled="loading || sessionFull">
+                  <el-icon><Plus /></el-icon>
+                </button>
+                <input ref="imageInputRef" class="hidden-file-input" type="file" accept="image/*" multiple @change="handleImageInput" />
+                <el-radio-group v-model="retrievalMode" size="small" :disabled="loading || sessionFull" class="retrieval-mode-group">
+                  <el-radio-button value="web">
+                    <el-icon><Search /></el-icon>
+                    联网搜索
+                  </el-radio-button>
+                  <el-radio-button value="knowledge">
+                    <el-icon><Document /></el-icon>
+                    知识库
+                  </el-radio-button>
+                  <el-radio-button value="hybrid">
+                    <el-icon><Connection /></el-icon>
+                    混合
+                  </el-radio-button>
+                </el-radio-group>
+                <div class="thinking-mode" :class="{ disabled: loading || sessionFull }">
+                  <button type="button" :class="{ active: !deepThinking }" :disabled="loading || sessionFull" @click="deepThinking = false">快速</button>
+                  <button type="button" :class="{ active: deepThinking }" :disabled="loading || sessionFull" @click="deepThinking = true">深度思考</button>
+                </div>
+              </div>
+              <button type="button" class="send-button" :class="{ loading }" @click="sendMessage" :disabled="!canSend || sessionFull || loading" title="发送">
+                <el-icon v-if="!loading"><Promotion /></el-icon>
+                <span v-else class="send-loader"></span>
+              </button>
+            </div>
           </div>
+          <span class="hint">{{ sessionFull ? '已达对话上限，请新建会话' : 'Labex 可能会出错，请核对关键资料。Enter 发送，Shift+Enter 换行' }}</span>
         </div>
       </el-card>
     </div>
@@ -234,15 +376,37 @@
       </div>
     </div>
   </el-dialog>
+  <el-dialog v-model="imagePreviewVisible" title="图片预览" width="70%" class="image-preview-dialog" destroy-on-close>
+    <div v-if="imagePreview" class="image-preview-content">
+      <img :src="imagePreview.url" :alt="imagePreview.name || '图片附件'" />
+      <div class="image-preview-name">{{ imagePreview.name || '图片附件' }}</div>
+    </div>
+  </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, nextTick, computed, watch } from 'vue'
+import { ref, onMounted, nextTick, computed } from 'vue'
 import { marked } from 'marked'
 import hljs from 'highlight.js'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Delete, Promotion, UserFilled, Service, Plus, Document, View, CopyDocument, EditPen, CircleCloseFilled } from '@element-plus/icons-vue'
+import {
+  Connection,
+  CopyDocument,
+  Delete,
+  Document,
+  Edit,
+  EditPen,
+  Opportunity,
+  Plus,
+  Promotion,
+  Search,
+  Service,
+  UserFilled,
+  ArrowRight,
+  CircleCloseFilled,
+  Close
+} from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import { ragApi } from '@/api'
 
@@ -302,6 +466,11 @@ renderer.link = ({ href, title, tokens }) => {
   return `<a href="${safeHref}"${titleAttr} target="_blank" rel="noopener noreferrer">${marked.Parser.parseInline(tokens || [])}</a>`
 }
 
+renderer.del = ({ tokens, text }) => {
+  const inner = tokens ? marked.Parser.parseInline(tokens) : marked.parseInline(text || '')
+  return `<span class="md-no-strike">${inner}</span>`
+}
+
 marked.setOptions({
   gfm: true,
   breaks: true
@@ -329,13 +498,28 @@ const messages = ref([])
 const question = ref('')
 const loading = ref(false)
 const messagesContainer = ref(null)
+const imageInputRef = ref(null)
+const stickToBottom = ref(true)
+let scrollFrame = 0
+const retrievalMode = ref('hybrid')
+const deepThinking = ref(false)
+const streamingAssistant = ref(false)
+const pendingAttachments = ref([])
 const sessionFull = ref(false)  // 是否已达对话上限
+const quickSuggestions = [
+  { text: '联网搜索一个最新技术问题', mode: 'web', prompt: '联网搜索并总结：' , icon: Search },
+  { text: '从知识库里找课程资料', mode: 'knowledge', prompt: '请从知识库检索并解释：', icon: Document },
+  { text: '混合检索并给出结构化答案', mode: 'hybrid', prompt: '请混合检索资料，给出结构化回答：', icon: Connection },
+  { text: '开启深度思考分析复杂问题', mode: 'hybrid', prompt: '请深度分析这个问题：', icon: Opportunity, deep: true }
+]
 
 // 讲义预览
 const previewVisible = ref(false)
 const previewLecture = ref(null)
 const previewLoading = ref(false)
 const previewError = ref(false)
+const imagePreviewVisible = ref(false)
+const imagePreview = ref(null)
 
 // 文件检测
 const normalizedFileExt = computed(() => {
@@ -442,10 +626,17 @@ const previewLectureFn = async (source) => {
   }
 }
 
+const previewImageAttachment = (attachment) => {
+  imagePreview.value = attachment
+  imagePreviewVisible.value = true
+}
+
 const currentSessionTitle = computed(() => {
   const current = sessions.value.find(s => s.sessionId === currentSessionId.value)
   return current ? current.title : '知识库问答'
 })
+
+const canSend = computed(() => question.value.trim().length > 0 || pendingAttachments.value.length > 0)
 
 const loadSessions = async () => {
   try {
@@ -459,6 +650,17 @@ const loadSessions = async () => {
     }
   } catch (error) {
     console.error('加载会话列表失败:', error)
+  }
+}
+
+const refreshSessionsOnly = async () => {
+  try {
+    const res = await ragApi.getSessions()
+    if (res.code === 0) {
+      sessions.value = res.data || []
+    }
+  } catch (error) {
+    console.error('刷新会话列表失败:', error)
   }
 }
 
@@ -481,26 +683,29 @@ const switchSession = async (sessionId) => {
 
 const loadHistory = async (sessionId) => {
   try {
-    console.log('Loading history for session:', sessionId)
     const res = await ragApi.getHistory(sessionId)
-    console.log('History response:', res)
     if (res.code === 0) {
       const raw = res.data || []
-      console.log('History raw data count:', raw.length)
       // 解析sources字段（数据库中存为JSON字符串）
       const parsed = raw.map(msg => {
         let sources = msg.sources || []
         if (typeof sources === 'string') {
           try { sources = JSON.parse(sources) } catch { sources = [] }
         }
-        return { ...msg, sources }
+        let searchKeywords = msg.searchKeywords || []
+        if (typeof searchKeywords === 'string') {
+          try { searchKeywords = JSON.parse(searchKeywords) } catch { searchKeywords = [] }
+        }
+        let attachments = msg.attachments || []
+        if (typeof attachments === 'string') {
+          try { attachments = JSON.parse(attachments) } catch { attachments = [] }
+        }
+        return { ...msg, sources, searchKeywords, attachments }
       })
-      console.log('Parsed messages count:', parsed.length)
       // 使用splice替换数组内容以保持响应性（与sendMessage的push一致）
       messages.value.splice(0, messages.value.length, ...parsed)
-      console.log('Messages after splice:', messages.value.length)
       checkSessionFull()
-      nextTick(() => scrollToBottom())
+      scrollToBottom(true)
     } else {
       console.warn('History response code not 0:', res.code, res.message)
     }
@@ -558,61 +763,364 @@ const renameSession = async (sess) => {
   }
 }
 
+const handlePaste = async (event) => {
+  const items = Array.from(event.clipboardData?.items || [])
+  const imageItems = items.filter(item => item.type && item.type.startsWith('image/'))
+  if (imageItems.length === 0) return
+
+  event.preventDefault()
+  for (const item of imageItems) {
+    const file = item.getAsFile()
+    if (file) await addImageAttachment(file)
+  }
+}
+
+const openImagePicker = () => {
+  imageInputRef.value?.click()
+}
+
+const handleImageInput = async (event) => {
+  const files = Array.from(event.target?.files || []).filter(file => file.type?.startsWith('image/'))
+  for (const file of files) {
+    await addImageAttachment(file)
+  }
+  if (event.target) {
+    event.target.value = ''
+  }
+}
+
+const addImageAttachment = async (file) => {
+  if (pendingAttachments.value.length >= 6) {
+    ElMessage.warning('最多一次粘贴 6 张图片')
+    return
+  }
+  if (file.size > 4 * 1024 * 1024) {
+    ElMessage.warning('单张图片不能超过 4MB')
+    return
+  }
+  const url = await fileToDataUrl(file)
+  pendingAttachments.value.push({
+    id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    type: 'image',
+    name: file.name || `pasted-image-${pendingAttachments.value.length + 1}.png`,
+    mimeType: file.type || 'image/png',
+    size: file.size,
+    url
+  })
+}
+
+const fileToDataUrl = (file) => new Promise((resolve, reject) => {
+  const reader = new FileReader()
+  reader.onload = () => resolve(reader.result)
+  reader.onerror = reject
+  reader.readAsDataURL(file)
+})
+
+const removeAttachment = (index) => {
+  pendingAttachments.value.splice(index, 1)
+}
+
+const applyQuickSuggestion = (item) => {
+  retrievalMode.value = item.mode || retrievalMode.value
+  deepThinking.value = !!item.deep
+  question.value = item.prompt || ''
+}
+
+const cloneAttachmentsForSend = () => pendingAttachments.value.map(({ id, ...attachment }) => ({ ...attachment }))
+
+const streamRagQuery = async (payload, onEvent) => {
+  const headers = {
+    'Content-Type': 'application/json',
+    Accept: 'text/event-stream'
+  }
+  if (userStore.token) {
+    headers.Authorization = `Bearer ${userStore.token}`
+  }
+
+  const response = await fetch(`${baseUrl}/api/rag/query-stream`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(payload)
+  })
+  if (!response.ok || !response.body) {
+    throw new Error(`流式接口请求失败: ${response.status}`)
+  }
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder('utf-8')
+  let buffer = ''
+
+  while (true) {
+    const { value, done } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+    const blocks = buffer.split(/\r?\n\r?\n/)
+    buffer = blocks.pop() || ''
+    for (const block of blocks) {
+      const parsed = parseSseBlock(block)
+      if (parsed) {
+        await onEvent(parsed.event, parsed.data)
+      }
+    }
+  }
+
+  if (buffer.trim()) {
+    const parsed = parseSseBlock(buffer)
+    if (parsed) {
+      await onEvent(parsed.event, parsed.data)
+    }
+  }
+}
+
+const parseSseBlock = (block) => {
+  const lines = block.split(/\r?\n/)
+  let event = 'message'
+  const dataLines = []
+  for (const line of lines) {
+    if (line.startsWith('event:')) {
+      event = line.slice(6).trim()
+    } else if (line.startsWith('data:')) {
+      dataLines.push(line.slice(5).trimStart())
+    }
+  }
+  if (dataLines.length === 0) return null
+  const raw = dataLines.join('\n')
+  try {
+    return { event, data: JSON.parse(raw) }
+  } catch {
+    return { event, data: { text: raw, message: raw } }
+  }
+}
+
+const appendStreamDelta = (message, text) => {
+  if (!text) return
+  message.content = (message.content || '') + text
+}
+
+const appendFieldDelta = (message, field, text) => {
+  if (!text) return
+  message[field] = (message[field] || '') + text
+}
+
+const createDeltaNormalizer = () => {
+  let committed = ''
+
+  return {
+    next(text) {
+      if (!text) return ''
+      if (!committed) {
+        committed = text
+        return text
+      }
+      if (text.startsWith(committed)) {
+        const delta = text.slice(committed.length)
+        committed = text
+        return delta
+      }
+
+      const maxOverlap = Math.min(400, committed.length, text.length)
+      let overlap = 0
+      for (let len = maxOverlap; len > 0; len--) {
+        if (committed.endsWith(text.slice(0, len))) {
+          overlap = len
+          break
+        }
+      }
+      const delta = text.slice(overlap)
+      committed += delta
+      return delta
+    }
+  }
+}
+
+const createBufferedWriter = (writeChunk, options = {}) => {
+  const minChars = options.minChars || 4
+  const maxChars = options.maxChars || 6
+  const intervalMs = options.intervalMs || 90
+  const minIntervalMs = options.minIntervalMs || intervalMs
+  const maxIntervalMs = options.maxIntervalMs || intervalMs
+  let buffer = ''
+  let active = false
+  let cancelled = false
+  const idleResolvers = []
+
+  const resolveIdle = () => {
+    while (idleResolvers.length) {
+      const resolve = idleResolvers.shift()
+      resolve()
+    }
+  }
+
+  const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms))
+  const paint = () => new Promise(resolve => requestAnimationFrame(resolve))
+  const nextInterval = () => {
+    if (maxIntervalMs <= minIntervalMs) return minIntervalMs
+    return Math.floor(Math.random() * (maxIntervalMs - minIntervalMs + 1)) + minIntervalMs
+  }
+
+  const pump = async () => {
+    if (active || cancelled) return
+    active = true
+    try {
+      while (!cancelled && buffer) {
+        const size = Math.min(buffer.length, Math.floor(Math.random() * (maxChars - minChars + 1)) + minChars)
+        const chunk = buffer.slice(0, size)
+        buffer = buffer.slice(size)
+        writeChunk(chunk)
+        await nextTick()
+        await paint()
+        await sleep(nextInterval())
+      }
+    } finally {
+      active = false
+      if (!buffer) resolveIdle()
+    }
+  }
+
+  return {
+    push(text) {
+      if (!text) return
+      buffer += text
+      pump()
+    },
+    drain() {
+      if (!buffer && !active) return Promise.resolve()
+      return new Promise(resolve => {
+        idleResolvers.push(resolve)
+        pump()
+      })
+    },
+    stop(flush = false) {
+      cancelled = true
+      if (flush && buffer) {
+        writeChunk(buffer)
+        buffer = ''
+      }
+      resolveIdle()
+    }
+  }
+}
+
 const sendMessage = async () => {
   const q = question.value.trim()
-  if (!q || loading.value || sessionFull.value) return
+  if ((!q && pendingAttachments.value.length === 0) || loading.value || sessionFull.value) return
+  const attachments = cloneAttachmentsForSend()
+  const modeAtSend = retrievalMode.value
+  const deepThinkingAtSend = deepThinking.value
 
   messages.value.push({
     role: 'user',
     content: q,
     timestamp: Date.now(),
-    sources: []
+    sources: [],
+    attachments
   })
 
   question.value = ''
+  pendingAttachments.value = []
   loading.value = true
-  scrollToBottom()
+  streamingAssistant.value = true
+  scrollToBottom(true)
+
+  const assistantMessage = {
+    role: 'assistant',
+    content: '',
+    sources: [],
+    attachments: [],
+    retrievalMode: modeAtSend,
+    searchKeywords: [],
+    thinkingTrace: deepThinkingAtSend ? '' : '',
+    fromKnowledgeBase: true,
+    timestamp: Date.now(),
+    streaming: true,
+    status: ''
+  }
+  messages.value.push(assistantMessage)
+
+  const answerWriter = createBufferedWriter(
+    chunk => {
+      appendStreamDelta(assistantMessage, chunk)
+      scheduleScrollToBottom(false)
+    },
+    { minChars: 1, maxChars: 1, intervalMs: 200, minIntervalMs: 170, maxIntervalMs: 250 }
+  )
+  const thinkingWriter = createBufferedWriter(
+    chunk => {
+      appendFieldDelta(assistantMessage, 'thinkingTrace', chunk)
+      scheduleScrollToBottom(false)
+    },
+    { minChars: 1, maxChars: 1, intervalMs: 220, minIntervalMs: 200, maxIntervalMs: 300 }
+  )
+  const answerNormalizer = createDeltaNormalizer()
+  const thinkingNormalizer = createDeltaNormalizer()
+  let receivedAnswerDelta = false
+  let donePayload = null
 
   try {
-    const res = await ragApi.query({
+    await streamRagQuery({
       question: q,
-      sessionId: currentSessionId.value
-    })
-
-    if (res.code === 0) {
-      const data = res.data
-      if (data.sessionId && data.sessionId !== currentSessionId.value) {
+      sessionId: currentSessionId.value,
+      retrievalMode: modeAtSend,
+      deepThinking: deepThinkingAtSend,
+      attachments
+    }, async (event, data) => {
+      if (event === 'session' && data.sessionId && data.sessionId !== currentSessionId.value) {
         currentSessionId.value = data.sessionId
-        await loadSessions()
+      } else if (event === 'status') {
+        return
+      } else if (event === 'metadata') {
+        assistantMessage.sources = data.sources || []
+        assistantMessage.retrievalMode = data.retrievalMode || modeAtSend
+        assistantMessage.searchKeywords = data.searchKeywords || []
+        assistantMessage.fromKnowledgeBase = data.fromKnowledgeBase !== false
+        if (data.sessionId && data.sessionId !== currentSessionId.value) currentSessionId.value = data.sessionId
+      } else if (event === 'thinking_delta' && deepThinkingAtSend) {
+        const delta = thinkingNormalizer.next(`${data.text || ''}\n`)
+        if (delta) thinkingWriter.push(delta)
+      } else if (event === 'answer_delta') {
+        receivedAnswerDelta = true
+        const delta = answerNormalizer.next(data.text || '')
+        if (delta) answerWriter.push(delta)
+      } else if (event === 'done') {
+        donePayload = data
+        assistantMessage.sources = data.sources || assistantMessage.sources
+        assistantMessage.retrievalMode = data.retrievalMode || modeAtSend
+        assistantMessage.searchKeywords = data.searchKeywords || []
+        assistantMessage.fromKnowledgeBase = data.fromKnowledgeBase !== false
+        const finalDelta = answerNormalizer.next(data.answer || '')
+        if (finalDelta) answerWriter.push(finalDelta)
+        if (deepThinkingAtSend && data.thinkingTrace && !assistantMessage.thinkingTrace) {
+          const thinkingDelta = thinkingNormalizer.next(data.thinkingTrace)
+          if (thinkingDelta) thinkingWriter.push(thinkingDelta)
+        }
+        if (data.sessionId && data.sessionId !== currentSessionId.value) currentSessionId.value = data.sessionId
+      } else if (event === 'error') {
+        assistantMessage.content = assistantMessage.content || ('抱歉，发生了错误：' + (data.message || '未知错误'))
+        assistantMessage.status = ''
       }
-
-      messages.value.push({
-        role: 'assistant',
-        content: data.answer,
-        sources: data.sources || [],
-        fromKnowledgeBase: data.fromKnowledgeBase !== false,
-        timestamp: Date.now()
-      })
-    } else {
-      messages.value.push({
-        role: 'assistant',
-        content: '抱歉，发生了错误：' + (res.message || '未知错误'),
-        sources: [],
-        timestamp: Date.now()
-      })
+    })
+    await answerWriter.drain()
+    await thinkingWriter.drain()
+    assistantMessage.streaming = false
+    assistantMessage.status = ''
+    if (donePayload) {
+      await refreshSessionsOnly()
     }
   } catch (error) {
-    messages.value.push({
-      role: 'assistant',
-      content: '抱歉，无法连接到服务器，请检查后端服务是否运行。',
-      sources: [],
-      timestamp: Date.now()
-    })
+    answerWriter.stop(true)
+    thinkingWriter.stop(true)
+    assistantMessage.content = assistantMessage.content || '抱歉，无法连接到服务器或流式接口中断，请检查后端服务是否运行。'
+    assistantMessage.streaming = false
+    assistantMessage.status = ''
+  } finally {
+    answerWriter.stop(false)
+    thinkingWriter.stop(false)
   }
 
   loading.value = false
+  streamingAssistant.value = false
   checkSessionFull()
-  nextTick(() => scrollToBottom())
+  scrollToBottom(false)
 }
 
 const openLecture = (source) => {
@@ -621,22 +1129,143 @@ const openLecture = (source) => {
   }
 }
 
-const clearHistory = () => {
-  messages.value = []
-  if (currentSessionId.value) {
-    ragApi.clearHistory(currentSessionId.value)
+const clearHistory = async () => {
+  if (!currentSessionId.value) return
+  try {
+    await ElMessageBox.confirm('确定要清空当前会话的所有消息吗？', '确认清空', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+    const res = await ragApi.clearHistory(currentSessionId.value)
+    if (res.code === 0) {
+      messages.value = []
+      ElMessage.success('会话已清空')
+    } else {
+      ElMessage.error(res.message || '清空会话失败')
+    }
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error('清空会话失败')
+    }
   }
 }
 
-const scrollToBottom = () => {
-  if (messagesContainer.value) {
-    messagesContainer.value.scrollTop = messagesContainer.value.scrollHeight
-  }
+const isNearBottom = (threshold = 140) => {
+  const el = messagesContainer.value
+  if (!el) return true
+  return el.scrollHeight - el.scrollTop - el.clientHeight <= threshold
+}
+
+const handleMessagesScroll = () => {
+  stickToBottom.value = isNearBottom(180)
+}
+
+const scheduleScrollToBottom = (force = false) => {
+  const el = messagesContainer.value
+  if (!el) return
+  if (!force && !stickToBottom.value && !isNearBottom(180)) return
+  if (scrollFrame) cancelAnimationFrame(scrollFrame)
+  scrollFrame = requestAnimationFrame(() => {
+    const current = messagesContainer.value
+    if (!current) return
+    current.scrollTop = current.scrollHeight
+    stickToBottom.value = true
+    scrollFrame = 0
+  })
+}
+
+const scrollToBottom = (force = true) => {
+  nextTick(() => scheduleScrollToBottom(force))
 }
 
 const formatMessage = (content) => {
   if (!content) return ''
   return marked.parse(content, { renderer })
+}
+
+const escapeHtml = (text) => String(text)
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#39;')
+
+const formatStreamingMessage = (content) => {
+  if (!content) return ''
+  return `${escapeHtml(content).replace(/\n/g, '<br>')}<span class="streaming-cursor" aria-hidden="true"></span>`
+}
+
+const getMessageSources = (msg) => Array.isArray(msg?.sources) ? msg.sources : []
+const getMessageAttachments = (msg) => Array.isArray(msg?.attachments) ? msg.attachments : []
+
+const getSourceSnippet = (source) => {
+  const text = source?.snippet || source?.text || ''
+  return text.length > 520 ? text.substring(0, 520) + '...' : text
+}
+
+const getReferenceClass = (source) => {
+  if (source?.type === 'web') return 'web-source'
+  if (source?.type === 'image') return 'image-source'
+  return 'knowledge-source'
+}
+
+const getReferenceTypeLabel = (source) => {
+  if (source?.type === 'web') return source.engine || 'Web'
+  if (source?.type === 'image') return source.tool || 'understand_image'
+  return '知识库'
+}
+
+const getModeBadge = (msg) => {
+  const mode = msg?.retrievalMode || inferRetrievalMode(getMessageSources(msg))
+  if (mode === 'web') return '联网搜索'
+  if (mode === 'hybrid') return '混合检索'
+  if (mode === 'image') return '图片理解'
+  return msg?.fromKnowledgeBase === false ? 'AI 知识' : '知识库'
+}
+
+const buildReferencesSummary = (msg) => {
+  const sources = getMessageSources(msg)
+  const keywordCount = Array.isArray(msg?.searchKeywords) ? msg.searchKeywords.length : 0
+  const imageCount = sources.filter(source => source.type === 'image').length
+  const fetchedCount = sources.filter(source => source.type === 'web' && source.contentFetched).length
+  const mode = msg?.retrievalMode || inferRetrievalMode(sources)
+  const imageText = imageCount ? `，读取 ${imageCount} 张图片` : ''
+  const pageText = fetchedCount ? `，阅读全文 ${fetchedCount} 篇` : ''
+  if (mode === 'image') return `图片理解，读取 ${imageCount} 张图片`
+  if (mode === 'web') return `搜索 ${keywordCount || 1} 个关键词，参考 ${sources.length} 篇资料${pageText}${imageText}`
+  if (mode === 'hybrid') return `混合检索，搜索 ${keywordCount || 1} 个关键词，参考 ${sources.length} 篇资料${pageText}${imageText}`
+  return `知识库检索，参考 ${sources.length} 篇资料${imageText}`
+}
+
+const inferRetrievalMode = (sources) => {
+  const hasWeb = sources.some(source => source.type === 'web')
+  const hasKnowledge = sources.some(source => source.type !== 'web' && source.type !== 'image')
+  const hasImage = sources.some(source => source.type === 'image')
+  if (hasWeb && hasKnowledge) return 'hybrid'
+  if (hasWeb) return 'web'
+  if (hasImage && !hasKnowledge) return 'image'
+  return 'knowledge'
+}
+
+const formatSearchKeywords = (msg) => {
+  const keywords = Array.isArray(msg?.searchKeywords) ? msg.searchKeywords.filter(Boolean) : []
+  if (keywords.length === 0) return ''
+  return keywords.map(keyword => `“${keyword}”`).join('、')
+}
+
+const getThinkingSections = (trace) => {
+  if (!trace) return []
+  return trace.split(/\n(?=[^\n]{2,24}\n)/)
+    .map(block => block.trim())
+    .filter(Boolean)
+    .map(block => {
+      const [title, ...bodyLines] = block.split('\n')
+      return {
+        title: title.trim(),
+        body: bodyLines.join('\n').trim()
+      }
+    })
 }
 
 const copyMessage = (content) => {
@@ -692,11 +1321,6 @@ const checkSessionFull = () => {
   }
 }
 
-// 调试：监听messages变化
-watch(messages, (newVal) => {
-  console.log('[Watch] messages changed, length:', newVal.length)
-}, { deep: true })
-
 onMounted(() => {
   loadSessions()
   nextTick(() => {
@@ -711,57 +1335,137 @@ onMounted(() => {
 @import 'highlight.js/styles/github.css';
 
 /* ==================== Layout ==================== */
+.rag-chat-wrapper {
+  height: calc(100vh - 80px);
+  min-height: 640px;
+  background: #fff;
+  color: #111827;
+}
+
 .rag-chat-container {
   display: flex;
-  height: calc(100vh - 120px);
-  gap: 16px;
+  height: 100%;
+  gap: 0;
+  background: #fff;
 }
 
 /* ==================== Sidebar ==================== */
 .sidebar {
-  width: 260px;
-  background: #fff;
-  border-radius: 10px;
+  width: 286px;
+  background: #fafafa;
+  border-radius: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid #e8ecf0;
+  border: none;
+  border-right: 1px solid #ededed;
   flex-shrink: 0;
 }
 
-.sidebar-header {
-  padding: 14px 16px;
-  border-bottom: 1px solid #f0f2f5;
+.sidebar-brand {
+  height: 72px;
+  padding: 18px 18px 10px;
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
 
-.sidebar-title {
-  font-size: 14px;
-  font-weight: 600;
-  color: #1f2328;
+.brand-title {
+  display: block;
+  font-size: 24px;
+  font-weight: 650;
+  color: #0f0f0f;
+  letter-spacing: 0;
+}
+
+.brand-subtitle {
+  display: block;
+  margin-top: 4px;
+  font-size: 13px;
+  color: #777;
+}
+
+.composer-icon-btn {
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: #444;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.composer-icon-btn:hover {
+  background: #ececec;
+  color: #111;
+}
+
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px 12px;
+}
+
+.sidebar-nav-item {
+  border: none;
+  background: transparent;
+  color: #111;
+  min-height: 40px;
+  border-radius: 12px;
+  padding: 0 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s;
+  width: 100%;
+}
+
+.sidebar-nav-item :deep(.el-icon) {
+  width: 20px;
+  height: 20px;
+  font-size: 20px;
+}
+
+.sidebar-nav-item:hover,
+.sidebar-nav-item.active {
+  background: #eeeeef;
+}
+
+.sidebar-section-title {
+  padding: 14px 18px 8px;
+  font-size: 16px;
+  font-weight: 650;
+  color: #111;
 }
 
 .session-list {
   flex: 1;
   overflow-y: auto;
-  padding: 8px;
+  padding: 0 10px 16px;
 }
 
 .session-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 12px;
-  border-radius: 8px;
+  padding: 10px 14px;
+  border-radius: 12px;
   cursor: pointer;
   margin-bottom: 2px;
-  transition: background 0.15s;
+  transition: background 0.15s, color 0.15s;
 }
 
-.session-item:hover { background: #f5f7fa; }
-.session-item.active { background: #e6f4ea; }
+.session-item:hover { background: #f0f0f0; }
+.session-item.active { background: #eeeeef; }
 
 .session-info {
   display: flex;
@@ -773,16 +1477,15 @@ onMounted(() => {
 }
 
 .session-title {
-  font-size: 13px;
+  font-size: 15px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  color: #303133;
+  color: #111;
 }
 
 .session-time {
-  font-size: 11px;
-  color: #909399;
+  display: none;
 }
 
 .session-actions { display: none; gap: 2px; flex-shrink: 0; }
@@ -803,14 +1506,19 @@ onMounted(() => {
 }
 
 /* ==================== Chat Area ==================== */
-.chat-area { flex: 1; min-width: 0; }
+.chat-area {
+  flex: 1;
+  min-width: 0;
+  background: #fff;
+}
 
 .chat-card {
   height: 100%;
   display: flex;
   flex-direction: column;
-  border-radius: 10px;
-  border: 1px solid #e8ecf0;
+  border-radius: 0;
+  border: none;
+  box-shadow: none;
 }
 
 .chat-card :deep(.el-card__body) {
@@ -822,8 +1530,10 @@ onMounted(() => {
 }
 
 .chat-card :deep(.el-card__header) {
-  border-bottom: 1px solid #f0f2f5;
-  padding: 12px 20px;
+  border-bottom: 1px solid #ededed;
+  padding: 11px 26px;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(10px);
 }
 
 .card-header {
@@ -833,18 +1543,24 @@ onMounted(() => {
 }
 
 .card-header .title {
-  font-size: 15px;
+  font-size: 16px;
   font-weight: 600;
-  color: #1f2328;
+  color: #111;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .turn-counter {
   font-size: 12px;
-  color: #909399;
-  margin-right: 8px;
-  padding: 2px 10px;
-  background: #f0f2f5;
-  border-radius: 10px;
+  color: #6b7280;
+  margin-right: 0;
+  padding: 3px 10px;
+  background: #f4f4f4;
+  border-radius: 999px;
 }
 
 .turn-counter.full {
@@ -857,12 +1573,12 @@ onMounted(() => {
 .chat-messages {
   flex: 1;
   overflow-y: auto;
-  padding: 20px 24px;
+  padding: 30px 24px 150px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
-  background: #f5f7fa;
-  scroll-behavior: smooth;
+  gap: 22px;
+  background: #fff;
+  scroll-behavior: auto;
 }
 
 .chat-messages::-webkit-scrollbar { width: 5px; }
@@ -880,11 +1596,62 @@ onMounted(() => {
   justify-content: center;
 }
 
+.empty-center {
+  width: min(100%, 760px);
+  text-align: center;
+  padding: 34px 18px 120px;
+}
+
+.empty-center h1 {
+  margin: 0 0 24px;
+  font-size: 29px;
+  line-height: 1.25;
+  font-weight: 650;
+  letter-spacing: 0;
+  color: #111;
+}
+
+.empty-suggestions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  max-width: 620px;
+  margin: 0 auto;
+}
+
+.empty-suggestions button {
+  min-height: 46px;
+  border: 1px solid #e8e8e8;
+  border-radius: 14px;
+  background: #fff;
+  color: #343541;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 0 14px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, transform 0.15s;
+}
+
+.empty-suggestions button:hover {
+  background: #f7f7f8;
+  border-color: #dcdcdc;
+  transform: translateY(-1px);
+}
+
+.empty-suggestions :deep(.el-icon) {
+  color: #10a37f;
+}
+
 /* ==================== Message Row ==================== */
 .message {
   display: flex;
-  gap: 10px;
-  max-width: 88%;
+  gap: 12px;
+  width: min(100%, 920px);
+  max-width: 920px;
+  margin: 0 auto;
   animation: msgFadeIn 0.3s ease;
 }
 
@@ -894,12 +1661,12 @@ onMounted(() => {
 }
 
 .message.user {
-  align-self: flex-end;
+  align-self: center;
   flex-direction: row-reverse;
 }
 
 .message.assistant {
-  align-self: flex-start;
+  align-self: center;
 }
 
 .message-avatar { flex-shrink: 0; margin-top: 2px; }
@@ -912,35 +1679,72 @@ onMounted(() => {
 }
 
 .message.user .message-content { align-items: flex-end; }
+.message.assistant .message-content { width: 100%; }
 
 /* ==================== Message Bubble ==================== */
 .message-bubble {
-  padding: 12px 18px;
-  border-radius: 14px;
-  line-height: 1.7;
-  font-size: 14px;
+  padding: 13px 17px;
+  border-radius: 18px;
+  line-height: 1.78;
+  font-size: 15px;
   position: relative;
   word-wrap: break-word;
   overflow-wrap: break-word;
 }
 
 .message.user .message-bubble {
-  background: linear-gradient(135deg, #409eff 0%, #337ecc 100%);
-  color: white;
-  border-bottom-right-radius: 4px;
+  background: #f4f4f4;
+  color: #111827;
+  border-bottom-right-radius: 6px;
+  max-width: min(720px, 100%);
 }
 
 .message.assistant .message-bubble {
-  background: #fff;
-  color: #303133;
-  border-bottom-left-radius: 4px;
-  border: 1px solid #e8ecf0;
+  background: transparent;
+  color: #202123;
+  border-bottom-left-radius: 6px;
+  border: none;
+  padding-left: 0;
+  padding-right: 0;
 }
 
 /* ==================== Message Text Typography ==================== */
 .message-text { word-break: break-word; }
 
-.message-text :deep(p) { margin: 8px 0; }
+.message-text.streaming-text {
+  white-space: normal;
+}
+
+.message-text :deep(.streaming-cursor) {
+  display: inline-block;
+  width: 7px;
+  height: 1.1em;
+  margin-left: 2px;
+  border-radius: 999px;
+  background: #111827;
+  vertical-align: -0.18em;
+  animation: streamCursorBlink 0.9s steps(2, start) infinite;
+}
+
+@keyframes streamCursorBlink {
+  0%, 45% { opacity: 1; }
+  46%, 100% { opacity: 0; }
+}
+
+.message.assistant .message-text {
+  font-size: 15.5px;
+  line-height: 1.82;
+  color: #202123;
+}
+
+.message.assistant .message-bubble::after {
+  content: "";
+  display: inline-block;
+  width: 0;
+  height: 0;
+}
+
+.message-text :deep(p) { margin: 10px 0; }
 .message-text :deep(p:first-child) { margin-top: 0; }
 .message-text :deep(p:last-child) { margin-bottom: 0; }
 
@@ -949,21 +1753,21 @@ onMounted(() => {
 .message-text :deep(h2),
 .message-text :deep(h3),
 .message-text :deep(h4) {
-  margin: 18px 0 8px;
+  margin: 22px 0 10px;
   font-weight: 600;
   color: #1f2328;
   line-height: 1.4;
 }
-.message-text :deep(h1) { font-size: 1.35em; padding-bottom: 6px; border-bottom: 1px solid #e8ecf0; }
-.message-text :deep(h2) { font-size: 1.2em; }
-.message-text :deep(h3) { font-size: 1.1em; }
+.message-text :deep(h1) { font-size: 1.42em; padding-bottom: 7px; border-bottom: 1px solid #e8ecf0; }
+.message-text :deep(h2) { font-size: 1.24em; }
+.message-text :deep(h3) { font-size: 1.12em; }
 .message-text :deep(h1:first-child) { margin-top: 0; }
 
 .message.user .message-text :deep(h1),
 .message.user .message-text :deep(h2),
 .message.user .message-text :deep(h3) {
-  color: rgba(255,255,255,0.95);
-  border-bottom-color: rgba(255,255,255,0.2);
+  color: #111827;
+  border-bottom-color: rgba(17,24,39,0.12);
 }
 
 /* Lists */
@@ -986,9 +1790,15 @@ onMounted(() => {
   color: #d63384;
 }
 
+.message-text :deep(del),
+.message-text :deep(s),
+.message-text :deep(.md-no-strike) {
+  text-decoration: none;
+}
+
 .message.user .message-text :deep(code) {
-  background: rgba(255,255,255,0.18);
-  color: rgba(255,255,255,0.92);
+  background: rgba(17,24,39,0.08);
+  color: #1f2937;
 }
 
 /* Blockquote */
@@ -1002,20 +1812,30 @@ onMounted(() => {
 }
 
 .message.user .message-text :deep(blockquote) {
-  background: rgba(255,255,255,0.1);
-  border-left-color: rgba(255,255,255,0.5);
-  color: rgba(255,255,255,0.9);
+  background: rgba(17,24,39,0.04);
+  border-left-color: rgba(17,24,39,0.28);
+  color: #374151;
 }
 
 /* Strong / emphasis */
 .message-text :deep(strong) { font-weight: 600; color: #1f2328; }
-.message.user .message-text :deep(strong) { color: rgba(255,255,255,0.95); }
+.message.user .message-text :deep(strong) { color: #111827; }
 
 /* Horizontal rule */
 .message-text :deep(hr) {
   margin: 14px 0;
   border: none;
   border-top: 1px solid #e0e4e8;
+}
+
+.message-text :deep(img) {
+  max-width: min(100%, 420px);
+  max-height: 360px;
+  object-fit: contain;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  display: block;
+  margin: 10px 0;
 }
 
 /* ==================== Code Blocks ==================== */
@@ -1167,6 +1987,221 @@ onMounted(() => {
 }
 .message.user .message-text :deep(tr:nth-child(even) td) {
   background: rgba(255,255,255,0.04);
+}
+
+/* ==================== Thinking & References ==================== */
+.thinking-panel,
+.references-panel {
+  margin-bottom: 10px;
+  border-bottom: 1px solid #edf0f3;
+  padding-bottom: 8px;
+}
+
+.references-panel {
+  margin-top: 12px;
+  margin-bottom: 0;
+  border: 1px solid #edf0f3;
+  border-radius: 12px;
+  background: #fbfbfc;
+  padding: 10px 12px;
+}
+
+.thinking-summary,
+.references-summary {
+  list-style: none;
+  cursor: pointer;
+  color: #8a8f99;
+  font-size: 13px;
+  line-height: 1.6;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.thinking-summary::-webkit-details-marker,
+.references-summary::-webkit-details-marker {
+  display: none;
+}
+
+.summary-left {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+
+.summary-arrow {
+  transition: transform 0.15s ease;
+  flex-shrink: 0;
+}
+
+.thinking-panel[open] .summary-arrow,
+.references-panel[open] .summary-arrow {
+  transform: rotate(90deg);
+}
+
+.thinking-timeline {
+  margin-top: 10px;
+  padding-left: 2px;
+}
+
+.thinking-step {
+  position: relative;
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  gap: 8px;
+  padding-bottom: 12px;
+}
+
+.thinking-step::before {
+  content: "";
+  position: absolute;
+  left: 7px;
+  top: 18px;
+  bottom: 0;
+  width: 2px;
+  background: #d9dde6;
+}
+
+.thinking-step:last-child::before {
+  display: none;
+}
+
+.thinking-step-dot {
+  width: 14px;
+  height: 14px;
+  margin-top: 3px;
+  border-radius: 50%;
+  background: #b7bdc9;
+  box-shadow: inset 0 0 0 4px #fff;
+  border: 1px solid #c8ced8;
+  z-index: 1;
+}
+
+.thinking-step-body h4 {
+  margin: 0 0 4px;
+  font-size: 14px;
+  color: #4b5563;
+  font-weight: 700;
+}
+
+.thinking-step-body p {
+  margin: 0;
+  color: #8a8f99;
+  white-space: pre-wrap;
+  line-height: 1.8;
+  font-size: 13px;
+}
+
+.message-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.message-attachment {
+  width: 112px;
+  height: 84px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 0;
+  overflow: hidden;
+  background: #fff;
+  cursor: pointer;
+}
+
+.message-attachment img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.references-keywords {
+  margin: 4px 0 8px;
+  color: #8a8f99;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.reference-list {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.reference-item {
+  padding: 9px 0;
+  border-top: 1px solid #edf0f3;
+}
+
+.reference-item:first-child {
+  border-top: none;
+}
+
+.reference-link {
+  display: inline;
+  border: none;
+  background: transparent;
+  color: #006dff;
+  cursor: pointer;
+  padding: 0;
+  text-align: left;
+  font-size: 14px;
+  line-height: 1.6;
+  text-decoration: none;
+}
+
+.reference-link:hover {
+  text-decoration: underline;
+}
+
+.reference-button {
+  font-family: inherit;
+}
+
+.reference-static {
+  color: #5b5f66;
+  cursor: default;
+}
+
+.reference-static:hover {
+  text-decoration: none;
+}
+
+.image-source .reference-snippet {
+  color: #4b5563;
+  background: #f6f8fb;
+  border-left: 3px solid #aeb7c8;
+  padding: 6px 9px;
+  border-radius: 4px;
+}
+
+.reference-snippet {
+  margin: 3px 0 0;
+  color: #606266;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.reference-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 3px;
+  color: #9aa0a6;
+  font-size: 12px;
+}
+
+.reference-meta span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: #f2f4f7;
 }
 
 /* ==================== Sources ==================== */
@@ -1354,25 +2389,200 @@ onMounted(() => {
   40% { transform: scale(1); }
 }
 
+@keyframes pulseDot {
+  0%, 100% {
+    opacity: 0.35;
+    transform: scale(0.8);
+    box-shadow: 0 0 0 0 rgba(16, 163, 127, 0.28);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+    box-shadow: 0 0 0 7px rgba(16, 163, 127, 0);
+  }
+}
+
 /* ==================== Input Area ==================== */
 .chat-input-area {
-  padding: 14px 20px 16px;
-  border-top: 1px solid #f0f2f5;
+  padding: 10px 24px 18px;
+  border-top: 1px solid #ededed;
+  background: linear-gradient(180deg, rgba(255,255,255,0.64), #fff 34%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-shadow: 0 -14px 34px rgba(17, 24, 39, 0.04);
+}
+
+.chat-input-area > * {
+  width: min(100%, 880px);
+}
+
+.composer-card {
+  border: 1px solid #d9d9d9;
+  border-radius: 28px;
   background: #fff;
+  padding: 9px 10px 10px;
+  box-shadow: 0 10px 34px rgba(17, 24, 39, 0.12);
 }
 
 .chat-input-area :deep(.el-textarea__inner) {
-  border-radius: 10px;
+  border-radius: 20px;
   resize: none;
-  padding: 10px 14px;
-  font-size: 14px;
-  line-height: 1.6;
-  transition: border-color 0.2s;
+  padding: 10px 12px;
+  font-size: 15px;
+  line-height: 1.65;
+  border-color: transparent;
+  background: #fff;
+  box-shadow: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
 
 .chat-input-area :deep(.el-textarea__inner:focus) {
-  border-color: #409eff;
-  box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.08);
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.composer-bottom {
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.composer-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.composer-icon-btn {
+  border: 1px solid #e5e5e5;
+  border-radius: 50%;
+  width: 34px;
+  height: 34px;
+}
+
+.composer-icon-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.hidden-file-input {
+  display: none;
+}
+
+.retrieval-mode-group :deep(.el-radio-button__inner) {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 34px;
+  border: none;
+  border-radius: 999px !important;
+  color: #5f6368;
+  background: #f5f5f5;
+  box-shadow: none;
+  padding: 0 12px;
+  font-weight: 500;
+}
+
+.retrieval-mode-group :deep(.el-radio-button:first-child .el-radio-button__inner),
+.retrieval-mode-group :deep(.el-radio-button:last-child .el-radio-button__inner) {
+  border-radius: 999px !important;
+}
+
+.retrieval-mode-group :deep(.el-radio-button__original-radio:checked + .el-radio-button__inner) {
+  background: #111;
+  border-color: #111;
+  box-shadow: none;
+  color: #fff;
+}
+
+.composer-tools :deep(.el-switch) {
+  padding-left: 4px;
+}
+
+.composer-tools :deep(.el-switch__label) {
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.thinking-mode {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px;
+  border-radius: 999px;
+  background: #f5f5f5;
+  border: 1px solid #ececec;
+}
+
+.thinking-mode button {
+  height: 30px;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: #5f6368;
+  padding: 0 12px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.thinking-mode button.active {
+  background: #111;
+  color: #fff;
+}
+
+.thinking-mode button:disabled {
+  cursor: not-allowed;
+}
+
+.thinking-mode.disabled {
+  opacity: 0.62;
+}
+
+.pending-attachments {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.pending-attachment {
+  position: relative;
+  width: 96px;
+  height: 72px;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid #d8dee8;
+  background: #f8fafc;
+}
+
+.pending-attachment img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.remove-attachment {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(17, 24, 39, 0.82);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
 }
 
 .input-actions {
@@ -1380,9 +2590,59 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
 }
 
-.hint { font-size: 12px; color: #909399; }
+.hint {
+  width: min(100%, 880px);
+  margin-top: 10px;
+  text-align: center;
+  font-size: 12px;
+  color: #8b8b8b;
+}
+
+.send-button {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: none;
+  background: #111;
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  cursor: pointer;
+  box-shadow: 0 8px 22px rgba(17, 24, 39, 0.16);
+  transition: background 0.15s, transform 0.15s;
+}
+
+.send-button:hover,
+.send-button:focus {
+  background: #000;
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+.send-button:disabled {
+  cursor: not-allowed;
+  background: #d9d9d9;
+  box-shadow: none;
+  transform: none;
+}
+
+.send-loader {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.45);
+  border-top-color: #fff;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
 
 /* ==================== Preview Dialog ==================== */
 .preview-dialog .preview-content {
@@ -1663,5 +2923,52 @@ onMounted(() => {
 .preview-status-text {
   font-size: 14px;
   color: #909399;
+}
+
+.image-preview-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.image-preview-content img {
+  max-width: 100%;
+  max-height: 70vh;
+  object-fit: contain;
+  border-radius: 8px;
+}
+
+.image-preview-name {
+  color: #606266;
+  font-size: 13px;
+}
+
+@media (max-width: 860px) {
+  .sidebar {
+    display: none;
+  }
+
+  .chat-messages {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .empty-suggestions {
+    grid-template-columns: 1fr;
+  }
+
+  .composer-bottom {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .composer-tools {
+    width: 100%;
+  }
+
+  .send-button {
+    align-self: flex-end;
+  }
 }
 </style>

@@ -177,8 +177,8 @@
     <el-dialog v-model="questionDialogVisible" title="作业题目管理" width="1080px" destroy-on-close>
       <div class="question-mode">
         <el-radio-group v-model="questionAddMode">
-          <el-radio-button label="bank">从题库添加</el-radio-button>
-          <el-radio-button label="direct">直接添加</el-radio-button>
+          <el-radio-button value="bank">从题库添加</el-radio-button>
+          <el-radio-button value="direct">直接添加</el-radio-button>
         </el-radio-group>
       </div>
 

@@ -2,6 +2,7 @@ package com.labex.kg.controller;
 
 import com.labex.common.Result;
 import com.labex.entity.Question;
+import com.labex.kg.dto.GraphDataDTO;
 import com.labex.kg.dto.KnowledgePointDTO;
 import com.labex.kg.dto.TopicDTO;
 import com.labex.kg.service.KnowledgeExtractionService;
@@ -162,5 +163,38 @@ public class KnowledgeGraphController {
     @GetMapping("/stats")
     public Result<Map<String, Object>> stats() {
         return Result.success(kgService.getStats());
+    }
+
+    // ==================== Graph Visualization ====================
+
+    /** 获取图谱统计信息 */
+    @GetMapping("/graph-stats")
+    public Result<Map<String, Object>> getGraphStats() {
+        return Result.success(kgService.getGraphStats());
+    }
+
+    /** 获取知识图谱可视化数据 */
+    @GetMapping("/graph-data")
+    public Result<GraphDataDTO> getGraphData(
+            @RequestParam(required = false) String topicId,
+            @RequestParam(required = false) List<String> nodeTypes,
+            @RequestParam(defaultValue = "50") int maxNodes,
+            @RequestParam(required = false) String centerNodeId) {
+        return Result.success(kgService.getGraphData(topicId, nodeTypes, maxNodes, centerNodeId));
+    }
+
+    /** 获取节点详情 */
+    @GetMapping("/node-detail/{type}/{id}")
+    public Result<Map<String, Object>> getNodeDetail(
+            @PathVariable String type,
+            @PathVariable String id) {
+        Map<String, Object> detail = switch (type) {
+            case "KnowledgePoint" -> kgService.getKnowledgePointFullDetail(id);
+            case "QuestionRef" -> kgService.getQuestionFullDetail(Integer.parseInt(id));
+            case "Document" -> kgService.getDocumentFullDetail(id);
+            case "Topic" -> kgService.getTopicFullDetail(id);
+            default -> null;
+        };
+        return detail != null ? Result.success(detail) : Result.error("节点不存在");
     }
 }

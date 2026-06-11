@@ -16,6 +16,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import com.labex.filter.JwtAuthenticationFilter;
 
+import jakarta.servlet.DispatcherType;
 import java.util.Arrays;
 
 /**
@@ -59,8 +60,10 @@ public class SecurityConfig {
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
+                        .dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.ERROR).permitAll()
                         .requestMatchers("/auth/**").permitAll()
                         .requestMatchers("/error").permitAll()
+                        .requestMatchers("/preview/**").permitAll()
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 

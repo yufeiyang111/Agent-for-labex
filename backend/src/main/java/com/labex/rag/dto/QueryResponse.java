@@ -19,4 +19,12 @@ public class QueryResponse {
     private String sessionId;
 
     private boolean fromKnowledgeBase = true;
+
+    private String retrievalMode;
+
+    private List<String> searchKeywords;
+
+    private String thinkingTrace;
+
+    private List<Map<String, Object>> attachments;
 }

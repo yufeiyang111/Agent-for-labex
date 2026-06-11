@@ -747,6 +747,18 @@ export const kgApi = {
   getStats() {
     return request.get('/kg/stats')
   },
+  // 获取图谱可视化数据
+  getGraphData(params) {
+    return request.get('/kg/graph-data', { params })
+  },
+  // 获取图谱统计信息
+  getGraphStats() {
+    return request.get('/kg/graph-stats')
+  },
+  // 获取节点详情
+  getNodeDetail(type, id) {
+    return request.get(`/kg/node-detail/${type}/${id}`)
+  },
 }
 
 // 涔犻鎺ㄨ崘API
@@ -878,6 +890,18 @@ export const projectApi = {
   },
   agentDeleteConversation(projectId, conversationId) {
     return request.delete('/student/projects/' + projectId + '/agent/conversations/' + conversationId)
+  },
+  agentForkConversation(projectId, conversationId, messageId) {
+    return request.post('/student/projects/' + projectId + '/agent/conversations/' + conversationId + '/fork', { messageId: messageId || null })
+  },
+  agentCompactConversation(projectId, conversationId) {
+    return request.post('/student/projects/' + projectId + '/agent/conversations/' + conversationId + '/compact')
+  },
+  agentConversationMemory(projectId, conversationId) {
+    return request.get('/student/projects/' + projectId + '/agent/conversations/' + conversationId + '/memory')
+  },
+  agentApprovePermission(projectId, data) {
+    return request.post('/student/projects/' + projectId + '/agent/permission/approve', data)
   },
   agentTokenStats(projectId, conversationId) {
     return request.get('/student/projects/' + projectId + '/agent/tokens/' + conversationId)
@@ -1017,6 +1041,84 @@ export const agentExtensionApi = {
   },
   deleteMcpServer(serverId) {
     return request.delete('/student/agent/extensions/mcp/' + serverId)
+  }
+}
+
+// AI题目生成API
+export const aiQuestionApi = {
+  // 异步生成题目
+  generate(data) {
+    return request.post('/teacher/ai-question/generate', data)
+  },
+
+  // 同步生成题目（等待完成）
+  generateSync(data) {
+    return request.post('/teacher/ai-question/generate-sync', data)
+  },
+
+  // 获取生成批次状态
+  getBatch(batchId) {
+    return request.get('/teacher/ai-question/batch/' + batchId)
+  },
+
+  // 获取教师的所有生成批次
+  getBatches() {
+    return request.get('/teacher/ai-question/batches')
+  },
+
+  // 获取批次统计信息
+  getBatchStatistics(batchId) {
+    return request.get('/teacher/ai-question/batch/' + batchId + '/statistics')
+  },
+
+  // 获取批次的所有题目
+  getBatchQuestions(batchId) {
+    return request.get('/teacher/ai-question/batch/' + batchId + '/questions')
+  },
+
+  // 获取单个题目详情
+  getQuestion(tempId) {
+    return request.get('/teacher/ai-question/question/' + tempId)
+  },
+
+  // 批准题目
+  approveQuestion(tempId) {
+    return request.post('/teacher/ai-question/question/' + tempId + '/approve')
+  },
+
+  // 拒绝题目
+  rejectQuestion(tempId) {
+    return request.post('/teacher/ai-question/question/' + tempId + '/reject')
+  },
+
+  // 修改题目内容
+  updateQuestion(tempId, updates) {
+    return request.put('/teacher/ai-question/question/' + tempId, updates)
+  },
+
+  // 重新生成题目
+  regenerateQuestion(tempId, requirements) {
+    return request.post('/teacher/ai-question/question/' + tempId + '/regenerate', { requirements })
+  },
+
+  // 持久化单个题目到数据库
+  persistQuestion(tempId) {
+    return request.post('/teacher/ai-question/question/' + tempId + '/persist')
+  },
+
+  // 批量持久化题目到数据库
+  batchPersistQuestions(batchId, tempIds) {
+    return request.post('/teacher/ai-question/batch/' + batchId + '/persist', tempIds)
+  },
+
+  // 删除生成批次
+  deleteBatch(batchId) {
+    return request.delete('/teacher/ai-question/batch/' + batchId)
+  },
+
+  // 获取批次剩余过期时间
+  getBatchTTL(batchId) {
+    return request.get('/teacher/ai-question/batch/' + batchId + '/ttl')
   }
 }
 

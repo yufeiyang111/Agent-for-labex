@@ -91,12 +91,44 @@ public class SessionMemory {
      */
     @Transactional
     public void addMessage(String sessionId, String role, String content, String sources) {
+        addMessage(sessionId, role, content, sources, null, null, null);
+    }
+
+    /**
+     * Add message with retrieval metadata.
+     */
+    @Transactional
+    public void addMessage(
+            String sessionId,
+            String role,
+            String content,
+            String sources,
+            String retrievalMode,
+            String searchKeywords,
+            String thinkingTrace) {
+        addMessage(sessionId, role, content, sources, retrievalMode, searchKeywords, thinkingTrace, null);
+    }
+
+    @Transactional
+    public void addMessage(
+            String sessionId,
+            String role,
+            String content,
+            String sources,
+            String retrievalMode,
+            String searchKeywords,
+            String thinkingTrace,
+            String attachments) {
         try {
             RagMessage message = new RagMessage();
             message.setSessionId(sessionId);
             message.setRole(role);
             message.setContent(content);
             message.setSources(sources);
+            message.setRetrievalMode(retrievalMode);
+            message.setSearchKeywords(searchKeywords);
+            message.setThinkingTrace(thinkingTrace);
+            message.setAttachments(attachments);
             message.setCreateTime(System.currentTimeMillis());
 
             messageMapper.insert(message);
@@ -132,6 +164,10 @@ public class SessionMemory {
                         message.put("content", msg.getContent());
                         message.put("timestamp", msg.getCreateTime());
                         message.put("sources", msg.getSources());
+                        message.put("retrievalMode", msg.getRetrievalMode());
+                        message.put("searchKeywords", msg.getSearchKeywords());
+                        message.put("thinkingTrace", msg.getThinkingTrace());
+                        message.put("attachments", msg.getAttachments());
                         return message;
                     })
                     .collect(Collectors.toList());

@@ -5,133 +5,90 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="91723060-6bb9-4d4a-b3f5-fb2f34021ddc" name="更改" comment="">
+      <change afterPath="$PROJECT_DIR$/.claude/MEMORY.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/AGENTS.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/LABEXAGENT_OPENCODE_REPLICATION_PLAN.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/LABEXAGENT_OPENCODE_REPLICATION_REPORT.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/_chatgpt_home.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/_reference/opencode" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/labex/labexagent/diff/GitSnapshotService.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/labex/labexagent/lsp/DiagnosticsService.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/labex/labexagent/permission/DefaultPermissionRuleset.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/labex/labexagent/permission/PermissionAction.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/labex/labexagent/permission/PermissionApprovalRequest.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/labex/labexagent/permission/PermissionDeniedException.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/labex/labexagent/permission/PermissionRule.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/labex/labexagent/permission/PermissionService.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/labex/labexagent/tool/impl/DiagnosticsTool.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/labex/labexagent/tool/impl/ImageUnderstandingTool.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/labex/rag/service/ImageUnderstandingService.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/main/java/com/labex/rag/service/WebSearchService.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/test/java/com/labex/controller/AuthControllerTest.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/test/java/com/labex/service/CodeExecutionServiceTest.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/backend/src/test/resources/application.yml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/dump.rdb" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/tests/components/Pagination.test.js" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/tests/setup.js" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/frontend/vitest.config.js" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/tests/TEST_COMPLETION_REPORT.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/tests/blackbox/README.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/tests/blackbox/screenshots/bb-admin-login-failed.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/tests/blackbox/screenshots/bb-login-01-result.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/tests/blackbox/screenshots/bb-teacher-clazz.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/tests/blackbox/screenshots/bb-teacher-dashboard.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/tests/blackbox/screenshots/bb-teacher-question-bank.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/tests/blackbox/screenshots/student-exam-list-v2.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/tests/blackbox/screenshots/student-experiment-v2.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/tests/blackbox/screenshots/student-homework-v2.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/tests/blackbox/screenshots/student-training-v2.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/tests/blackbox/screenshots/teacher-clazz-full.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/tests/blackbox/screenshots/teacher-dashboard-full-v2.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/tests/blackbox/screenshots/teacher-dashboard-full.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/tests/blackbox/screenshots/teacher-exam-v2.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/tests/blackbox/screenshots/teacher-question-full.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/tests/stress/README.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/tests/stress/stress_test.sh" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.claude/settings.json" beforeDir="false" afterPath="$PROJECT_DIR$/.claude/settings.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.claude/settings.local.json" beforeDir="false" afterPath="$PROJECT_DIR$/.claude/settings.local.json" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/.gitignore" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/modules.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workfordasan.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workfordasan.iml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/backend/.gitignore" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/CLAUDE.md" beforeDir="false" afterPath="$PROJECT_DIR$/CLAUDE.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/pom.xml" beforeDir="false" afterPath="$PROJECT_DIR$/backend/pom.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/labex/controller/student/StudentProjectController.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/labex/controller/student/StudentProjectController.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/labex/config/RedisConfig.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/labex/config/RedisConfig.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/labex/config/SchemaCompatibilityInitializer.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/labex/config/SchemaCompatibilityInitializer.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/labex/config/SecurityConfig.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/labex/config/SecurityConfig.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/labex/controller/student/StudentTrainingController.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/labex/controller/student/StudentTrainingController.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/labex/controller/teacher/LectureController.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/labex/controller/teacher/LectureController.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/labex/entity/AgentConversation.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/labex/entity/AgentConversation.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/labex/entity/AgentFileChange.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/labex/entity/AgentFileChange.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/labex/entity/RagMessage.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/labex/entity/RagMessage.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/labex/labexagent/controller/StudentAgentController.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/labex/labexagent/controller/StudentAgentController.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/labex/labexagent/diff/DiffService.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/labex/labexagent/diff/DiffService.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/labex/labexagent/runtime/AgentContext.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/labex/labexagent/runtime/AgentContext.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/labex/labexagent/runtime/AgentLoopEngine.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/labex/labexagent/runtime/AgentLoopEngine.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/labex/labexagent/runtime/ToolCallExtractor.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/labex/labexagent/runtime/ToolCallExtractor.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/labex/labexagent/service/AgentConversationService.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/labex/labexagent/service/AgentConversationService.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/labex/labexagent/tool/impl/AgentAliasToolConfig.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/labex/labexagent/tool/impl/AgentAliasToolConfig.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/labex/labexagent/tool/impl/TaskTool.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/labex/labexagent/tool/impl/TaskTool.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/labex/labexagent/tool/impl/WebSearchTool.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/labex/labexagent/tool/impl/WebSearchTool.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/labex/langchain4j/agent/QuestionGenerationAgent.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/labex/langchain4j/agent/QuestionGenerationAgent.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/labex/rag/config/RagConfig.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/labex/rag/config/RagConfig.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/labex/rag/controller/RagController.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/labex/rag/controller/RagController.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/labex/rag/dto/QueryRequest.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/labex/rag/dto/QueryRequest.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/labex/rag/dto/QueryResponse.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/labex/rag/dto/QueryResponse.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/labex/rag/llm/MiniMaxChat.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/labex/rag/llm/MiniMaxChat.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/labex/rag/memory/SessionMemory.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/labex/rag/memory/SessionMemory.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/src/main/java/com/labex/rag/retrieval/HybridRetriever.java" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/java/com/labex/rag/retrieval/HybridRetriever.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/backend/src/main/resources/application.yml" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/resources/application.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/resources/mapper/LectureMapper.xml" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/resources/mapper/LectureMapper.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/resources/mapper/RagMessageMapper.xml" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/resources/mapper/RagMessageMapper.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/resources/mapper/RagSessionMapper.xml" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/resources/mapper/RagSessionMapper.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/resources/mapper/StudentMapper.xml" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/resources/mapper/StudentMapper.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/resources/mapper/SysLogMapper.xml" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/resources/mapper/SysLogMapper.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/resources/mapper/TeacherMapper.xml" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/resources/mapper/TeacherMapper.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/resources/prompts/taffy_prompt.txt" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/resources/prompts/taffy_prompt.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/resources/sql/add_avatar_columns.sql" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/resources/sql/add_avatar_columns.sql" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/resources/sql/exam_homework_enhance.sql" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/resources/sql/exam_homework_enhance.sql" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/resources/sql/exam_homework_update.sql" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/resources/sql/exam_homework_update.sql" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/resources/sql/fix_all_text_fields.sql" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/resources/sql/fix_all_text_fields.sql" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/resources/sql/fix_file_size_column.sql" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/resources/sql/fix_file_size_column.sql" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/resources/sql/fix_homework_fields.sql" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/resources/sql/fix_homework_fields.sql" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/resources/sql/fix_migrate_data.sql" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/resources/sql/fix_migrate_data.sql" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/resources/sql/fix_paper_and_exam.sql" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/resources/sql/fix_paper_and_exam.sql" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/resources/sql/fix_password.sql" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/resources/sql/fix_password.sql" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/resources/sql/fix_question_all_fields.sql" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/resources/sql/fix_question_all_fields.sql" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/resources/sql/fix_question_complete.sql" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/resources/sql/fix_question_complete.sql" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/resources/sql/fix_question_fields.sql" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/resources/sql/fix_question_fields.sql" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/resources/sql/fix_question_score.sql" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/resources/sql/fix_question_score.sql" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/resources/sql/fix_question_text_fields.sql" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/resources/sql/fix_question_text_fields.sql" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/resources/sql/fix_student_question.sql" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/resources/sql/fix_student_question.sql" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/resources/sql/homework_question.sql" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/resources/sql/homework_question.sql" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/resources/sql/indexes.sql" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/resources/sql/indexes.sql" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/resources/sql/init.sql" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/resources/sql/init.sql" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/resources/sql/lecture_update.sql" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/resources/sql/lecture_update.sql" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/resources/sql/student_clazz_relation.sql" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/resources/sql/student_clazz_relation.sql" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/backend/src/main/resources/sql/training_set.sql" beforeDir="false" afterPath="$PROJECT_DIR$/backend/src/main/resources/sql/training_set.sql" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/code_exec/code_exec_13240692991584364461/input.txt" beforeDir="false" afterPath="$PROJECT_DIR$/code_exec/code_exec_13240692991584364461/input.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/code_exec/code_exec_13240692991584364461/main.c" beforeDir="false" afterPath="$PROJECT_DIR$/code_exec/code_exec_13240692991584364461/main.c" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/code_exec/code_exec_13240692991584364461/main.exe" beforeDir="false" afterPath="$PROJECT_DIR$/code_exec/code_exec_13240692991584364461/main.exe" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/code_exec/code_exec_15598114268065634957/input.txt" beforeDir="false" afterPath="$PROJECT_DIR$/code_exec/code_exec_15598114268065634957/input.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/code_exec/code_exec_15598114268065634957/main.c" beforeDir="false" afterPath="$PROJECT_DIR$/code_exec/code_exec_15598114268065634957/main.c" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/code_exec/code_exec_15598114268065634957/main.exe" beforeDir="false" afterPath="$PROJECT_DIR$/code_exec/code_exec_15598114268065634957/main.exe" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/code_exec/code_exec_18154240534075295023/input.txt" beforeDir="false" afterPath="$PROJECT_DIR$/code_exec/code_exec_18154240534075295023/input.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/code_exec/code_exec_18154240534075295023/main.c" beforeDir="false" afterPath="$PROJECT_DIR$/code_exec/code_exec_18154240534075295023/main.c" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/code_exec/code_exec_18154240534075295023/main.exe" beforeDir="false" afterPath="$PROJECT_DIR$/code_exec/code_exec_18154240534075295023/main.exe" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docker-compose.yml" beforeDir="false" afterPath="$PROJECT_DIR$/docker-compose.yml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/unpacked/_rels/.rels" beforeDir="false" afterPath="$PROJECT_DIR$/docs/unpacked/_rels/.rels" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/unpacked/docProps/app.xml" beforeDir="false" afterPath="$PROJECT_DIR$/docs/unpacked/docProps/app.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/unpacked/docProps/core.xml" beforeDir="false" afterPath="$PROJECT_DIR$/docs/unpacked/docProps/core.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/unpacked/docProps/custom.xml" beforeDir="false" afterPath="$PROJECT_DIR$/docs/unpacked/docProps/custom.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/unpacked/word/_rels/document.xml.rels" beforeDir="false" afterPath="$PROJECT_DIR$/docs/unpacked/word/_rels/document.xml.rels" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/unpacked/word/document.xml" beforeDir="false" afterPath="$PROJECT_DIR$/docs/unpacked/word/document.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/unpacked/word/endnotes.xml" beforeDir="false" afterPath="$PROJECT_DIR$/docs/unpacked/word/endnotes.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/unpacked/word/fontTable.xml" beforeDir="false" afterPath="$PROJECT_DIR$/docs/unpacked/word/fontTable.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/unpacked/word/footer1.xml" beforeDir="false" afterPath="$PROJECT_DIR$/docs/unpacked/word/footer1.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/unpacked/word/footer2.xml" beforeDir="false" afterPath="$PROJECT_DIR$/docs/unpacked/word/footer2.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/unpacked/word/footer3.xml" beforeDir="false" afterPath="$PROJECT_DIR$/docs/unpacked/word/footer3.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/unpacked/word/footer4.xml" beforeDir="false" afterPath="$PROJECT_DIR$/docs/unpacked/word/footer4.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/unpacked/word/footer5.xml" beforeDir="false" afterPath="$PROJECT_DIR$/docs/unpacked/word/footer5.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/unpacked/word/footnotes.xml" beforeDir="false" afterPath="$PROJECT_DIR$/docs/unpacked/word/footnotes.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/unpacked/word/header1.xml" beforeDir="false" afterPath="$PROJECT_DIR$/docs/unpacked/word/header1.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/unpacked/word/header2.xml" beforeDir="false" afterPath="$PROJECT_DIR$/docs/unpacked/word/header2.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/unpacked/word/header3.xml" beforeDir="false" afterPath="$PROJECT_DIR$/docs/unpacked/word/header3.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/unpacked/word/header4.xml" beforeDir="false" afterPath="$PROJECT_DIR$/docs/unpacked/word/header4.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/unpacked/word/header5.xml" beforeDir="false" afterPath="$PROJECT_DIR$/docs/unpacked/word/header5.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/unpacked/word/media/image1.png" beforeDir="false" afterPath="$PROJECT_DIR$/docs/unpacked/word/media/image1.png" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/unpacked/word/settings.xml" beforeDir="false" afterPath="$PROJECT_DIR$/docs/unpacked/word/settings.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/unpacked/word/styles.xml" beforeDir="false" afterPath="$PROJECT_DIR$/docs/unpacked/word/styles.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/unpacked/word/theme/theme1.xml" beforeDir="false" afterPath="$PROJECT_DIR$/docs/unpacked/word/theme/theme1.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/docs/unpacked/word/webSettings.xml" beforeDir="false" afterPath="$PROJECT_DIR$/docs/unpacked/word/webSettings.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/embedding_service/requirements.txt" beforeDir="false" afterPath="$PROJECT_DIR$/embedding_service/requirements.txt" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/embedding_service/spacy_nlp.py" beforeDir="false" afterPath="$PROJECT_DIR$/embedding_service/spacy_nlp.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/fonts/NotoSansCJKsc-Bold.otf" beforeDir="false" afterPath="$PROJECT_DIR$/fonts/NotoSansCJKsc-Bold.otf" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/fonts/NotoSansCJKsc-Regular.otf" beforeDir="false" afterPath="$PROJECT_DIR$/fonts/NotoSansCJKsc-Regular.otf" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/.gitignore" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/index.html" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/index.html" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/public/img/assistant-avatar.svg" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/public/img/assistant-avatar.svg" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/App.vue" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/App.vue" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/package-lock.json" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/package-lock.json" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/package.json" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/package.json" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/src/api/index.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/api/index.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/assets/logo.png" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/assets/logo.png" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/Breadcrumb.vue" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/Breadcrumb.vue" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/MasteryRadar.vue" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/MasteryRadar.vue" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/Pagination.vue" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/Pagination.vue" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/RecommendationCard.vue" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/RecommendationCard.vue" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/components/cloud/FileTreeNode.vue" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/cloud/FileTreeNode.vue" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/stores/user.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/stores/user.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/styles/global.scss" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/styles/global.scss" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/styles/variables.scss" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/styles/variables.scss" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/utils/constants.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/utils/constants.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/utils/request.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/utils/request.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/views/admin/Clazz.vue" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/views/admin/Clazz.vue" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/views/admin/Dashboard.vue" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/views/admin/Dashboard.vue" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/views/admin/Layout.vue" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/views/admin/Layout.vue" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/views/admin/Profile.vue" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/views/admin/Profile.vue" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/views/admin/Student.vue" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/views/admin/Student.vue" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/views/admin/Teacher.vue" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/views/admin/Teacher.vue" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/views/student/CloudSpace.vue" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/views/student/CloudSpace.vue" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/components/cloud/ChangesPanel.vue" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/cloud/ChangesPanel.vue" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/components/cloud/ToolCallCard.vue" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/components/cloud/ToolCallCard.vue" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/composables/useAgentStream.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/composables/useAgentStream.js" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/router/index.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/router/index.js" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/src/views/student/CloudWorkspace.vue" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/views/student/CloudWorkspace.vue" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/views/student/Exam.vue" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/views/student/Exam.vue" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/views/student/ExerciseRecommendation.vue" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/views/student/ExerciseRecommendation.vue" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/views/student/ExperimentDetail.vue" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/views/student/ExperimentDetail.vue" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/views/student/Homework.vue" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/views/student/Homework.vue" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/views/student/Layout.vue" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/views/student/Layout.vue" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/views/student/Profile.vue" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/views/student/Profile.vue" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/frontend/src/views/student/RagChat.vue" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/views/student/RagChat.vue" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/src/views/student/TrainingPractice.vue" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/views/student/TrainingPractice.vue" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/views/student/TrainingResult.vue" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/views/student/TrainingResult.vue" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/views/teacher/Clazz.vue" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/views/teacher/Clazz.vue" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/views/teacher/Dashboard.vue" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/views/teacher/Dashboard.vue" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/views/teacher/Exam.vue" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/views/teacher/Exam.vue" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/views/teacher/ExamGrading.vue" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/views/teacher/ExamGrading.vue" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/views/teacher/Experiment.vue" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/views/teacher/Experiment.vue" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/views/teacher/ExperimentItem.vue" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/views/teacher/ExperimentItem.vue" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/src/views/teacher/Homework.vue" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/views/teacher/Homework.vue" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/views/teacher/KnowledgeGraph.vue" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/views/teacher/KnowledgeGraph.vue" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/frontend/src/views/teacher/Layout.vue" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/views/teacher/Layout.vue" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/views/teacher/Lecture.vue" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/views/teacher/Lecture.vue" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/views/teacher/Paper.vue" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/views/teacher/Paper.vue" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/views/teacher/Profile.vue" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/views/teacher/Profile.vue" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/views/teacher/Score.vue" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/views/teacher/Score.vue" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/src/views/teacher/Student.vue" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/src/views/teacher/Student.vue" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/update_table_styles.py" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/update_table_styles.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/frontend/vite.config.js" beforeDir="false" afterPath="$PROJECT_DIR$/frontend/vite.config.js" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/test_doc/SQL Injection Protection Guide.md" beforeDir="false" afterPath="$PROJECT_DIR$/test_doc/SQL Injection Protection Guide.md" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -150,30 +107,31 @@
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
   </component>
-  <component name="PropertiesComponent">{
-  &quot;keyToString&quot;: {
-    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
-    &quot;SHARE_PROJECT_CONFIGURATION_FILES&quot;: &quot;true&quot;,
-    &quot;git-widget-placeholder&quot;: &quot;main&quot;,
-    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
-    &quot;node.js.detected.package.eslint&quot;: &quot;true&quot;,
-    &quot;node.js.detected.package.tslint&quot;: &quot;true&quot;,
-    &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
-    &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
-    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
-    &quot;project.structure.last.edited&quot;: &quot;项目&quot;,
-    &quot;project.structure.proportion&quot;: &quot;0.0&quot;,
-    &quot;project.structure.side.proportion&quot;: &quot;0.0&quot;,
-    &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "SHARE_PROJECT_CONFIGURATION_FILES": "true",
+    "git-widget-placeholder": "main",
+    "kotlin-language-version-configured": "true",
+    "last_opened_file_path": "D:/35475/AndriodAPP",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "project.structure.last.edited": "项目",
+    "project.structure.proportion": "0.0",
+    "project.structure.side.proportion": "0.0",
+    "vue.rearranger.settings.migration": "true"
   },
-  &quot;keyToStringList&quot;: {
-    &quot;ChangesTree.GroupingKeys&quot;: [
-      &quot;directory&quot;,
-      &quot;module&quot;,
-      &quot;repository&quot;
+  "keyToStringList": {
+    "ChangesTree.GroupingKeys": [
+      "directory",
+      "module",
+      "repository"
     ]
   }
-}</component>
+}]]></component>
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
@@ -193,6 +151,7 @@
       <workItem from="1778668789428" duration="14641000" />
       <workItem from="1778772084496" duration="49000" />
       <workItem from="1778810911583" duration="337000" />
+      <workItem from="1780119568983" duration="33000" />
     </task>
     <servers />
   </component>

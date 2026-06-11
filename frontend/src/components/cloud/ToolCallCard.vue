@@ -81,6 +81,15 @@
             <pre>{{ truncate(call.result, 1000) }}</pre>
           </div>
         </div>
+
+        <div v-if="isPermissionAsk" class="tc-approval">
+          <div class="tc-approval-title">需要确认后才能继续执行</div>
+          <div class="tc-approval-actions">
+            <button type="button" class="tc-approval-btn primary" @click.stop="emitPermission('once')">允许一次</button>
+            <button type="button" class="tc-approval-btn" @click.stop="emitPermission('always')">始终允许</button>
+            <button type="button" class="tc-approval-btn danger" @click.stop="emitPermission('reject')">拒绝</button>
+          </div>
+        </div>
       </div>
     </Transition>
   </div>
@@ -94,7 +103,9 @@ const props = defineProps({
   call: { type: Object, required: true }
 })
 
-const expanded = ref(props.call.status === 'error')
+const emit = defineEmits(['permission'])
+
+const expanded = ref(props.call.status === 'error' || props.call.status === 'waiting_approval')
 
 const toolMap = {
   read_file: '读取文件', edit_file: '编辑文件', write_file: '写入文件',
@@ -112,8 +123,10 @@ const toolLabel = computed(() => toolMap[props.call.name] || props.call.name)
 const statusColor = computed(() => {
   if (props.call.status === 'running') return '#3b82f6'
   if (props.call.status === 'error') return '#ef4444'
+  if (props.call.status === 'waiting_approval') return '#f59e0b'
   return '#10b981'
 })
+const isPermissionAsk = computed(() => props.call.status === 'waiting_approval' && !!props.call.permissionRequest)
 
 const isEditTool = computed(() => ['edit_file', 'write_file', 'apply_patch'].includes(props.call.name))
 const isShellTool = computed(() => ['bash', 'run_command', 'execute_code', 'run_tests'].includes(props.call.name))
@@ -147,6 +160,10 @@ function truncate(text, max) {
   text = String(text)
   return text.length > max ? text.slice(0, max) + '...' : text
 }
+
+function emitPermission(action) {
+  emit('permission', { call: props.call, action })
+}
 </script>
 
 <style scoped>
@@ -159,6 +176,7 @@ function truncate(text, max) {
 }
 .tc-card.tc-running { border-color: #93c5fd; }
 .tc-card.tc-error { border-color: #fca5a5; }
+.tc-card.tc-waiting_approval { border-color: #fbbf24; }
 .tc-header {
   display: flex;
   align-items: center;
@@ -286,6 +304,50 @@ function truncate(text, max) {
   word-break: break-all;
 }
 .tc-diff-wrap { margin-top: 4px; }
+
+.tc-approval {
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 8px;
+  background: #fff8e6;
+  border: 1px solid #fde68a;
+}
+
+.tc-approval-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #92400e;
+  margin-bottom: 8px;
+}
+
+.tc-approval-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tc-approval-btn {
+  height: 28px;
+  border: 1px solid #d1d5db;
+  border-radius: 7px;
+  background: #fff;
+  color: #374151;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 0 10px;
+}
+
+.tc-approval-btn.primary {
+  background: #111827;
+  border-color: #111827;
+  color: #fff;
+}
+
+.tc-approval-btn.danger {
+  color: #b91c1c;
+  border-color: #fecaca;
+  background: #fff5f5;
+}
 
 .tc-slide-enter-active { transition: all 0.2s ease; }
 .tc-slide-leave-active { transition: all 0.15s ease; }
