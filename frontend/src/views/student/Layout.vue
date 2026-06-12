@@ -49,6 +49,10 @@
           <el-icon><Aim /></el-icon>
           <template #title>习题推荐</template>
         </el-menu-item>
+        <el-menu-item index="/student/achievement">
+          <el-icon><DataAnalysis /></el-icon>
+          <template #title>我的达成度</template>
+        </el-menu-item>
         <el-menu-item index="/student/profile">
           <el-icon><UserFilled /></el-icon>
           <template #title>个人中心</template>
@@ -106,7 +110,7 @@
 import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
-import { Document, UserFilled, EditPen, CollectionTag, Notebook, Fold, Expand, ChatDotRound, Aim, List, Cloudy } from '@element-plus/icons-vue'
+import { Document, UserFilled, EditPen, CollectionTag, Notebook, Fold, Expand, ChatDotRound, Aim, List, Cloudy, DataAnalysis } from '@element-plus/icons-vue'
 import { useUserStore } from '@/stores/user'
 import AppIcon from '@/components/AppIcon.vue'
 

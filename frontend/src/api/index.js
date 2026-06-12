@@ -947,7 +947,7 @@ export const projectApi = {
     return request.get('/student/projects')
   },
   createEmpty(name) {
-    return request.post('/student/projects/empty', null, { params: { name } })
+    return request.post('/student/projects/empty', { projectName: name })
   },
   upload(file, name) {
     const fd = new FormData()
@@ -1119,6 +1119,140 @@ export const aiQuestionApi = {
   // 获取批次剩余过期时间
   getBatchTTL(batchId) {
     return request.get('/teacher/ai-question/batch/' + batchId + '/ttl')
+  }
+}
+
+// ============================================================
+// 课程教学闭环（CTL）API — S1: 课程 + 大纲 + 开课
+// ============================================================
+export const courseApi = {
+  list() { return request.get('/teacher/course/list') },
+  all() { return request.get('/teacher/course/all') },
+  detail(id) { return request.get(`/teacher/course/${id}`) },
+  create(data) { return request.post('/teacher/course', data) },
+  update(id, data) { return request.put(`/teacher/course/${id}`, data) },
+  remove(id) { return request.delete(`/teacher/course/${id}`) }
+}
+
+export const offeringApi = {
+  list(courseId) {
+    return courseId
+      ? request.get('/teacher/offering/list', { params: { courseId } })
+      : request.get('/teacher/offering/list')
+  },
+  detail(id) { return request.get(`/teacher/offering/${id}`) },
+  create(data) { return request.post('/teacher/offering', data) },
+  update(id, data) { return request.put(`/teacher/offering/${id}`, data) },
+  remove(id) { return request.delete(`/teacher/offering/${id}`) }
+}
+
+export const syllabusApi = {
+  get(courseId) { return request.get(`/teacher/syllabus/${courseId}`) },
+  save(courseId, data) { return request.put(`/teacher/syllabus/${courseId}`, data) },
+  addChapter(syllabusId, data) { return request.post(`/teacher/syllabus/${syllabusId}/chapter`, data) },
+  updateChapter(chapterId, data) { return request.put(`/teacher/syllabus/chapter/${chapterId}`, data) },
+  deleteChapter(chapterId) { return request.delete(`/teacher/syllabus/chapter/${chapterId}`) }
+}
+
+// ============================================================
+// CTL S2: 毕业要求 + 课程目标
+// ============================================================
+export const graduationApi = {
+  list() { return request.get('/teacher/gr/list') },
+  allIndicators() { return request.get('/teacher/gr/indicators') },
+  listIndicators(requirementId) { return request.get(`/teacher/gr/${requirementId}/indicators`) },
+  create(data) { return request.post('/teacher/gr', data) },
+  update(id, data) { return request.put(`/teacher/gr/${id}`, data) },
+  remove(id) { return request.delete(`/teacher/gr/${id}`) },
+  addIndicator(requirementId, data) { return request.post(`/teacher/gr/${requirementId}/indicator`, data) },
+  removeIndicator(indicatorId) { return request.delete(`/teacher/gr/indicator/${indicatorId}`) }
+}
+
+export const objectiveApi = {
+  list(courseId) { return request.get('/teacher/objective/list', { params: { courseId } }) },
+  supports(courseId) { return request.get('/teacher/objective/supports', { params: { courseId } }) },
+  create(data) { return request.post('/teacher/objective', data) },
+  update(id, data) { return request.put(`/teacher/objective/${id}`, data) },
+  remove(id) { return request.delete(`/teacher/objective/${id}`) },
+  setSupports(objectiveId, supports) { return request.post(`/teacher/objective/${objectiveId}/supports`, supports) },
+  getIndicators(objectiveId) { return request.get(`/teacher/objective/${objectiveId}/indicators`) }
+}
+
+// ============================================================
+// CTL S3: 评分项
+// ============================================================
+export const scoringItemApi = {
+  list(offeringId) { return request.get('/teacher/scoring-item/list', { params: { offeringId } }) },
+  objectives(itemId) { return request.get(`/teacher/scoring-item/${itemId}/objectives`) },
+  create(req) { return request.post('/teacher/scoring-item', req) },
+  update(id, req) { return request.put(`/teacher/scoring-item/${id}`, req) },
+  remove(id) { return request.delete(`/teacher/scoring-item/${id}`) },
+  validateWeight(offeringId) { return request.get('/teacher/scoring-item/validate-weight', { params: { offeringId } }) },
+  suggest(offeringId) { return request.get('/teacher/scoring-item/suggest', { params: { offeringId } }) },
+  batchSave(requests) { return request.post('/teacher/scoring-item/batch-save', requests) }
+}
+
+// ============================================================
+// CTL S4: 评分项得分
+// ============================================================
+export const scoringScoreApi = {
+  enter(data) { return request.post('/teacher/scoring-score', data) },
+  batch(itemId, scores) { return request.post('/teacher/scoring-score/batch', scores, { params: { itemId } }) },
+  saveMatrix(offeringId, matrix) { return request.post('/teacher/scoring-score/matrix', matrix, { params: { offeringId } }) },
+  getMatrix(offeringId) { return request.get('/teacher/scoring-score/matrix', { params: { offeringId } }) },
+  listByItem(itemId) { return request.get('/teacher/scoring-score/list', { params: { itemId } }) },
+  importExcel(offeringId, file) {
+    const formData = new FormData()
+    formData.append('file', file)
+    return request.post('/teacher/scoring-score/import', formData, {
+      params: { offeringId },
+      headers: { 'Content-Type': 'multipart/form-data' }
+    })
+  },
+  downloadTemplate(offeringId) {
+    return request.get('/teacher/scoring-score/template', {
+      params: { offeringId },
+      responseType: 'blob'
+    })
+  }
+}
+
+// ============================================================
+// CTL S5: 达成度
+// ============================================================
+export const achievementApi = {
+  offering(offeringId) { return request.get('/teaching/achievement/offering', { params: { offeringId } }) },
+  student(offeringId, studentId) { return request.get('/teaching/achievement/student', { params: { offeringId, studentId } }) },
+  recalc(offeringId) { return request.post('/teaching/achievement/recalc', null, { params: { offeringId } }) },
+  snapshot(offeringId, reason = 'manual') { return request.post('/teaching/achievement/snapshot', null, { params: { offeringId, reason } }) },
+  snapshots(offeringId) { return request.get('/teaching/achievement/snapshots', { params: { offeringId } }) },
+  // 学生端
+  mine(offeringId) { return request.get('/teaching/achievement/me', { params: { offeringId } }) }
+}
+
+// ============================================================
+// CTL S6: 质量评价 + 4 报告
+// ============================================================
+export const qualityEvalApi = {
+  list(offeringId) { return request.get('/teacher/quality-evaluation/list', { params: { offeringId } }) },
+  latest(offeringId) { return request.get('/teacher/quality-evaluation/latest', { params: { offeringId } }) },
+  detail(id) { return request.get(`/teacher/quality-evaluation/${id}`) },
+  create(data) { return request.post('/teacher/quality-evaluation', data) },
+  save(id, data) { return request.put(`/teacher/quality-evaluation/${id}`, data) },
+  finalize(id) { return request.post(`/teacher/quality-evaluation/${id}/finalize`) },
+  remove(id) { return request.delete(`/teacher/quality-evaluation/${id}`) }
+}
+
+export const qualityReportApi = {
+  gradeStat(offeringId) { return request.get('/teacher/quality-report/grade-stat', { params: { offeringId } }) },
+  consistency(offeringId) { return request.get('/teacher/quality-report/consistency', { params: { offeringId } }) },
+  attainment(offeringId, evaluationId) { return request.get('/teacher/quality-report/attainment', { params: { offeringId, evaluationId } }) },
+  quality(evaluationId) { return request.get('/teacher/quality-report/quality', { params: { evaluationId } }) },
+  download(offeringId, type, format = 'excel', evaluationId) {
+    return request.get('/teacher/quality-report/export', {
+      params: { offeringId, type, format, evaluationId },
+      responseType: 'blob'
+    })
   }
 }
 

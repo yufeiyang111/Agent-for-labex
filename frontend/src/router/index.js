@@ -22,6 +22,20 @@ const TeacherKnowledgeGraph = () => import('@/views/teacher/KnowledgeGraph.vue')
 const TeacherTrainingSet = () => import('@/views/teacher/TrainingSet.vue')
 const TeacherAiQuestionGenerator = () => import('@/views/teacher/AiQuestionGenerator.vue')
 
+// === CTL 教学闭环模块 ===
+const TeacherCourse = () => import('@/views/teacher/course/CourseList.vue')
+const TeacherCourseEdit = () => import('@/views/teacher/course/CourseEdit.vue')
+const TeacherSyllabus = () => import('@/views/teacher/course/SyllabusEditor.vue')
+const TeacherOffering = () => import('@/views/teacher/course/OfferingList.vue')
+const TeacherGR = () => import('@/views/teacher/objective/GRManager.vue')
+const TeacherObjective = () => import('@/views/teacher/objective/ObjectiveEditor.vue')
+const TeacherScoring = () => import('@/views/teacher/scoring/ScoringItemConfig.vue')
+const TeacherGradeV2 = () => import('@/views/teacher/grading/GradeEntryV2.vue')
+const TeacherAchievement = () => import('@/views/teacher/achievement/AchievementDashboard.vue')
+const TeacherQuality = () => import('@/views/teacher/quality/EvaluationForm.vue')
+const TeacherReports = () => import('@/views/teacher/quality/ReportViewer.vue')
+const StudentAchievement = () => import('@/views/student/achievement/MyAchievementDashboard.vue')
+
 const AdminLayout = () => import('@/views/admin/Layout.vue')
 const AdminDashboard = () => import('@/views/admin/Dashboard.vue')
 const AdminTeacher = () => import('@/views/admin/Teacher.vue')
@@ -70,7 +84,19 @@ const routes = [
       { path: 'profile', name: 'TeacherProfile', component: TeacherProfile, meta: { title: 'Profile', icon: 'UserFilled' } },
       { path: 'knowledge-graph', name: 'TeacherKnowledgeGraph', component: TeacherKnowledgeGraph, meta: { title: 'Knowledge Graph', icon: 'Share' } },
       { path: 'training-set', name: 'TeacherTrainingSet', component: TeacherTrainingSet, meta: { title: 'Training Set', icon: 'List' } },
-      { path: 'ai-question-generator', name: 'TeacherAiQuestionGenerator', component: TeacherAiQuestionGenerator, meta: { title: 'AI Question Generator', icon: 'MagicStick' } }
+      { path: 'ai-question-generator', name: 'TeacherAiQuestionGenerator', component: TeacherAiQuestionGenerator, meta: { title: 'AI Question Generator', icon: 'MagicStick' } },
+      // === CTL 教学闭环 ===
+      { path: 'course', name: 'TeacherCourse', component: TeacherCourse, meta: { title: '课程管理', icon: 'Notebook' } },
+      { path: 'course/:id/edit', name: 'TeacherCourseEdit', component: TeacherCourseEdit, meta: { title: '编辑课程', icon: 'Edit' } },
+      { path: 'course/:id/syllabus', name: 'TeacherSyllabus', component: TeacherSyllabus, meta: { title: '课程大纲', icon: 'Document' } },
+      { path: 'offering', name: 'TeacherOffering', component: TeacherOffering, meta: { title: '开课管理', icon: 'School' } },
+      { path: 'graduation-requirement', name: 'TeacherGR', component: TeacherGR, meta: { title: '毕业要求', icon: 'Medal' } },
+      { path: 'objective/:courseId', name: 'TeacherObjective', component: TeacherObjective, meta: { title: '课程目标', icon: 'Aim' } },
+      { path: 'scoring/:offeringId', name: 'TeacherScoring', component: TeacherScoring, meta: { title: '评分项配置', icon: 'Promotion' } },
+      { path: 'grade-v2/:offeringId', name: 'TeacherGradeV2', component: TeacherGradeV2, meta: { title: '成绩录入V2', icon: 'EditPen' } },
+      { path: 'achievement/:offeringId', name: 'TeacherAchievement', component: TeacherAchievement, meta: { title: '达成度分析', icon: 'DataAnalysis' } },
+      { path: 'quality/:offeringId', name: 'TeacherQuality', component: TeacherQuality, meta: { title: '质量评价', icon: 'Stamp' } },
+      { path: 'reports/:offeringId', name: 'TeacherReports', component: TeacherReports, meta: { title: '评价报告', icon: 'Files' } }
     ]
   },
   {
@@ -103,7 +129,9 @@ const routes = [
       { path: 'training', name: 'StudentTraining', component: StudentTraining, meta: { title: 'Training', icon: 'List' } },
       { path: 'training/:id/practice', name: 'StudentTrainingPractice', component: StudentTrainingPractice, meta: { title: 'Practice', icon: 'Edit' } },
       { path: 'training/:id/result/:attemptId', name: 'StudentTrainingResult', component: StudentTrainingResult, meta: { title: 'Results', icon: 'View' } },
-      { path: 'cloud-space', name: 'StudentCloudSpace', component: StudentCloudSpace, meta: { title: 'Cloud Code Space', icon: 'Cloudy' } }
+      { path: 'cloud-space', name: 'StudentCloudSpace', component: StudentCloudSpace, meta: { title: 'Cloud Code Space', icon: 'Cloudy' } },
+      // === CTL 学生达成度 ===
+      { path: 'achievement', name: 'StudentAchievement', component: StudentAchievement, meta: { title: '我的达成度', icon: 'DataAnalysis' } }
     ]
   },
   // CloudWorkspace as standalone full-page route (no sidebar)
