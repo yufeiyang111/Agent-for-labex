@@ -22,14 +22,17 @@ import java.util.stream.Collectors;
 /**
  * 达成度计算引擎实现
  * 算法对齐《课程分组及成绩明细表.xlsx》Sheet「成绩明细表」的行 145-197：
- * 个体达成度 = Σ(得分×权重) / Σ(满分×权重)
- * 班级达成度 = 达成期望分值的学生数 / 参与评价的学生总数
+ *   个体达成度 = Σ(得分 × 权重) / Σ(期望分 × 权重)
+ *     例：8 个评分项，每个 max=100/passing=70/weight=0.05
+ *         分母 = 8 × 100 × 0.05 × 0.7 = 28（与 Excel 行 154 "加权分值" 一致）
+ *         若学生加权得分 = 22 → 达成度 = 22/28 = 0.7857（与 Excel 行 155 一致）
+ *   班级达成度 = 达成期望分值的学生数 / 参与评价的学生总数
  */
 @Service
 @Slf4j
 public class AchievementCalcEngineImpl implements AchievementCalcEngine {
 
-    private static final BigDecimal PASSING_RATIO = new BigDecimal("0.6");  // 总成绩及格阈值
+    private static final BigDecimal OVERALL_PASSING_RATIO = BigDecimal.ONE;  // 总达成阈值 = 100% 表示加权得分≥加权期望
     private static final int SCALE = 6;
 
     @Autowired private ScoringItemMapper itemMapper;
@@ -87,11 +90,11 @@ public class AchievementCalcEngineImpl implements AchievementCalcEngine {
             itemToObjs.computeIfAbsent(l.getItemId(), k -> new HashSet<>()).add(l.getObjectiveId());
         }
 
-        // 4. 按目标聚合：Σ(score × weight) / Σ(max × weight)
+        // 4. 按目标聚合：Σ(score × weight) / Σ(passing × weight)（与 Excel 公式一致）
         Map<Integer, BigDecimal> objAch = new LinkedHashMap<>();
         for (CourseObjective obj : objectives) {
             BigDecimal weightedSum = BigDecimal.ZERO;
-            BigDecimal weightedMax = BigDecimal.ZERO;
+            BigDecimal weightedExpected = BigDecimal.ZERO;
             for (ScoringItem item : items) {
                 Set<Integer> objs = itemToObjs.getOrDefault(item.getItemId(), Collections.emptySet());
                 if (!objs.contains(obj.getObjectiveId())) {
@@ -99,31 +102,34 @@ public class AchievementCalcEngineImpl implements AchievementCalcEngine {
                 }
                 BigDecimal score = scoreMap.getOrDefault(item.getItemId(), BigDecimal.ZERO);
                 BigDecimal weight = item.getWeight() == null ? BigDecimal.ZERO : item.getWeight();
-                BigDecimal max = BigDecimal.valueOf(item.getMaxScore() == null ? 100 : item.getMaxScore());
+                BigDecimal passing = BigDecimal.valueOf(item.getPassingScore() == null ? 70 : item.getPassingScore());
                 weightedSum = weightedSum.add(score.multiply(weight));
-                weightedMax = weightedMax.add(max.multiply(weight));
+                weightedExpected = weightedExpected.add(passing.multiply(weight));
             }
-            BigDecimal ach = weightedMax.compareTo(BigDecimal.ZERO) > 0
-                    ? weightedSum.divide(weightedMax, SCALE, RoundingMode.HALF_UP)
+            BigDecimal ach = weightedExpected.compareTo(BigDecimal.ZERO) > 0
+                    ? weightedSum.divide(weightedExpected, SCALE, RoundingMode.HALF_UP)
                     : BigDecimal.ZERO;
             objAch.put(obj.getObjectiveId(), ach);
         }
         vo.setObjectiveAchievements(objAch);
 
-        // 5. 总达成度：考虑所有评分项加权
+        // 5. 总达成度：考虑所有评分项加权（同公式）
         BigDecimal totalSum = BigDecimal.ZERO;
+        BigDecimal totalExpected = BigDecimal.ZERO;
         BigDecimal totalMax = BigDecimal.ZERO;
         for (ScoringItem item : items) {
             BigDecimal score = scoreMap.getOrDefault(item.getItemId(), BigDecimal.ZERO);
             BigDecimal weight = item.getWeight() == null ? BigDecimal.ZERO : item.getWeight();
+            BigDecimal passing = BigDecimal.valueOf(item.getPassingScore() == null ? 70 : item.getPassingScore());
             BigDecimal max = BigDecimal.valueOf(item.getMaxScore() == null ? 100 : item.getMaxScore());
             totalSum = totalSum.add(score.multiply(weight));
+            totalExpected = totalExpected.add(passing.multiply(weight));
             totalMax = totalMax.add(max.multiply(weight));
         }
         vo.setTotalWeightedScore(totalSum);
         vo.setTotalWeightedMax(totalMax);
-        vo.setTotalAchievement(totalMax.compareTo(BigDecimal.ZERO) > 0
-                ? totalSum.divide(totalMax, SCALE, RoundingMode.HALF_UP)
+        vo.setTotalAchievement(totalExpected.compareTo(BigDecimal.ZERO) > 0
+                ? totalSum.divide(totalExpected, SCALE, RoundingMode.HALF_UP)
                 : BigDecimal.ZERO);
 
         return vo;
@@ -164,15 +170,14 @@ public class AchievementCalcEngineImpl implements AchievementCalcEngine {
 
         // 4. 按目标聚合
         Map<Integer, OfferingAchievementVO.ObjectiveSummary> byObj = new LinkedHashMap<>();
-        // 目标的期望比例 = 该目标下评分项的加权 passing / 加权 max
-        Map<Integer, BigDecimal> objPassingRatio = calcObjectivePassingRatio(offeringId, objectives);
+        // 目标"期望"= 学生达成度 >= 1.0（即拿到加权期望分）
+        BigDecimal threshold = BigDecimal.ONE;
 
         for (CourseObjective obj : objectives) {
             OfferingAchievementVO.ObjectiveSummary sum = new OfferingAchievementVO.ObjectiveSummary();
             sum.setObjectiveId(obj.getObjectiveId());
             sum.setCode(obj.getCode());
             sum.setDescription(obj.getDescription());
-            BigDecimal threshold = objPassingRatio.getOrDefault(obj.getObjectiveId(), new BigDecimal("0.7"));
             sum.setExpectedRatio(threshold);
 
             int reached = 0;
@@ -194,9 +199,9 @@ public class AchievementCalcEngineImpl implements AchievementCalcEngine {
         }
         vo.setByObjective(byObj);
 
-        // 5. 总达成（总成绩 >= 60% 的学生比例）
+        // 5. 总达成（总达成度 >= 1.0 即"达到期望"的学生比例）
         long totalReached = studentVOs.stream()
-                .filter(s -> s.getTotalAchievement().compareTo(PASSING_RATIO) >= 0)
+                .filter(s -> s.getTotalAchievement().compareTo(OVERALL_PASSING_RATIO) >= 0)
                 .count();
         vo.setOverallReachedRatio(studentVOs.isEmpty() ? BigDecimal.ZERO
                 : BigDecimal.valueOf(totalReached).divide(BigDecimal.valueOf(studentVOs.size()), SCALE, RoundingMode.HALF_UP));
@@ -204,37 +209,13 @@ public class AchievementCalcEngineImpl implements AchievementCalcEngine {
         return vo;
     }
 
-    /** 计算每个目标的"达成期望比例" = Σ(passing_score × weight) / Σ(max_score × weight) */
+    /** 兼容旧字段名（不再用 max/passing 的比值，统一阈值=1.0） */
     private Map<Integer, BigDecimal> calcObjectivePassingRatio(Integer offeringId, List<CourseObjective> objectives) {
+        // 在新算法下，期望比例统一是 1.0（即 weighted_sum >= weighted_passing）
+        // 保留方法以兼容旧调用
         Map<Integer, BigDecimal> result = new HashMap<>();
-        List<ScoringItem> items = itemMapper.selectList(new LambdaQueryWrapper<ScoringItem>()
-                .eq(ScoringItem::getOfferingId, offeringId));
-        if (items.isEmpty()) {
-            return result;
-        }
-        List<Integer> itemIds = items.stream().map(ScoringItem::getItemId).collect(Collectors.toList());
-        List<ScoringItemObjective> links = linkMapper.selectList(new LambdaQueryWrapper<ScoringItemObjective>()
-                .in(ScoringItemObjective::getItemId, itemIds));
-        Map<Integer, Set<Integer>> itemToObjs = new HashMap<>();
-        for (ScoringItemObjective l : links) {
-            itemToObjs.computeIfAbsent(l.getItemId(), k -> new HashSet<>()).add(l.getObjectiveId());
-        }
-
         for (CourseObjective obj : objectives) {
-            BigDecimal weightedPass = BigDecimal.ZERO;
-            BigDecimal weightedMax = BigDecimal.ZERO;
-            for (ScoringItem item : items) {
-                Set<Integer> objs = itemToObjs.getOrDefault(item.getItemId(), Collections.emptySet());
-                if (!objs.contains(obj.getObjectiveId())) continue;
-                BigDecimal weight = item.getWeight() == null ? BigDecimal.ZERO : item.getWeight();
-                weightedPass = weightedPass.add(BigDecimal.valueOf(item.getPassingScore() == null ? 70 : item.getPassingScore()).multiply(weight));
-                weightedMax = weightedMax.add(BigDecimal.valueOf(item.getMaxScore() == null ? 100 : item.getMaxScore()).multiply(weight));
-            }
-            if (weightedMax.compareTo(BigDecimal.ZERO) > 0) {
-                result.put(obj.getObjectiveId(), weightedPass.divide(weightedMax, SCALE, RoundingMode.HALF_UP));
-            } else {
-                result.put(obj.getObjectiveId(), new BigDecimal("0.7"));
-            }
+            result.put(obj.getObjectiveId(), BigDecimal.ONE);
         }
         return result;
     }
