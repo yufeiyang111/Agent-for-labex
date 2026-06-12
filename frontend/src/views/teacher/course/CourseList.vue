@@ -32,21 +32,42 @@
       <el-empty v-if="!loading && !courses.length" description="还没有课程，点击右上角新建" />
     </el-card>
 
-    <el-dialog v-model="dialogVisible" :title="form.courseId ? '编辑课程' : '新建课程'" width="700">
+    <el-dialog v-model="dialogVisible" :title="form.courseId ? '编辑课程' : '新建课程'" width="780">
       <el-form ref="formRef" :model="form" :rules="rules" label-width="100">
         <el-row :gutter="20">
           <el-col :span="12"><el-form-item label="课程编号" prop="code"><el-input v-model="form.code" placeholder="如 CS101" /></el-form-item></el-col>
           <el-col :span="12"><el-form-item label="中文名" prop="nameCn"><el-input v-model="form.nameCn" /></el-form-item></el-col>
         </el-row>
+        <el-form-item label="英文名"><el-input v-model="form.nameEn" /></el-form-item>
         <el-row :gutter="20">
-          <el-col :span="12"><el-form-item label="英文名"><el-input v-model="form.nameEn" /></el-form-item></el-col>
-          <el-col :span="6"><el-form-item label="学分" prop="credit"><el-input-number v-model="form.credit" :min="0.5" :max="10" :step="0.5" /></el-form-item></el-col>
-          <el-col :span="6"><el-form-item label="总学时" prop="hours"><el-input-number v-model="form.hours" :min="1" :max="300" /></el-form-item></el-col>
+          <el-col :span="12">
+            <el-form-item label="学分" prop="credit">
+              <el-input-number v-model="form.credit" :min="0.5" :max="10" :step="0.5" style="width:100%" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="总学时" prop="hours">
+              <el-input-number v-model="form.hours" :min="1" :max="300" style="width:100%" />
+            </el-form-item>
+          </el-col>
         </el-row>
         <el-row :gutter="20">
-          <el-col :span="12"><el-form-item label="理论学时"><el-input-number v-model="form.theoryHours" :min="0" /></el-form-item></el-col>
-          <el-col :span="12"><el-form-item label="实验学时"><el-input-number v-model="form.labHours" :min="0" /></el-form-item></el-col>
+          <el-col :span="12">
+            <el-form-item label="理论学时">
+              <el-input-number v-model="form.theoryHours" :min="0" :max="300" style="width:100%" @change="onSubHoursChange" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="实验学时">
+              <el-input-number v-model="form.labHours" :min="0" :max="300" style="width:100%" @change="onSubHoursChange" />
+            </el-form-item>
+          </el-col>
         </el-row>
+        <div class="hours-hint">
+          <el-text size="small" type="info">
+            提示：「总学时」为整门课课时（含讲授/实验/上机/实践等）；「理论」=讲授，「实验」=动手操作；总学时可大于或等于理论+实验之和。
+          </el-text>
+        </div>
         <el-form-item label="适用专业"><el-input v-model="form.major" /></el-form-item>
         <el-form-item label="先修课程"><el-input v-model="form.prerequisite" /></el-form-item>
         <el-form-item label="开课系"><el-input v-model="form.department" /></el-form-item>
@@ -99,6 +120,13 @@ onMounted(fetch)
 
 const onCreate = () => { form.value = newForm(); dialogVisible.value = true }
 const onEdit = (row) => { form.value = { ...row }; dialogVisible.value = true }
+const onSubHoursChange = () => {
+  // 自动累加：当用户没主动设置总学时，或总学时 < (理论+实验)，则自动累加
+  const sum = Number(form.value.theoryHours || 0) + Number(form.value.labHours || 0)
+  if (!form.value.hours || form.value.hours < sum) {
+    form.value.hours = sum
+  }
+}
 const onSave = async () => {
   await formRef.value.validate()
   if (form.value.courseId) {
@@ -121,4 +149,5 @@ const onOffering = (row) => router.push(`/teacher/offering?courseId=${row.course
 .course-list-page { padding: 20px; }
 .card-header { display: flex; justify-content: space-between; align-items: center; }
 .title { font-weight: 600; font-size: 16px; }
+.hours-hint { padding-left: 100px; margin-bottom: 16px; line-height: 1.5; }
 </style>

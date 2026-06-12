@@ -1,7 +1,12 @@
 package com.labex.controller.teaching;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.labex.common.Result;
+import com.labex.entity.Student;
 import com.labex.entity.teaching.AchievementSnapshot;
+import com.labex.entity.teaching.CourseOffering;
+import com.labex.mapper.teaching.CourseOfferingMapper;
+import com.labex.service.StudentService;
 import com.labex.service.teaching.AchievementCalcEngine;
 import com.labex.vo.teaching.OfferingAchievementVO;
 import com.labex.vo.teaching.StudentAchievementVO;
@@ -23,6 +28,8 @@ import java.util.List;
 public class AchievementController {
 
     @Autowired private AchievementCalcEngine engine;
+    @Autowired private CourseOfferingMapper offeringMapper;
+    @Autowired private StudentService studentService;
 
     // ============ 教师端 ============
 
@@ -61,11 +68,30 @@ public class AchievementController {
 
     // ============ 学生端 ============
 
+    /**
+     * 学生查看自己在某开课的达成度
+     * 越权校验：学生班级必须等于开课班级
+     */
     @GetMapping("/me")
     @PreAuthorize("hasRole('STUDENT')")
     public Result<StudentAchievementVO> myAchievement(@RequestParam Integer offeringId) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         Integer studentId = Integer.parseInt(auth.getName());
+
+        Student stu = studentService.getById(studentId);
+        if (stu == null) {
+            return Result.error("学生信息不存在");
+        }
+        CourseOffering offering = offeringMapper.selectById(offeringId);
+        if (offering == null) {
+            return Result.error("开课不存在");
+        }
+        if (stu.getClazzNo() == null || !stu.getClazzNo().equals(offering.getClazzNo())) {
+            log.warn("Student {} (clazz={}) tried to query offering {} (clazz={})",
+                    studentId, stu.getClazzNo(), offeringId, offering.getClazzNo());
+            return Result.error("您不在该开课的班级中");
+        }
+
         return Result.success(engine.calcForStudent(offeringId, studentId));
     }
 }

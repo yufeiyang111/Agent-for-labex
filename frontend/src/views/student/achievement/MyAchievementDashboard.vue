@@ -45,7 +45,7 @@
 
 <script setup>
 import { ref, onMounted, computed } from 'vue'
-import { achievementApi, offeringApi, objectiveApi } from '@/api'
+import { achievementApi, studentTeachingApi } from '@/api'
 
 const offerings = ref([])
 const selectedOfferingId = ref(null)
@@ -54,8 +54,8 @@ const loading = ref(false)
 const objMap = ref({})
 
 onMounted(async () => {
-  // 简化：从教师端列表 API 取所有开课（实际应有学生专属端点）
-  const res = await offeringApi.list()
+  // 用学生端 API（避免 403）
+  const res = await studentTeachingApi.myOfferings()
   offerings.value = res.data || []
   if (offerings.value.length) {
     selectedOfferingId.value = offerings.value[0].offeringId
@@ -71,7 +71,7 @@ const fetch = async () => {
     data.value = res.data
     const offering = offerings.value.find(o => o.offeringId === selectedOfferingId.value)
     if (offering?.courseId) {
-      const objRes = await objectiveApi.list(offering.courseId)
+      const objRes = await studentTeachingApi.objectives(offering.courseId)
       objMap.value = Object.fromEntries((objRes.data || []).map(o => [o.objectiveId, o]))
     }
   } finally {

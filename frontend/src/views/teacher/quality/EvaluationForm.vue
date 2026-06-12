@@ -100,14 +100,8 @@ const fetch = async () => {
     if (res.data) {
       eval_.value = res.data
       form.value = { ...res.data }
-      try {
-        if (form.value.courseMembers) {
-          courseMembersText.value = JSON.parse(form.value.courseMembers).join(', ')
-        }
-        if (form.value.evalGroupMembers) {
-          evalGroupMembersText.value = JSON.parse(form.value.evalGroupMembers).join(', ')
-        }
-      } catch (e) {}
+      // 反向同步显示文本
+      syncDisplayFromForm()
     } else {
       // 自动创建草稿
       const semester = new Date().getFullYear() + '-' + (new Date().getFullYear() + 1)
@@ -117,10 +111,24 @@ const fetch = async () => {
       })
       eval_.value = createRes.data
       form.value = { ...createRes.data }
+      syncDisplayFromForm()
     }
   } finally {
     loading.value = false
   }
+}
+
+const syncDisplayFromForm = () => {
+  try {
+    courseMembersText.value = form.value.courseMembers
+      ? JSON.parse(form.value.courseMembers).join(', ')
+      : ''
+  } catch { courseMembersText.value = form.value.courseMembers || '' }
+  try {
+    evalGroupMembersText.value = form.value.evalGroupMembers
+      ? JSON.parse(form.value.evalGroupMembers).join(', ')
+      : ''
+  } catch { evalGroupMembersText.value = form.value.evalGroupMembers || '' }
 }
 onMounted(fetch)
 

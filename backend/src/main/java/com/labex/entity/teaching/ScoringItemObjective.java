@@ -8,6 +8,7 @@ import java.time.LocalDateTime;
 
 /**
  * 评分项↔课程目标（CTL-S3）
+ * 关联表，使用物理删除（不映射 deleted 字段以避免 MyBatis-Plus 全局逻辑删除 + UNIQUE 冲突）。
  */
 @Data
 @TableName("t_scoring_item_objective")
@@ -27,8 +28,4 @@ public class ScoringItemObjective {
 
     @TableField("create_time")
     private LocalDateTime createTime;
-
-    @TableLogic
-    @TableField("deleted")
-    private Integer deleted;
 }

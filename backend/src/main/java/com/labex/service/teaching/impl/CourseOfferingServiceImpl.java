@@ -19,6 +19,7 @@ public class CourseOfferingServiceImpl extends ServiceImpl<CourseOfferingMapper,
     public List<CourseOffering> listByCourse(Integer courseId) {
         return list(new LambdaQueryWrapper<CourseOffering>()
                 .eq(CourseOffering::getCourseId, courseId)
+                .ne(CourseOffering::getStatus, "archived")
                 .orderByDesc(CourseOffering::getSemester));
     }
 
@@ -26,11 +27,21 @@ public class CourseOfferingServiceImpl extends ServiceImpl<CourseOfferingMapper,
     public List<CourseOffering> listByTeacher(Integer teacherId) {
         return list(new LambdaQueryWrapper<CourseOffering>()
                 .eq(CourseOffering::getTeacherId, teacherId)
+                .ne(CourseOffering::getStatus, "archived")
                 .orderByDesc(CourseOffering::getSemester));
     }
 
     @Override
     public CourseOffering createOffering(Integer courseId, String clazzNo, Integer teacherId, String semester) {
+        // 幂等：相同 (course, clazz, semester) 已存在则直接返回，不再重建
+        CourseOffering existing = getOne(new LambdaQueryWrapper<CourseOffering>()
+                .eq(CourseOffering::getCourseId, courseId)
+                .eq(CourseOffering::getClazzNo, clazzNo)
+                .eq(CourseOffering::getSemester, semester));
+        if (existing != null) {
+            log.info("Offering already exists, returning existing: id={}", existing.getOfferingId());
+            return existing;
+        }
         CourseOffering o = new CourseOffering();
         o.setCourseId(courseId);
         o.setClazzNo(clazzNo);

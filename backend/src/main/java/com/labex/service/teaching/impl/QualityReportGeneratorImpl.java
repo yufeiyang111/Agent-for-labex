@@ -80,9 +80,11 @@ public class QualityReportGeneratorImpl implements QualityReportGenerator {
             return vo;
         }
 
-        // 将 totalAchievement (0~1) 映射为百分制总分
+        // 使用 totalWeightedScore 作为百分制总分（Σ(score × weight)）
+        // 注意：达成度（totalAchievement）= score/passing 可能 > 1，不可作分数；
+        //      totalWeightedScore 在 max=100 / Σweight=1 时 ∈ [0, 100]，是真正的"百分制成绩"
         List<BigDecimal> scores = students.stream()
-                .map(s -> s.getTotalAchievement().multiply(BigDecimal.valueOf(100)))
+                .map(s -> s.getTotalWeightedScore() == null ? BigDecimal.ZERO : s.getTotalWeightedScore())
                 .collect(Collectors.toList());
 
         BigDecimal sum = scores.stream().reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -696,16 +698,49 @@ public class QualityReportGeneratorImpl implements QualityReportGenerator {
         }
     }
 
-    private org.apache.pdfbox.pdmodel.font.PDFont loadChineseFont(PDDocument doc) throws IOException {
-        // 优先用项目自带字体（fonts/ 目录）
-        try {
-            Resource r = new ClassPathResource("fonts/SourceHanSansCN-Normal.ttf");
-            if (r.exists()) {
-                return PDType0Font.load(doc, r.getInputStream(), true);
+    private org.apache.pdfbox.pdmodel.font.PDFont loadChineseFont(PDDocument doc) {
+        // 候选字体路径（按优先级）
+        String[] classpathFonts = {
+                "fonts/NotoSansCJKsc-Regular.otf",
+                "fonts/SourceHanSansCN-Normal.ttf",
+                "fonts/simsun.ttf"
+        };
+        String[] systemFonts = {
+                "C:/Windows/Fonts/msyh.ttc",      // 微软雅黑（Win）
+                "C:/Windows/Fonts/simsun.ttc",    // 宋体（Win）
+                "/usr/share/fonts/truetype/wqy/wqy-microhei.ttc",   // Linux 文泉驿
+                "/System/Library/Fonts/PingFang.ttc"                // macOS 苹方
+        };
+
+        // 1. 优先 classpath
+        for (String path : classpathFonts) {
+            try {
+                Resource r = new ClassPathResource(path);
+                if (r.exists() && r.contentLength() > 1000) {
+                    log.debug("Loading PDF Chinese font from classpath: {}", path);
+                    return PDType0Font.load(doc, r.getInputStream(), true);
+                }
+            } catch (Exception e) {
+                log.debug("Failed loading classpath font {}: {}", path, e.getMessage());
             }
-        } catch (Exception ignored) {
         }
-        // 退化：用 PDFBox 内置 Helvetica（中文会乱码，但不会报错）
+
+        // 2. 系统字体回退
+        for (String path : systemFonts) {
+            java.io.File f = new java.io.File(path);
+            if (f.exists()) {
+                try (java.io.FileInputStream fis = new java.io.FileInputStream(f)) {
+                    log.info("Loading PDF Chinese font from system path: {}", path);
+                    return PDType0Font.load(doc, fis, true);
+                } catch (Exception e) {
+                    log.debug("Failed loading system font {}: {}", path, e.getMessage());
+                }
+            }
+        }
+
+        // 3. 全部失败，回退到 Helvetica（中文将显示为方框）
+        log.warn("No Chinese font found, PDF export will use Helvetica (Chinese chars will be boxes). " +
+                "Please put a Chinese TTF/OTF font at backend/src/main/resources/fonts/NotoSansCJKsc-Regular.otf");
         return PDType1Font.HELVETICA;
     }
 

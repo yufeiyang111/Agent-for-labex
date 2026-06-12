@@ -7,14 +7,34 @@
         <el-form-item label="中文名"><el-input v-model="form.nameCn" /></el-form-item>
         <el-form-item label="英文名"><el-input v-model="form.nameEn" /></el-form-item>
         <el-row :gutter="20">
-          <el-col :span="8"><el-form-item label="学分"><el-input-number v-model="form.credit" :min="0.5" :max="10" :step="0.5" /></el-form-item></el-col>
-          <el-col :span="8"><el-form-item label="总学时"><el-input-number v-model="form.hours" :min="1" :max="300" /></el-form-item></el-col>
-          <el-col :span="8"><el-form-item label="理论/实验">
-            <el-input-number v-model="form.theoryHours" :min="0" style="width:90px" />
-            <span class="mx-1">/</span>
-            <el-input-number v-model="form.labHours" :min="0" style="width:90px" />
-          </el-form-item></el-col>
+          <el-col :span="12">
+            <el-form-item label="学分">
+              <el-input-number v-model="form.credit" :min="0.5" :max="10" :step="0.5" style="width:100%" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="总学时">
+              <el-input-number v-model="form.hours" :min="1" :max="300" style="width:100%" />
+            </el-form-item>
+          </el-col>
         </el-row>
+        <el-row :gutter="20">
+          <el-col :span="12">
+            <el-form-item label="理论学时">
+              <el-input-number v-model="form.theoryHours" :min="0" :max="300" style="width:100%" @change="onSubHoursChange" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="实验学时">
+              <el-input-number v-model="form.labHours" :min="0" :max="300" style="width:100%" @change="onSubHoursChange" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <div class="hours-hint">
+          <el-text size="small" type="info">
+            提示：「总学时」为整门课课时（含讲授/实验/上机/实践等）；「理论」=讲授，「实验」=动手操作；总学时可大于或等于理论+实验之和。
+          </el-text>
+        </div>
         <el-form-item label="适用专业"><el-input v-model="form.major" /></el-form-item>
         <el-form-item label="先修课程"><el-input v-model="form.prerequisite" /></el-form-item>
         <el-form-item label="开课系"><el-input v-model="form.department" /></el-form-item>
@@ -56,10 +76,17 @@ const onSave = async () => {
   ElMessage.success('保存成功')
   router.push('/teacher/course')
 }
+
+const onSubHoursChange = () => {
+  const sum = Number(form.value.theoryHours || 0) + Number(form.value.labHours || 0)
+  if (!form.value.hours || form.value.hours < sum) {
+    form.value.hours = sum
+  }
+}
 </script>
 
 <style scoped>
 .course-edit-page { padding: 20px; }
 .mt-4 { margin-top: 16px; }
-.mx-1 { margin: 0 4px; }
+.hours-hint { padding-left: 120px; margin-bottom: 16px; line-height: 1.5; }
 </style>

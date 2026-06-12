@@ -8,6 +8,7 @@ import java.time.LocalDateTime;
 
 /**
  * 评分项得分（CTL-S4）
+ * 学生×评分项是业务唯一对，使用物理删除避免重新录入时的 UNIQUE 冲突。
  */
 @Data
 @TableName("t_scoring_score")
@@ -37,8 +38,4 @@ public class ScoringScore {
 
     @TableField("update_time")
     private LocalDateTime updateTime;
-
-    @TableLogic
-    @TableField("deleted")
-    private Integer deleted;
 }

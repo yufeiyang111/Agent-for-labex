@@ -1230,6 +1230,12 @@ export const achievementApi = {
   mine(offeringId) { return request.get('/teaching/achievement/me', { params: { offeringId } }) }
 }
 
+// 学生端教学闭环只读 API
+export const studentTeachingApi = {
+  myOfferings() { return request.get('/student/teaching/offering/list') },
+  objectives(courseId) { return request.get('/student/teaching/objective/list', { params: { courseId } }) }
+}
+
 // ============================================================
 // CTL S6: 质量评价 + 4 报告
 // ============================================================
