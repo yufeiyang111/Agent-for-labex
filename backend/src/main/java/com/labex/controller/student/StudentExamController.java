@@ -29,6 +29,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -304,6 +305,7 @@ public class StudentExamController {
     }
 
     @PostMapping("/{examId}/submit")
+    @Transactional(rollbackFor = Exception.class)
     public Result<Map<String, Object>> submitExam(@PathVariable Integer examId) {
         Student student = getCurrentStudent();
         if (student == null) {

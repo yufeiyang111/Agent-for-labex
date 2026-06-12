@@ -56,7 +56,7 @@ implements StudentProjectService {
     private static final long MAX_TOTAL_SIZE = 314572800L;
     private static final long MAX_EDIT_FILE_SIZE = 0x200000L;
     private static final Gson GSON = new Gson();
-    @Value(value="${labex-agent.project-base-path:D:/workfordasan/student_projects}")
+    @Value(value="${labex-agent.project-base-path:./student_projects}")
     private String projectBasePath;
     @Lazy
     @Autowired

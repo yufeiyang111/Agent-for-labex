@@ -415,12 +415,16 @@ public class RagController {
                     : null;
 
             sendStreamEvent(emitter, "status", Map.of("text", "正在流式生成最终回答"));
-            sendThinkingEvent(emitter, deepThinking, "组织回答结构", "我会把图片信息、知识库片段和网页正文合并，按结论、依据、解释和建议的结构输出。");
 
             StringBuilder answerBuilder = new StringBuilder();
+            StringBuilder modelThinkingBuilder = new StringBuilder();
             String finalQuestion = question;
             miniMaxChat.chatStream(prompt, context, buildQuestionWithAttachments(finalQuestion, attachments), chunk -> {
-                if ("text_delta".equals(chunk.type())) {
+                if ("thinking_delta".equals(chunk.type())) {
+                    // 转发模型的真实思考过程
+                    modelThinkingBuilder.append(chunk.content());
+                    sendStreamEvent(emitter, "thinking_delta", Map.of("text", chunk.content()));
+                } else if ("text_delta".equals(chunk.type())) {
                     answerBuilder.append(chunk.content());
                     sendAnswerDelta(emitter, chunk.content());
                 } else if ("error".equals(chunk.type())) {
@@ -433,8 +437,12 @@ public class RagController {
                 answer = "抱歉，模型没有返回可用内容。";
             }
 
+            // 使用模型的真实思考内容（如果有的话），否则使用手动构建的
+            String modelThinking = modelThinkingBuilder.toString().trim();
+            String finalThinkingTrace = modelThinking.isEmpty() ? thinkingTrace : modelThinking;
+
             sessionMemory.addMessage(sessionId, "user", finalQuestion, null, null, null, null, GSON.toJson(attachments));
-            sessionMemory.addMessage(sessionId, "assistant", answer, GSON.toJson(sources), retrievalMode, GSON.toJson(searchKeywords), thinkingTrace);
+            sessionMemory.addMessage(sessionId, "assistant", answer, GSON.toJson(sources), retrievalMode, GSON.toJson(searchKeywords), finalThinkingTrace);
 
             QueryResponse response = new QueryResponse();
             response.setAnswer(answer);
@@ -443,7 +451,7 @@ public class RagController {
             response.setFromKnowledgeBase(!sources.isEmpty());
             response.setRetrievalMode(retrievalMode);
             response.setSearchKeywords(searchKeywords);
-            response.setThinkingTrace(thinkingTrace);
+            response.setThinkingTrace(finalThinkingTrace);
             response.setAttachments(new ArrayList<>());
             sendStreamEvent(emitter, "done", response);
             emitter.complete();

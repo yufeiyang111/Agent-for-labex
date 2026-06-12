@@ -30,11 +30,13 @@ public class RagConfig {
 
     private int chunkOverlap = 50;
 
-    private String uploadPath = "D:/workfordasan/uploads";
+    private String uploadPath = "./uploads";
 
     private String llmProvider = "minimax";
 
     private String ollamaBaseUrl = "http://localhost:11434";
 
     private String ollamaModel = "qwen2.5:3b";
+
+    private String tavilyApiKey;
 }

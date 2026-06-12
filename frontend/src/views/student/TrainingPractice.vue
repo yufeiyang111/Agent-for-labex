@@ -553,9 +553,7 @@ async function loadData() {
               })
               answers[sa.questionId] = sa.myAnswer
             } else if (sa.type === 6) {
-              console.log('[DEBUG loadData] type=6, myAnswer:', sa.myAnswer)
               const parsed = parseProgrammingAnswer(sa.myAnswer)
-              console.log('[DEBUG loadData] parsed:', parsed)
               answers[sa.questionId] = parsed.code
               programmingLang[sa.questionId] = parsed.language
             } else if (sa.type === 2) {
@@ -575,7 +573,6 @@ async function loadData() {
           if (sa.score !== null || sa.judgeResult) {
             if (!resultMap[sa.questionId]) {
               resultMap[sa.questionId] = sa
-              console.log('[DEBUG loadData] resultMap set:', sa.questionId, 'status:', sa.status, 'score:', sa.score)
             }
           }
         })
@@ -604,7 +601,6 @@ async function loadData() {
     ElMessage.error('加载数据失败')
   } finally {
     pageLoading.value = false
-    console.log('[DEBUG loadData] DONE. submitted:', submitted.value, 'resultMap keys:', Object.keys(resultMap), 'resultMap:', JSON.stringify(resultMap, (k, v) => k === 'judgeResult' ? '<judgeResult>' : v, 2))
   }
 }
 
@@ -679,13 +675,11 @@ async function handleSubmit() {
     }
 
     const res = await trainingApi.student.submit(trainingSetId)
-    console.log('[DEBUG submit] response:', JSON.stringify(res.data, null, 2))
     submitResult.value = res.data
 
     // Build resultMap
     if (submitResult.value?.questionResults) {
       submitResult.value.questionResults.forEach((r) => {
-        console.log('[DEBUG submit] questionResult:', { questionId: r.questionId, type: r.type, score: r.score, status: r.status, judgeResult: r.judgeResult })
         resultMap[r.questionId] = r
       })
     }
@@ -725,7 +719,6 @@ onMounted(loadData)
 async function runTests(question) {
   const code = answers[question.questionId]
   const lang = programmingLang[question.questionId] || 'java'
-  console.log('[DEBUG runTests] questionId:', question.questionId, 'code:', code, 'lang:', lang)
   if (!code || !code.trim()) {
     ElMessage.warning('请先编写代码')
     return

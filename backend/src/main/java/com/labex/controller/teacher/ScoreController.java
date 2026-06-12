@@ -376,8 +376,98 @@ public class ScoreController {
      */
     @GetMapping("/export/{experimentId}")
     public Result<String> exportScores(@PathVariable Integer experimentId) {
-        // TODO: 实现Excel导出功能
         log.info("导出实验成绩: 实验ID={}", experimentId);
-        return Result.success("导出功能待实现", null);
+
+        // 获取实验题目
+        List<ExperimentItem> experimentItems = experimentItemService.list(
+                new LambdaQueryWrapper<ExperimentItem>()
+                        .eq(ExperimentItem::getExperimentId, experimentId)
+        );
+
+        if (experimentItems.isEmpty()) {
+            return Result.error("该实验没有题目");
+        }
+
+        Set<Integer> itemIds = experimentItems.stream()
+                .map(ExperimentItem::getExperimentItemId)
+                .collect(Collectors.toSet());
+
+        // 获取学生答题记录
+        List<StudentItem> allItems = studentItemService.list(
+                new LambdaQueryWrapper<StudentItem>()
+        );
+        List<StudentItem> experimentStudentItems = allItems.stream()
+                .filter(item -> itemIds.contains(item.getItemId()))
+                .collect(Collectors.toList());
+
+        // 按学生分组
+        Map<Integer, List<StudentItem>> studentItemsMap = experimentStudentItems.stream()
+                .collect(Collectors.groupingBy(StudentItem::getStudentId));
+
+        // 获取学生信息
+        Set<Integer> studentIds = studentItemsMap.keySet();
+        Map<Integer, Student> studentMap = new HashMap<>();
+        if (!studentIds.isEmpty()) {
+            List<Student> students = studentService.list(
+                    new LambdaQueryWrapper<Student>().in(Student::getStudentId, studentIds)
+            );
+            studentMap = students.stream()
+                    .collect(Collectors.toMap(Student::getStudentId, s -> s));
+        }
+
+        // 生成 Excel 数据（Base64 编码）
+        try (org.apache.poi.xssf.usermodel.XSSFWorkbook workbook = new org.apache.poi.xssf.usermodel.XSSFWorkbook()) {
+            org.apache.poi.xssf.usermodel.XSSFSheet sheet = workbook.createSheet("成绩导出");
+
+            // 创建表头
+            org.apache.poi.xssf.usermodel.XSSFRow headerRow = sheet.createRow(0);
+            headerRow.createCell(0).setCellValue("学号");
+            headerRow.createCell(1).setCellValue("姓名");
+            headerRow.createCell(2).setCellValue("班级");
+
+            // 题目列
+            for (int i = 0; i < experimentItems.size(); i++) {
+                headerRow.createCell(3 + i).setCellValue(experimentItems.get(i).getExperimentItemName());
+            }
+            headerRow.createCell(3 + experimentItems.size()).setCellValue("总分");
+
+            // 填充数据
+            int rowNum = 1;
+            for (Map.Entry<Integer, List<StudentItem>> entry : studentItemsMap.entrySet()) {
+                Integer studentId = entry.getKey();
+                List<StudentItem> items = entry.getValue();
+                Student student = studentMap.get(studentId);
+                if (student == null) continue;
+
+                org.apache.poi.xssf.usermodel.XSSFRow row = sheet.createRow(rowNum++);
+                row.createCell(0).setCellValue(student.getStudentNo());
+                row.createCell(1).setCellValue(student.getStudentName());
+                row.createCell(2).setCellValue(student.getClazzNo() != null ? student.getClazzNo().toString() : "");
+
+                // 题目得分
+                Map<Integer, Integer> itemScoreMap = items.stream()
+                        .collect(Collectors.toMap(StudentItem::getItemId, item -> item.getScore() != null ? item.getScore() : 0));
+                int totalScore = 0;
+                for (int i = 0; i < experimentItems.size(); i++) {
+                    Integer itemId = experimentItems.get(i).getExperimentItemId();
+                    Integer score = itemScoreMap.getOrDefault(itemId, 0);
+                    row.createCell(3 + i).setCellValue(score);
+                    totalScore += score;
+                }
+                row.createCell(3 + experimentItems.size()).setCellValue(totalScore);
+            }
+
+            // 转换为 Base64
+            java.io.ByteArrayOutputStream outputStream = new java.io.ByteArrayOutputStream();
+            workbook.write(outputStream);
+            byte[] bytes = outputStream.toByteArray();
+            String base64 = java.util.Base64.getEncoder().encodeToString(bytes);
+
+            log.info("成绩导出成功: 实验ID={}, 学生数={}", experimentId, studentItemsMap.size());
+            return Result.success("导出成功", base64);
+        } catch (Exception e) {
+            log.error("成绩导出失败", e);
+            return Result.error("导出失败: " + e.getMessage());
+        }
     }
 }

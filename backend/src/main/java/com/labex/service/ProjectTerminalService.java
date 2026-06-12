@@ -13,10 +13,13 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 @Service
 public class ProjectTerminalService {
+    private static final Logger log = LoggerFactory.getLogger(ProjectTerminalService.class);
     private final Map<String, TerminalSession> sessions = new ConcurrentHashMap<>();
 
     public List<TerminalSession> list(Integer studentId, Integer projectId) {
@@ -119,7 +122,9 @@ public class ProjectTerminalService {
                     try {
                         session.exitCode = process.exitValue();
                         session.append("\nexit=" + session.exitCode + "\n");
-                    } catch (Exception exception) {}
+                    } catch (Exception exitEx) {
+                        log.debug("Failed to get process exit value for session {}: {}", session.sessionId, exitEx.getMessage());
+                    }
                 }
             }
         }, "project-terminal-reader-" + session.sessionId);

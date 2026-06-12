@@ -11,14 +11,21 @@ public class CurrentUser {
 
     /**
      * 获取当前登录用户的ID
+     * 学生用户：username 就是学号，直接解析为 ID
+     * 教师用户：username 是教师账号，需要调用方通过 TeacherService 查询
      */
     public static Integer getUserId() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication != null && authentication.getPrincipal() instanceof UserDetails) {
             String username = ((UserDetails) authentication.getPrincipal()).getUsername();
-            // 从token中解析userId（通过username查询或从其他途径获取）
-            // 这里暂时返回null，实际情况由调用方处理
-            return null;
+            try {
+                // 学生用户的 username 是学号（数字），可以直接解析为 ID
+                return Integer.parseInt(username);
+            } catch (NumberFormatException e) {
+                // 教师用户的 username 是账号（非数字），返回 null
+                // 调用方应通过 TeacherService.findByAccount() 查询
+                return null;
+            }
         }
         return null;
     }

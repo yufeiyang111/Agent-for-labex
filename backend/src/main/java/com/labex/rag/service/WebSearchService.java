@@ -1,13 +1,22 @@
 package com.labex.rag.service;
 
+import com.google.gson.Gson;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import com.labex.rag.config.RagConfig;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
@@ -27,10 +36,15 @@ import java.util.Set;
 @Service
 public class WebSearchService {
 
+    @Autowired
+    private RagConfig ragConfig;
+
     private static final String USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
             + "(KHTML, like Gecko) Chrome/124.0 Safari/537.36";
     private static final int TIMEOUT_MS = 7000;
     private static final int FETCH_TIMEOUT_MS = 10000;
+    private static final String TAVILY_URL = "https://api.tavily.com/search";
+    private static final Gson GSON = new Gson();
 
     public SearchBundle search(String question, int limit) {
         return search(question, limit, Math.min(4, Math.max(0, limit)));
@@ -46,6 +60,23 @@ public class WebSearchService {
         List<String> safeKeywords = keywords == null ? new ArrayList<>() : new ArrayList<>(keywords);
         String searchQuery = query == null || query.isBlank() ? String.join(" ", safeKeywords) : query;
         List<String> displayKeywords = safeKeywords.isEmpty() ? extractKeywords(searchQuery) : safeKeywords;
+
+        // 优先使用 Tavily API（如果配置了 API Key）
+        String tavilyKey = ragConfig.getTavilyApiKey();
+        if (tavilyKey != null && !tavilyKey.isBlank()) {
+            try {
+                List<WebSearchResult> tavilyResults = searchTavily(searchQuery, safeLimit);
+                if (!tavilyResults.isEmpty()) {
+                    log.info("Tavily search returned {} results for: {}", tavilyResults.size(), searchQuery);
+                    return new SearchBundle(displayKeywords, List.of(), tavilyResults);
+                }
+                log.warn("Tavily returned empty results, falling back to Jsoup scraping");
+            } catch (Exception e) {
+                log.warn("Tavily search failed, falling back to Jsoup scraping: {}", e.getMessage());
+            }
+        }
+
+        // 降级：Jsoup 爬取 DuckDuckGo / Bing
         List<String> exactPhrases = extractExactPhrases(searchQuery, displayKeywords);
         boolean temporal = isTemporalQuery(searchQuery);
 
@@ -210,6 +241,93 @@ public class WebSearchService {
             keywords.add(truncate(normalized, 80));
         }
         return new ArrayList<>(keywords);
+    }
+
+    /**
+     * Tavily API 搜索（专为 AI 应用设计的搜索 API）
+     * 文档：https://docs.tavily.com/
+     */
+    private List<WebSearchResult> searchTavily(String query, int maxResults) {
+        List<WebSearchResult> results = new ArrayList<>();
+        HttpURLConnection connection = null;
+        try {
+            JsonObject body = new JsonObject();
+            body.addProperty("api_key", ragConfig.getTavilyApiKey());
+            body.addProperty("query", query);
+            body.addProperty("max_results", Math.min(maxResults, 20));
+            body.addProperty("search_depth", "basic");
+            body.addProperty("include_answer", false);
+            body.addProperty("include_raw_content", false);
+
+            connection = (HttpURLConnection) URI.create(TAVILY_URL).toURL().openConnection();
+            connection.setRequestMethod("POST");
+            connection.setRequestProperty("Content-Type", "application/json");
+            connection.setDoOutput(true);
+            connection.setConnectTimeout(10000);
+            connection.setReadTimeout(15000);
+
+            try (OutputStream os = connection.getOutputStream()) {
+                os.write(body.toString().getBytes(StandardCharsets.UTF_8));
+            }
+
+            int status = connection.getResponseCode();
+            if (status != 200) {
+                log.warn("Tavily API returned status {}: {}", status, readStream(connection.getErrorStream()));
+                return results;
+            }
+
+            String response = readStream(connection.getInputStream());
+            JsonObject root = JsonParser.parseString(response).getAsJsonObject();
+            JsonArray tavilyResults = root.has("results") && root.get("results").isJsonArray()
+                    ? root.getAsJsonArray("results")
+                    : new JsonArray();
+
+            for (JsonElement el : tavilyResults) {
+                JsonObject item = el.getAsJsonObject();
+                String title = getString(item, "title");
+                String url = getString(item, "url");
+                String content = getString(item, "content");
+                double score = item.has("score") && item.get("score").isJsonPrimitive()
+                        ? item.getAsJsonPrimitive("score").getAsDouble() : 0.0;
+
+                if (url.isBlank()) continue;
+
+                results.add(new WebSearchResult(
+                        title, url,
+                        truncate(content, 520),   // snippet
+                        truncate(content, 3600),   // content（Tavily 已经过清理，直接用）
+                        "tavily",
+                        false,
+                        score > 0.6,               // 高分结果标记为 exactMatch
+                        "",
+                        LocalDate.now().toString()
+                ));
+            }
+
+            log.info("Tavily search for '{}' returned {} results", query, results.size());
+        } catch (Exception e) {
+            log.warn("Tavily search error: {}", e.getMessage());
+        } finally {
+            if (connection != null) connection.disconnect();
+        }
+        return results;
+    }
+
+    private String readStream(java.io.InputStream stream) {
+        if (stream == null) return "";
+        try (java.io.BufferedReader reader = new java.io.BufferedReader(
+                new java.io.InputStreamReader(stream, StandardCharsets.UTF_8))) {
+            StringBuilder sb = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) sb.append(line);
+            return sb.toString();
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
+    private String getString(JsonObject obj, String key) {
+        return obj.has(key) && !obj.get(key).isJsonNull() ? obj.get(key).getAsString() : "";
     }
 
     private List<WebSearchResult> searchDuckDuckGo(String query, int limit) throws Exception {

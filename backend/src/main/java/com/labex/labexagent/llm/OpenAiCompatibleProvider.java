@@ -149,7 +149,9 @@ public class OpenAiCompatibleProvider implements LlmProvider {
             log.error("LLM stream error: {}", e.getMessage());
             try {
                 onChunk.accept(new StreamChunk("error", "LLM stream error: " + e.getMessage(), null, null, null, true));
-            } catch (Exception ignored) {}
+            } catch (Exception callbackEx) {
+                log.debug("Failed to send error chunk to callback: {}", callbackEx.getMessage());
+            }
         } finally {
             if (conn != null) conn.disconnect();
         }

@@ -729,8 +729,6 @@ import TokenChart from '@/components/cloud/TokenChart.vue'
 import AppIcon from '@/components/AppIcon.vue'
 import * as echarts from 'echarts'
 
-console.log('[CloudWorkspace] script setup starting...')
-
 const route = useRoute()
 const router = useRouter()
 
@@ -819,15 +817,7 @@ const editingMcpId = ref(null)
 const skillForm = ref({ title: '', skillKey: '', description: '', content: '', isEnabled: true })
 const mcpForm = ref({ serverName: '', serverKey: '', endpoint: '', authHeader: '', toolsJson: '', isEnabled: true })
 
-// Review tab state
-const activeReviewFilter = ref('all')
-const reviewScore = ref(85)
-const reviewIssues = ref([
-  { severity: 'warning', message: '未使用的变量 "temp"', file: 'src/utils.js', line: 12, fixable: true },
-  { severity: 'error', message: '可能的空指针异常', file: 'src/services/api.js', line: 45, fixable: false },
-  { severity: 'info', message: '建议使用可选链操作符', file: 'src/components/App.vue', line: 23, fixable: true },
-  { severity: 'warning', message: '未处理的 Promise rejection', file: 'src/main.js', line: 8, fixable: false },
-])
+// Review tab state (ChangesPanel 组件已替代硬编码数据)
 
 // Terminal quick commands
 const termQuickCommands = [
@@ -880,18 +870,6 @@ const quickChips = [
   { label: '重构函数', prompt: '请重构当前函数，提升可读性和性能', icon: '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>' },
   { label: '查找 Bug', prompt: '请检查当前代码中的潜在 bug', icon: '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 2l1.88 1.88M14.12 3.88L16 2M9 7.13v-1a3.003 3.003 0 1 1 6 0v1"/><path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6"/><path d="M12 20v-9M6.53 9C4.6 8.8 3 7.1 3 5M6 13H2M20 5c0 2.1-1.6 3.8-3.53 4M18 13h4M20 9v4"/></svg>' },
 ]
-
-const reviewFilters = [
-  { key: 'all', label: '全部', color: '#6b7280' },
-  { key: 'error', label: '错误', color: '#ef4444' },
-  { key: 'warning', label: '警告', color: '#f59e0b' },
-  { key: 'info', label: '建议', color: '#3b82f6' },
-]
-
-const filteredReviewIssues = computed(() => {
-  if (activeReviewFilter.value === 'all') return reviewIssues.value
-  return reviewIssues.value.filter(i => i.severity === activeReviewFilter.value)
-})
 
 // ===== Methods =====
 onMounted(async () => {
@@ -1136,7 +1114,6 @@ async function exportProject() {
 async function sendMessage() {
   const q = agentInput.value.trim()
   if (!q || agentLoading.value) return
-  console.log('[sendMessage] start, question:', q)
   messages.value.push({ role: 'user', content: q })
   messages.value.push({ role: 'assistant', content: '', thinking: '', _thinkingDisplay: '', _thinkingTimer: null, thinkingBlocks: [], toolCalls: [], plan: null, isStreaming: true, error: null, _nextOrder: 0 })
   const assistantMsg = messages.value[messages.value.length - 1]
@@ -1146,7 +1123,6 @@ async function sendMessage() {
   const sessionId = currentAgentSession.value?.sessionId || crypto.randomUUID()
 
   try {
-    console.log('[SSE] fetching stream...')
     const response = await fetch(`/api/student/projects/${projectId.value}/agent/stream`, {
       method: 'POST',
       headers: {
@@ -1184,7 +1160,7 @@ async function sendMessage() {
             const event = JSON.parse(dataStr)
             handleAgentEvent(event, assistantMsg)
             await nextTick(); scrollDown()
-          } catch (e) { console.log('[SSE] parse error:', e.message, line.substring(0, 80)) }
+          } catch (e) { /* ignore parse errors */ }
         }
       }
     }
@@ -1204,7 +1180,6 @@ async function sendMessage() {
 function handleAgentEvent(event, assistantMsg) {
   const type = event.type
   const data = event.data
-  console.log('[AgentEvent]', type, data)
   switch (type) {
     case 'SESSION':
       currentAgentSession.value = data

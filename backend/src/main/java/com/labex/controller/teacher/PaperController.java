@@ -16,6 +16,7 @@ import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
@@ -141,6 +142,7 @@ public class PaperController {
      * 新增试卷
      */
     @PostMapping
+    @Transactional(rollbackFor = Exception.class)
     public Result<Void> add(@Valid @RequestBody Paper paper) {
         Integer teacherId = getCurrentTeacherId();
         if (teacherId != null) {

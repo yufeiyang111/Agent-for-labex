@@ -7,6 +7,7 @@ import com.labex.entity.QuestionTestCase;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.Authentication;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -178,6 +179,7 @@ public class StudentTrainingController {
     }
 
     @PostMapping("/{id}/submit")
+    @Transactional(rollbackFor = Exception.class)
     public Result<Map<String, Object>> submit(@PathVariable Integer id, Authentication auth) {
         Integer studentId = getStudentId(auth);
         TrainingSet ts = trainingSetService.getById(id);

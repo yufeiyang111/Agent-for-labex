@@ -123,5 +123,8 @@ rag:
   chunk-size: 500
   # 块重叠（tokens）
   chunk-overlap: 50
+  # Tavily 搜索 API Key（可选，配置后联网搜索使用 Tavily 代替 Jsoup 爬取）
+  # 免费注册：https://tavily.com  每月 1000 次免费调用
+  tavily-api-key:
   # 上传文件路径
   upload-path: D:/workfordasan/uploads

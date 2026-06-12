@@ -154,6 +154,7 @@ public class MiniMaxChat implements LLMChat {
             requestBody.put("model", ragConfig.getMiniMaxModel());
             requestBody.put("messages", messages);
             requestBody.put("stream", true);
+            requestBody.put("enable_thinking", true);
             requestBody.put("max_tokens", 8192);
             requestBody.put("max_completion_tokens", 8192);
             requestBody.put("user_id", "labex-system");
@@ -183,17 +184,20 @@ public class MiniMaxChat implements LLMChat {
                 String line;
                 boolean[] emittedDelta = {false};
                 String[] lastMessageContent = {""};
+                ThinkTagStreamParser thinkParser = new ThinkTagStreamParser(onChunk);
                 while ((line = reader.readLine()) != null) {
                     if (line.isBlank() || !line.startsWith("data:")) {
                         continue;
                     }
                     String data = line.substring(5).trim();
                     if ("[DONE]".equals(data)) {
+                        thinkParser.flush();
                         onChunk.accept(StreamChunk.completed());
                         break;
                     }
-                    parseStreamData(data, onChunk, emittedDelta, lastMessageContent);
+                    parseStreamData(data, onChunk, thinkParser, emittedDelta, lastMessageContent);
                 }
+                thinkParser.flush();
             }
         } catch (Exception e) {
             log.error("MiniMax stream error: {}", e.getMessage(), e);
@@ -205,9 +209,104 @@ public class MiniMaxChat implements LLMChat {
         }
     }
 
+    /**
+     * 流式解析 <think>...</think> 标签的状态机。
+     * 处理标签可能跨多个 chunk 的情况。
+     */
+    private static class ThinkTagStreamParser {
+        private static final String OPEN_TAG = "<think>";
+        private static final String CLOSE_TAG = "</think>";
+        private final Consumer<StreamChunk> onChunk;
+        private final StringBuilder buffer = new StringBuilder();
+        private boolean inThink = false;
+
+        ThinkTagStreamParser(Consumer<StreamChunk> onChunk) {
+            this.onChunk = onChunk;
+        }
+
+        /** 推入一段文本，自动分离思考内容和正文 */
+        void push(String text) {
+            if (text == null || text.isEmpty()) return;
+            buffer.append(text);
+            process();
+        }
+
+        /** 流结束时刷新剩余 buffer */
+        void flush() {
+            if (buffer.length() > 0) {
+                emit(buffer.toString(), inThink);
+                buffer.setLength(0);
+            }
+        }
+
+        private void emit(String text, boolean thinking) {
+            if (text.isEmpty()) return;
+            if (thinking) {
+                onChunk.accept(StreamChunk.thinking(text));
+            } else {
+                onChunk.accept(StreamChunk.text(text));
+            }
+        }
+
+        private void process() {
+            while (buffer.length() > 0) {
+                if (!inThink) {
+                    int openIdx = buffer.indexOf(OPEN_TAG);
+                    if (openIdx >= 0) {
+                        // <think> 前的正文
+                        if (openIdx > 0) {
+                            emit(buffer.substring(0, openIdx), false);
+                        }
+                        buffer.delete(0, openIdx + OPEN_TAG.length());
+                        inThink = true;
+                        continue;
+                    }
+                    // buffer 尾部可能是 <think> 的前缀，保留等待更多数据
+                    int safe = findSafeLength(buffer, OPEN_TAG);
+                    if (safe > 0) {
+                        emit(buffer.substring(0, safe), false);
+                        buffer.delete(0, safe);
+                    }
+                    break;
+                } else {
+                    int closeIdx = buffer.indexOf(CLOSE_TAG);
+                    if (closeIdx >= 0) {
+                        // <think> 内的思考内容
+                        if (closeIdx > 0) {
+                            emit(buffer.substring(0, closeIdx), true);
+                        }
+                        buffer.delete(0, closeIdx + CLOSE_TAG.length());
+                        inThink = false;
+                        continue;
+                    }
+                    // buffer 尾部可能是 </think> 的前缀，保留等待更多数据
+                    int safe = findSafeLength(buffer, CLOSE_TAG);
+                    if (safe > 0) {
+                        emit(buffer.substring(0, safe), true);
+                        buffer.delete(0, safe);
+                    }
+                    break;
+                }
+            }
+        }
+
+        /** 找到可以安全输出的长度（尾部可能是 tag 前缀的部分保留） */
+        private static int findSafeLength(StringBuilder buf, String tag) {
+            int maxPrefix = tag.length() - 1;
+            if (maxPrefix <= 0) return buf.length();
+            for (int len = Math.min(maxPrefix, buf.length()); len > 0; len--) {
+                if (tag.startsWith(buf.substring(buf.length() - len))) {
+                    return buf.length() - len;
+                }
+            }
+            return buf.length();
+        }
+    }
+
     private void parseStreamData(
             String data,
             Consumer<StreamChunk> onChunk,
+            ThinkTagStreamParser thinkParser,
             boolean[] emittedDelta,
             String[] lastMessageContent) {
         try {
@@ -219,11 +318,22 @@ public class MiniMaxChat implements LLMChat {
             JsonObject delta = choice.has("delta") && choice.get("delta").isJsonObject()
                     ? choice.getAsJsonObject("delta")
                     : null;
+
+            // 优先检查 reasoning_content（DeepSeek 等模型原生支持）
+            if (delta != null && delta.has("reasoning_content") && !delta.get("reasoning_content").isJsonNull()) {
+                String reasoning = delta.get("reasoning_content").getAsString();
+                if (!reasoning.isEmpty()) {
+                    emittedDelta[0] = true;
+                    onChunk.accept(StreamChunk.thinking(reasoning));
+                }
+            }
+
+            // 正文 content（可能包含 <think> 标签，通过 parser 分离）
             if (delta != null && delta.has("content") && !delta.get("content").isJsonNull()) {
                 String content = delta.get("content").getAsString();
                 if (!content.isEmpty()) {
                     emittedDelta[0] = true;
-                    onChunk.accept(StreamChunk.text(content));
+                    thinkParser.push(content);
                 }
             }
 
@@ -239,7 +349,7 @@ public class MiniMaxChat implements LLMChat {
                 String deltaContent = content.startsWith(previous) ? content.substring(previous.length()) : content;
                 lastMessageContent[0] = content;
                 if (!deltaContent.isEmpty()) {
-                    onChunk.accept(StreamChunk.text(deltaContent));
+                    thinkParser.push(deltaContent);
                 }
             }
         } catch (Exception parseError) {
@@ -266,6 +376,10 @@ public class MiniMaxChat implements LLMChat {
     public record StreamChunk(String type, String content, boolean finished) {
         public static StreamChunk text(String content) {
             return new StreamChunk("text_delta", content, false);
+        }
+
+        public static StreamChunk thinking(String content) {
+            return new StreamChunk("thinking_delta", content, false);
         }
 
         public static StreamChunk completed() {

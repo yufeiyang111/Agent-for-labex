@@ -9,6 +9,7 @@ import com.labex.service.*;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import java.time.LocalDateTime;
@@ -87,6 +88,7 @@ public class TrainingSetController {
     }
 
     @DeleteMapping("/{id}")
+    @Transactional(rollbackFor = Exception.class)
     public Result<Void> delete(@PathVariable Integer id) {
         trainingSetQuestionService.removeQuestions(id);
         trainingSetService.removeById(id);

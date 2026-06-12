@@ -8,6 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
@@ -248,6 +249,7 @@ public class TeacherGradingController {
      * 批改单道题目
      */
     @PutMapping("/exam/{examId}/student/{studentId}/question/{questionId}")
+    @Transactional(rollbackFor = Exception.class)
     public Result<Void> gradeQuestion(
             @PathVariable Integer examId,
             @PathVariable Integer studentId,
@@ -278,6 +280,7 @@ public class TeacherGradingController {
      * 批量提交批改成绩
      */
     @PostMapping("/exam/{examId}/student/{studentId}/submit-grades")
+    @Transactional(rollbackFor = Exception.class)
     public Result<Map<String, Object>> submitAllGrades(
             @PathVariable Integer examId,
             @PathVariable Integer studentId,

@@ -106,24 +106,32 @@
             </div>
             <div class="message-content">
               <div class="message-bubble">
-                <details v-if="msg.thinkingTrace" class="thinking-panel">
+                <!-- 思考过程面板：显示模型的真实思考内容 -->
+                <details v-if="msg.thinkingTrace" class="thinking-panel" :open="msg.streaming">
                   <summary class="thinking-summary">
                     <span class="summary-left">
-                      <el-icon><Opportunity /></el-icon>
-                      {{ msg.streaming ? '正在深度思考' : '已经完成思考' }}
+                      <el-icon :class="{ 'thinking-icon-pulse': msg.streaming }"><Opportunity /></el-icon>
+                      <span>思考过程</span>
+                      <span v-if="msg.streaming" class="thinking-live-dots">
+                        <span class="thinking-live-dot"></span>
+                        <span class="thinking-live-dot"></span>
+                        <span class="thinking-live-dot"></span>
+                      </span>
                     </span>
                     <el-icon class="summary-arrow"><ArrowRight /></el-icon>
                   </summary>
-                  <div class="thinking-timeline">
-                    <div v-for="(section, tIdx) in getThinkingSections(msg.thinkingTrace)" :key="tIdx" class="thinking-step">
-                      <div class="thinking-step-dot"></div>
-                      <div class="thinking-step-body">
-                        <h4>{{ section.title }}</h4>
-                        <p>{{ section.body }}</p>
-                      </div>
-                    </div>
+                  <div class="thinking-raw-content">
+                    {{ msg.thinkingTrace }}<span v-if="msg.streaming" class="streaming-cursor"></span>
                   </div>
                 </details>
+
+                <!-- 思考阶段加载指示器：流式传输中但尚无任何可见内容时显示 -->
+                <div v-if="msg.streaming && !msg.content && !(msg.thinkingTrace && getThinkingSections(msg.thinkingTrace).length > 0)" class="thinking-loading">
+                  <span class="thinking-loading-dot"></span>
+                  <span class="thinking-loading-dot"></span>
+                  <span class="thinking-loading-dot"></span>
+                  <span class="thinking-loading-text">正在思考</span>
+                </div>
 
                 <div
                   v-if="msg.content"
@@ -226,7 +234,7 @@
             </div>
           </div>
 
-          <div v-if="loading && !streamingAssistant" class="message assistant">
+          <div v-if="loading && !hasAssistantMessage" class="message assistant">
             <div class="message-avatar">
               <el-avatar :size="36">
                 <img :src="assistantAvatarUrl" @error.once="assistantAvatarError = true" v-if="!assistantAvatarError" />
@@ -638,6 +646,16 @@ const currentSessionTitle = computed(() => {
 
 const canSend = computed(() => question.value.trim().length > 0 || pendingAttachments.value.length > 0)
 
+const hasAssistantMessage = computed(() => {
+  return messages.value.some(m => m.role === 'assistant')
+})
+
+const assistantHasContent = computed(() => {
+  const lastAssistant = [...messages.value].reverse().find(m => m.role === 'assistant')
+  if (!lastAssistant) return false
+  return !!(lastAssistant.content || (lastAssistant.thinkingTrace && getThinkingSections(lastAssistant.thinkingTrace).length > 0))
+})
+
 const loadSessions = async () => {
   try {
     const res = await ragApi.getSessions()
@@ -892,115 +910,6 @@ const parseSseBlock = (block) => {
   }
 }
 
-const appendStreamDelta = (message, text) => {
-  if (!text) return
-  message.content = (message.content || '') + text
-}
-
-const appendFieldDelta = (message, field, text) => {
-  if (!text) return
-  message[field] = (message[field] || '') + text
-}
-
-const createDeltaNormalizer = () => {
-  let committed = ''
-
-  return {
-    next(text) {
-      if (!text) return ''
-      if (!committed) {
-        committed = text
-        return text
-      }
-      if (text.startsWith(committed)) {
-        const delta = text.slice(committed.length)
-        committed = text
-        return delta
-      }
-
-      const maxOverlap = Math.min(400, committed.length, text.length)
-      let overlap = 0
-      for (let len = maxOverlap; len > 0; len--) {
-        if (committed.endsWith(text.slice(0, len))) {
-          overlap = len
-          break
-        }
-      }
-      const delta = text.slice(overlap)
-      committed += delta
-      return delta
-    }
-  }
-}
-
-const createBufferedWriter = (writeChunk, options = {}) => {
-  const minChars = options.minChars || 4
-  const maxChars = options.maxChars || 6
-  const intervalMs = options.intervalMs || 90
-  const minIntervalMs = options.minIntervalMs || intervalMs
-  const maxIntervalMs = options.maxIntervalMs || intervalMs
-  let buffer = ''
-  let active = false
-  let cancelled = false
-  const idleResolvers = []
-
-  const resolveIdle = () => {
-    while (idleResolvers.length) {
-      const resolve = idleResolvers.shift()
-      resolve()
-    }
-  }
-
-  const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms))
-  const paint = () => new Promise(resolve => requestAnimationFrame(resolve))
-  const nextInterval = () => {
-    if (maxIntervalMs <= minIntervalMs) return minIntervalMs
-    return Math.floor(Math.random() * (maxIntervalMs - minIntervalMs + 1)) + minIntervalMs
-  }
-
-  const pump = async () => {
-    if (active || cancelled) return
-    active = true
-    try {
-      while (!cancelled && buffer) {
-        const size = Math.min(buffer.length, Math.floor(Math.random() * (maxChars - minChars + 1)) + minChars)
-        const chunk = buffer.slice(0, size)
-        buffer = buffer.slice(size)
-        writeChunk(chunk)
-        await nextTick()
-        await paint()
-        await sleep(nextInterval())
-      }
-    } finally {
-      active = false
-      if (!buffer) resolveIdle()
-    }
-  }
-
-  return {
-    push(text) {
-      if (!text) return
-      buffer += text
-      pump()
-    },
-    drain() {
-      if (!buffer && !active) return Promise.resolve()
-      return new Promise(resolve => {
-        idleResolvers.push(resolve)
-        pump()
-      })
-    },
-    stop(flush = false) {
-      cancelled = true
-      if (flush && buffer) {
-        writeChunk(buffer)
-        buffer = ''
-      }
-      resolveIdle()
-    }
-  }
-}
-
 const sendMessage = async () => {
   const q = question.value.trim()
   if ((!q && pendingAttachments.value.length === 0) || loading.value || sessionFull.value) return
@@ -1037,24 +946,28 @@ const sendMessage = async () => {
   }
   messages.value.push(assistantMessage)
 
-  const answerWriter = createBufferedWriter(
-    chunk => {
-      appendStreamDelta(assistantMessage, chunk)
-      scheduleScrollToBottom(false)
-    },
-    { minChars: 1, maxChars: 1, intervalMs: 200, minIntervalMs: 170, maxIntervalMs: 250 }
-  )
-  const thinkingWriter = createBufferedWriter(
-    chunk => {
-      appendFieldDelta(assistantMessage, 'thinkingTrace', chunk)
-      scheduleScrollToBottom(false)
-    },
-    { minChars: 1, maxChars: 1, intervalMs: 220, minIntervalMs: 200, maxIntervalMs: 300 }
-  )
-  const answerNormalizer = createDeltaNormalizer()
-  const thinkingNormalizer = createDeltaNormalizer()
-  let receivedAnswerDelta = false
+  // 收集完整文本，流式结束后用打字机效果逐字显示
+  let fullThinking = ''
+  let fullAnswer = ''
   let donePayload = null
+  let cancelled = false
+
+  // 打字机效果：用 requestAnimationFrame 逐字写入，不受 Vue 批量更新影响
+  const typewriterReveal = (target, field, text, charsPerFrame = 3) => {
+    if (!text) return Promise.resolve()
+    return new Promise(resolve => {
+      let i = 0
+      const step = () => {
+        if (cancelled || i >= text.length) { resolve(); return }
+        const end = Math.min(i + charsPerFrame, text.length)
+        target[field] += text.slice(i, end)
+        i = end
+        scheduleScrollToBottom(false)
+        requestAnimationFrame(step)
+      }
+      requestAnimationFrame(step)
+    })
+  }
 
   try {
     await streamRagQuery({
@@ -1075,46 +988,41 @@ const sendMessage = async () => {
         assistantMessage.fromKnowledgeBase = data.fromKnowledgeBase !== false
         if (data.sessionId && data.sessionId !== currentSessionId.value) currentSessionId.value = data.sessionId
       } else if (event === 'thinking_delta' && deepThinkingAtSend) {
-        const delta = thinkingNormalizer.next(`${data.text || ''}\n`)
-        if (delta) thinkingWriter.push(delta)
+        // 只收集，不立即显示
+        fullThinking += data.text || ''
       } else if (event === 'answer_delta') {
-        receivedAnswerDelta = true
-        const delta = answerNormalizer.next(data.text || '')
-        if (delta) answerWriter.push(delta)
+        // 只收集，不立即显示
+        fullAnswer += data.text || ''
       } else if (event === 'done') {
         donePayload = data
         assistantMessage.sources = data.sources || assistantMessage.sources
         assistantMessage.retrievalMode = data.retrievalMode || modeAtSend
         assistantMessage.searchKeywords = data.searchKeywords || []
         assistantMessage.fromKnowledgeBase = data.fromKnowledgeBase !== false
-        const finalDelta = answerNormalizer.next(data.answer || '')
-        if (finalDelta) answerWriter.push(finalDelta)
-        if (deepThinkingAtSend && data.thinkingTrace && !assistantMessage.thinkingTrace) {
-          const thinkingDelta = thinkingNormalizer.next(data.thinkingTrace)
-          if (thinkingDelta) thinkingWriter.push(thinkingDelta)
-        }
+        if (data.answer) fullAnswer += data.answer
+        if (deepThinkingAtSend && data.thinkingTrace && !fullThinking) fullThinking = data.thinkingTrace
         if (data.sessionId && data.sessionId !== currentSessionId.value) currentSessionId.value = data.sessionId
       } else if (event === 'error') {
-        assistantMessage.content = assistantMessage.content || ('抱歉，发生了错误：' + (data.message || '未知错误'))
-        assistantMessage.status = ''
+        fullAnswer = fullAnswer || ('抱歉，发生了错误：' + (data.message || '未知错误'))
       }
     })
-    await answerWriter.drain()
-    await thinkingWriter.drain()
+
+    // 流式接收完成，开始打字机效果逐字显示
+    // 先显示思考过程，再显示回答
+    await typewriterReveal(assistantMessage, 'thinkingTrace', fullThinking, 4)
+    await typewriterReveal(assistantMessage, 'content', fullAnswer, 3)
+
     assistantMessage.streaming = false
     assistantMessage.status = ''
     if (donePayload) {
       await refreshSessionsOnly()
     }
   } catch (error) {
-    answerWriter.stop(true)
-    thinkingWriter.stop(true)
-    assistantMessage.content = assistantMessage.content || '抱歉，无法连接到服务器或流式接口中断，请检查后端服务是否运行。'
+    cancelled = true
+    assistantMessage.content = fullAnswer || '抱歉，无法连接到服务器或流式接口中断，请检查后端服务是否运行。'
+    assistantMessage.thinkingTrace = fullThinking
     assistantMessage.streaming = false
     assistantMessage.status = ''
-  } finally {
-    answerWriter.stop(false)
-    thinkingWriter.stop(false)
   }
 
   loading.value = false
@@ -2041,57 +1949,53 @@ onMounted(() => {
   transform: rotate(90deg);
 }
 
-.thinking-timeline {
+/* 思考过程原始文本显示 */
+.thinking-raw-content {
   margin-top: 10px;
-  padding-left: 2px;
-}
-
-.thinking-step {
-  position: relative;
-  display: grid;
-  grid-template-columns: 18px 1fr;
-  gap: 8px;
-  padding-bottom: 12px;
-}
-
-.thinking-step::before {
-  content: "";
-  position: absolute;
-  left: 7px;
-  top: 18px;
-  bottom: 0;
-  width: 2px;
-  background: #d9dde6;
-}
-
-.thinking-step:last-child::before {
-  display: none;
-}
-
-.thinking-step-dot {
-  width: 14px;
-  height: 14px;
-  margin-top: 3px;
-  border-radius: 50%;
-  background: #b7bdc9;
-  box-shadow: inset 0 0 0 4px #fff;
-  border: 1px solid #c8ced8;
-  z-index: 1;
-}
-
-.thinking-step-body h4 {
-  margin: 0 0 4px;
-  font-size: 14px;
-  color: #4b5563;
-  font-weight: 700;
-}
-
-.thinking-step-body p {
-  margin: 0;
-  color: #8a8f99;
+  padding: 12px 14px;
+  max-height: 260px;
+  overflow-y: auto;
+  border-top: 1px solid #edf0f3;
+  font-family: 'JetBrains Mono', 'Consolas', 'Monaco', monospace;
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: #6b7280;
   white-space: pre-wrap;
-  line-height: 1.8;
-  font-size: 13px;
+  word-break: break-word;
+}
+
+/* 思考过程脉动动画 */
+.thinking-icon-pulse {
+  animation: thinkingIconPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes thinkingIconPulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
+/* 思考中的三个小圆点 */
+.thinking-live-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 2px;
+}
+
+.thinking-live-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #10a37f;
+  animation: thinkingLiveDot 1.2s ease-in-out infinite;
+}
+
+.thinking-live-dot:nth-child(2) { animation-delay: 0.2s; }
+.thinking-live-dot:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes thinkingLiveDot {
+  0%, 60%, 100% { opacity: 0.3; transform: scale(0.8); }
+  30% { opacity: 1; transform: scale(1); }
 }
 
 .message-attachments {
@@ -2387,6 +2291,42 @@ onMounted(() => {
 @keyframes bounce {
   0%, 80%, 100% { transform: scale(0); }
   40% { transform: scale(1); }
+}
+
+/* 思考阶段加载指示器 */
+.thinking-loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 0;
+}
+
+.thinking-loading-dot {
+  width: 6px;
+  height: 6px;
+  background: #10a37f;
+  border-radius: 50%;
+  animation: thinkingPulse 1.4s infinite ease-in-out both;
+}
+
+.thinking-loading-dot:nth-child(1) { animation-delay: -0.32s; }
+.thinking-loading-dot:nth-child(2) { animation-delay: -0.16s; }
+
+.thinking-loading-text {
+  font-size: 13px;
+  color: #8a8f99;
+  margin-left: 4px;
+  animation: thinkingFade 1.4s infinite ease-in-out;
+}
+
+@keyframes thinkingPulse {
+  0%, 80%, 100% { transform: scale(0); opacity: 0.4; }
+  40% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes thinkingFade {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
 }
 
 @keyframes pulseDot {
@@ -2970,5 +2910,24 @@ onMounted(() => {
   .send-button {
     align-self: flex-end;
   }
+}
+</style>
+
+<!-- 非 scoped 样式：确保 v-html 注入的流式光标能正确显示 -->
+<style>
+.streaming-cursor {
+  display: inline-block;
+  width: 7px;
+  height: 1.1em;
+  margin-left: 2px;
+  border-radius: 999px;
+  background: #111827;
+  vertical-align: -0.18em;
+  animation: streamCursorBlink 0.9s steps(2, start) infinite;
+}
+
+@keyframes streamCursorBlink {
+  0%, 45% { opacity: 1; }
+  46%, 100% { opacity: 0; }
 }
 </style>
