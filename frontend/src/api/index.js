@@ -1,5 +1,5 @@
 ﻿// API鎺ュ彛缁熶竴绠＄悊
-import request from '@/utils/request'
+import request, { REQUEST_TIMEOUTS } from '@/utils/request'
 
 // 璁よ瘉鐩稿叧API
 export const authApi = {
@@ -193,12 +193,18 @@ export const teacherApi = {
     },
     categories() {
       return request.get('/teacher/lecture/categories')
+    },
+    initKnowledgeBase() {
+      return request.post('/rag/init')
     }
   },
 
   // 鎴愮哗绠＄悊
   score: {
     getStudentAnswers(experimentId) {
+      return request.get(`/teacher/score/experiment/${experimentId}/students`)
+    },
+    getByExperiment(experimentId) {
       return request.get(`/teacher/score/experiment/${experimentId}/students`)
     },
     getStudentDetail(studentId, experimentId) {
@@ -311,6 +317,9 @@ export const teacherApi = {
   grading: {
     getPendingExams() {
       return request.get('/teacher/grading/pending-exams')
+    },
+    getSubmissions(examId) {
+      return request.get(`/teacher/grading/exam/${examId}/pending-students`)
     },
     getPendingStudents(examId) {
       return request.get(`/teacher/grading/exam/${examId}/pending-students`)
@@ -691,6 +700,10 @@ export const ragApi = {
     return request.get('/rag/status')
   },
 
+  getMetricsSummary(params) {
+    return request.get('/rag/metrics/summary', { params })
+  },
+
   // 鑾峰彇璁蹭箟鍐呭锛圧AG棰勮锛屼笉鏍￠獙鏁欏笀褰掑睘锛?
   getLecture(id) {
     return request.get(`/rag/lecture/${id}`)
@@ -714,6 +727,10 @@ export const kgApi = {
   // 鎵嬪姩鍒涘缓鐭ヨ瘑鐐?
   createPoint(data) {
     return request.post('/kg/points', data)
+  },
+  // 更新知识点
+  updatePoint(id, data) {
+    return request.put(`/kg/points/${id}`, data)
   },
   // 鍒犻櫎鐭ヨ瘑鐐?
   deletePoint(id) {
@@ -774,6 +791,9 @@ export const recommendationApi = {
   // 鐩镐技棰樼洰鎺ㄨ崘
   similar(params) {
     return request.get('/recommendation/similar', { params })
+  },
+  createPracticeSet(data) {
+    return request.post('/recommendation/practice-set', data || {})
   },
 }
 
@@ -879,6 +899,10 @@ export const projectApi = {
   optimizePrompt(projectId, data) {
     return request.post('/student/projects/' + projectId + '/agent/prompt/optimize', data)
   },
+  // Agent command
+  runCommand(projectId, data) {
+    return request.post('/student/projects/' + projectId + '/agent/commands', data)
+  },
   agentInterrupt(projectId, sessionId) {
     return request.post('/student/projects/' + projectId + '/agent/interrupt', { sessionId })
   },
@@ -902,6 +926,9 @@ export const projectApi = {
   },
   agentApprovePermission(projectId, data) {
     return request.post('/student/projects/' + projectId + '/agent/permission/approve', data)
+  },
+  agentReplyQuestion(projectId, data) {
+    return request.post('/student/projects/' + projectId + '/agent/question/reply', data)
   },
   agentTokenStats(projectId, conversationId) {
     return request.get('/student/projects/' + projectId + '/agent/tokens/' + conversationId)
@@ -1053,7 +1080,10 @@ export const aiQuestionApi = {
 
   // 同步生成题目（等待完成）
   generateSync(data) {
-    return request.post('/teacher/ai-question/generate-sync', data)
+    return request.post('/teacher/ai-question/generate-sync', data, {
+      timeout: REQUEST_TIMEOUTS.AI_GENERATION,
+      timeoutMessage: 'AI 生成题目耗时较长，请稍后在"生成历史"中查看结果'
+    })
   },
 
   // 获取生成批次状态
@@ -1126,7 +1156,7 @@ export const aiQuestionApi = {
 // 课程教学闭环（CTL）API — S1: 课程 + 大纲 + 开课
 // ============================================================
 export const courseApi = {
-  list() { return request.get('/teacher/course/list') },
+  list(params) { return request.get('/teacher/course/list', { params }) },
   all() { return request.get('/teacher/course/all') },
   detail(id) { return request.get(`/teacher/course/${id}`) },
   create(data) { return request.post('/teacher/course', data) },
@@ -1135,15 +1165,16 @@ export const courseApi = {
 }
 
 export const offeringApi = {
-  list(courseId) {
-    return courseId
-      ? request.get('/teacher/offering/list', { params: { courseId } })
-      : request.get('/teacher/offering/list')
+  list(params) {
+    return request.get('/teacher/offering/list', { params })
   },
   detail(id) { return request.get(`/teacher/offering/${id}`) },
   create(data) { return request.post('/teacher/offering', data) },
   update(id, data) { return request.put(`/teacher/offering/${id}`, data) },
-  remove(id) { return request.delete(`/teacher/offering/${id}`) }
+  updateStatus(id, status) { return request.put(`/teacher/offering/${id}/status`, null, { params: { status } }) },
+  refreshStudents(id) { return request.post(`/teacher/offering/${id}/refresh-students`) },
+  remove(id) { return request.delete(`/teacher/offering/${id}`) },
+  cloneToClass(id, clazzNos) { return request.post(`/teacher/offering/${id}/clone`, clazzNos) }
 }
 
 export const syllabusApi = {
@@ -1155,7 +1186,7 @@ export const syllabusApi = {
 }
 
 // ============================================================
-// CTL S2: 毕业要求 + 课程目标
+// CTL S2: 结课要求 + 课程目标
 // ============================================================
 export const graduationApi = {
   list() { return request.get('/teacher/gr/list') },
@@ -1165,6 +1196,7 @@ export const graduationApi = {
   update(id, data) { return request.put(`/teacher/gr/${id}`, data) },
   remove(id) { return request.delete(`/teacher/gr/${id}`) },
   addIndicator(requirementId, data) { return request.post(`/teacher/gr/${requirementId}/indicator`, data) },
+  updateIndicator(indicatorId, data) { return request.put(`/teacher/gr/indicator/${indicatorId}`, data) },
   removeIndicator(indicatorId) { return request.delete(`/teacher/gr/indicator/${indicatorId}`) }
 }
 
@@ -1199,7 +1231,8 @@ export const scoringScoreApi = {
   enter(data) { return request.post('/teacher/scoring-score', data) },
   batch(itemId, scores) { return request.post('/teacher/scoring-score/batch', scores, { params: { itemId } }) },
   saveMatrix(offeringId, matrix) { return request.post('/teacher/scoring-score/matrix', matrix, { params: { offeringId } }) },
-  getMatrix(offeringId) { return request.get('/teacher/scoring-score/matrix', { params: { offeringId } }) },
+  getMatrix(offeringId, page = 1, pageSize = 20) { return request.get('/teacher/scoring-score/matrix', { params: { offeringId, page, pageSize } }) },
+  matrix(offeringId, page = 1, pageSize = 20) { return request.get('/teacher/scoring-score/matrix', { params: { offeringId, page, pageSize } }) },
   listByItem(itemId) { return request.get('/teacher/scoring-score/list', { params: { itemId } }) },
   importExcel(offeringId, file) {
     const formData = new FormData()
@@ -1214,6 +1247,15 @@ export const scoringScoreApi = {
       params: { offeringId },
       responseType: 'blob'
     })
+  },
+  exportGradeDetail(offeringId) {
+    return request.get('/teacher/export/grade-detail/download', {
+      params: { offeringId },
+      responseType: 'blob'
+    })
+  },
+  syncScores(offeringId) {
+    return request.post('/teacher/scoring-score/sync', null, { params: { offeringId } })
   }
 }
 
@@ -1236,6 +1278,14 @@ export const studentTeachingApi = {
   objectives(courseId) { return request.get('/student/teaching/objective/list', { params: { courseId } }) }
 }
 
+// 学生端课程评价 API
+export const studentEvalApi = {
+  // 获取我的评价
+  getMyEvaluation(offeringId) { return request.get('/student/evaluation/my', { params: { offeringId } }) },
+  // 提交评价
+  submitEvaluation(data) { return request.post('/student/evaluation/submit', data) }
+}
+
 // ============================================================
 // CTL S6: 质量评价 + 4 报告
 // ============================================================
@@ -1246,7 +1296,13 @@ export const qualityEvalApi = {
   create(data) { return request.post('/teacher/quality-evaluation', data) },
   save(id, data) { return request.put(`/teacher/quality-evaluation/${id}`, data) },
   finalize(id) { return request.post(`/teacher/quality-evaluation/${id}/finalize`) },
-  remove(id) { return request.delete(`/teacher/quality-evaluation/${id}`) }
+  remove(id) { return request.delete(`/teacher/quality-evaluation/${id}`) },
+  // 获取学生评价统计
+  getStats(offeringId) { return request.get('/teacher/quality-evaluation/stats', { params: { offeringId } }) },
+  // 获取评价维度数据
+  getDimensions(offeringId) { return request.get('/teacher/quality-evaluation/dimensions', { params: { offeringId } }) },
+  // 获取学生文字评价
+  getComments(offeringId) { return request.get('/teacher/quality-evaluation/comments', { params: { offeringId } }) }
 }
 
 export const qualityReportApi = {
@@ -1259,6 +1315,99 @@ export const qualityReportApi = {
       params: { offeringId, type, format, evaluationId },
       responseType: 'blob'
     })
+  }
+}
+
+// ============================================================
+// CTL T1-T6: 文档导出 + AI 辅助填写
+// ============================================================
+
+/** 文档导出（PDF/Excel 预览/下载） —— URL 不含 /api 前缀，PdfPreviewDialog 的 fetch 会自动补 */
+export const exportApi = {
+  syllabusPreviewUrl(courseId) {
+    return `/teacher/export/syllabus/preview?courseId=${courseId}`
+  },
+  syllabusDownloadUrl(courseId) {
+    return `/teacher/export/syllabus/download?courseId=${courseId}`
+  },
+  gradeDetailPreviewJson(offeringId) {
+    return request.get('/teacher/export/grade-detail/preview-json', { params: { offeringId } })
+  },
+  gradeDetailDownloadUrl(offeringId) {
+    return `/teacher/export/grade-detail/download?offeringId=${offeringId}`
+  },
+  qualityCompendiumPreviewUrl(offeringId, evaluationId) {
+    const p = new URLSearchParams({ offeringId })
+    if (evaluationId) p.set('evaluationId', evaluationId)
+    return `/teacher/export/quality-compendium/preview?${p.toString()}`
+  },
+  qualityCompendiumDownloadUrl(offeringId, evaluationId) {
+    const p = new URLSearchParams({ offeringId })
+    if (evaluationId) p.set('evaluationId', evaluationId)
+    return `/teacher/export/quality-compendium/download?${p.toString()}`
+  }
+}
+
+const aiLongTaskConfig = (params) => ({
+  params,
+  timeout: REQUEST_TIMEOUTS.AI_GENERATION,
+  timeoutMessage: 'AI 生成耗时较长，后台可能仍在继续执行，请稍后刷新页面查看最新结果'
+})
+
+/** LLM 辅助填写（统一 POST 表单参数） */
+export const aiAssistApi = {
+  syllabusFull(courseId) {
+    return request.post('/teacher/ai-assist/syllabus/full', null, aiLongTaskConfig({ courseId }))
+  },
+  syllabusIntro(courseId) {
+    return request.post('/teacher/ai-assist/syllabus/intro', null, aiLongTaskConfig({ courseId }))
+  },
+  syllabusGoals(courseId, type) {
+    return request.post('/teacher/ai-assist/syllabus/goals', null, aiLongTaskConfig({ courseId, type }))
+  },
+  syllabusChapters(courseId) {
+    return request.post('/teacher/ai-assist/syllabus/chapters', null, aiLongTaskConfig({ courseId }))
+  },
+  syllabusMethods(courseId) {
+    return request.post('/teacher/ai-assist/syllabus/methods', null, aiLongTaskConfig({ courseId }))
+  },
+  syllabusTextbooks(courseId) {
+    return request.post('/teacher/ai-assist/syllabus/textbooks', null, aiLongTaskConfig({ courseId }))
+  },
+  syllabusMainTask(courseId) {
+    return request.post('/teacher/ai-assist/syllabus/main-task', null, aiLongTaskConfig({ courseId }))
+  },
+  syllabusExerciseRequirements(courseId) {
+    return request.post('/teacher/ai-assist/syllabus/exercise-requirements', null, aiLongTaskConfig({ courseId }))
+  },
+  syllabusAssessmentMethods(courseId) {
+    return request.post('/teacher/ai-assist/syllabus/assessment-methods', null, aiLongTaskConfig({ courseId }))
+  },
+  syllabusAchievementFormula(courseId) {
+    return request.post('/teacher/ai-assist/syllabus/achievement-formula', null, aiLongTaskConfig({ courseId }))
+  },
+  syllabusReferencesList(courseId) {
+    return request.post('/teacher/ai-assist/syllabus/references-list', null, aiLongTaskConfig({ courseId }))
+  },
+  objectiveDescription(objectiveId) {
+    return request.post('/teacher/ai-assist/objective/description', null, aiLongTaskConfig({ objectiveId }))
+  },
+  attainmentAnalysis(offeringId, objectiveId) {
+    const params = { offeringId }
+    if (objectiveId) params.objectiveId = objectiveId
+    return request.post('/teacher/ai-assist/quality/attainment-analysis', null, aiLongTaskConfig(params))
+  },
+  lastRound(offeringId) {
+    return request.post('/teacher/ai-assist/quality/last-round', null, aiLongTaskConfig({ offeringId }))
+  },
+  qualityConclusion(evaluationId) {
+    return request.post('/teacher/ai-assist/quality/conclusion', null, aiLongTaskConfig({ evaluationId }))
+  },
+  qualityExistingIssues(evaluationId) {
+    return request.post('/teacher/ai-assist/quality/existing-issues', null, aiLongTaskConfig({ evaluationId }))
+  },
+  qualityEvaluationValidity(evaluationId) {
+    return request.post('/teacher/ai-assist/quality/evaluation-validity', null, aiLongTaskConfig({ evaluationId }))
   }
 }
 

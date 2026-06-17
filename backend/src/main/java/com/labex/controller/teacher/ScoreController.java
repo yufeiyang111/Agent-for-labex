@@ -293,10 +293,8 @@ public class ScoreController {
         Set<Integer> updatedStudents = new HashSet<>();
 
         for (Map<String, Object> itemData : items) {
-            Integer studentItemId = itemData.get("studentItemId") != null ?
-                    Integer.parseInt(itemData.get("studentItemId").toString()) : null;
-            Integer score = itemData.get("score") != null ?
-                    Integer.parseInt(itemData.get("score").toString()) : null;
+            Integer studentItemId = toInteger(itemData.get("studentItemId"));
+            Integer score = toInteger(itemData.get("score"));
 
             if (studentItemId == null || score == null) continue;
 
@@ -354,6 +352,19 @@ public class ScoreController {
             return Result.success("批量评分成功，共" + successCount + "条", null);
         }
         return Result.error("批量评分失败");
+    }
+
+    /**
+     * 安全地将Object转换为Integer，兼容JSON反序列化的Number类型（如Double）
+     */
+    private Integer toInteger(Object obj) {
+        if (obj == null) return null;
+        if (obj instanceof Number) return ((Number) obj).intValue();
+        try {
+            return Integer.parseInt(obj.toString());
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     /**

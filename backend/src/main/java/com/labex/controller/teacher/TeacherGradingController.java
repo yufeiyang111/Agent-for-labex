@@ -218,11 +218,22 @@ public class TeacherGradingController {
         result.put("studentId", studentId);
         result.put("studentName", student.getStudentName());
 
-        // 获取简答题列表
-        List<Question> shortAnswerQuestions = getManualGradingQuestions(exam.getPaperId());
+        // 获取试卷的所有题目
+        List<Question> allQuestions = getAllQuestionsFromPaper(exam.getPaperId());
+
+        // 获取题型名称映射
+        Map<Integer, String> typeNameMap = Map.of(
+                1, "填空题",
+                2, "单选题",
+                3, "多选题",
+                4, "判断题",
+                5, "简答题",
+                6, "编程题",
+                7, "综合题"
+        );
 
         List<Map<String, Object>> questionsWithAnswers = new ArrayList<>();
-        for (Question q : shortAnswerQuestions) {
+        for (Question q : allQuestions) {
             StudentQuestion sq = studentQuestionService.getOne(
                     new LambdaQueryWrapper<StudentQuestion>()
                             .eq(StudentQuestion::getExamId, examId)
@@ -233,10 +244,12 @@ public class TeacherGradingController {
             Map<String, Object> qInfo = new HashMap<>();
             qInfo.put("questionId", q.getId());
             qInfo.put("questionContent", q.getQuestion());
+            qInfo.put("typeName", typeNameMap.getOrDefault(q.getType(), "未知"));
             qInfo.put("fullScore", q.getScore());
             qInfo.put("studentAnswer", sq != null ? sq.getMyAnswer() : "");
             qInfo.put("currentScore", sq != null ? sq.getScore() : 0);
-            qInfo.put("graded", sq != null && sq.getGraded());
+            qInfo.put("graded", sq != null && Boolean.TRUE.equals(sq.getGraded()));
+            qInfo.put("isCorrect", sq != null ? sq.getIsCorrect() : null);
 
             questionsWithAnswers.add(qInfo);
         }
@@ -480,6 +493,19 @@ public class TeacherGradingController {
         return pqs.stream()
                 .map(pq -> questionService.getById(pq.getQuestionId()))
                 .filter(q -> q != null && q.getType() == 5) // 简答题
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 获取试卷的所有题目
+     */
+    private List<Question> getAllQuestionsFromPaper(Integer paperId) {
+        if (paperId == null) return List.of();
+
+        List<PaperQuestion> pqs = paperQuestionService.findByPaperId(paperId);
+        return pqs.stream()
+                .map(pq -> questionService.getById(pq.getQuestionId()))
+                .filter(q -> q != null)
                 .collect(Collectors.toList());
     }
 

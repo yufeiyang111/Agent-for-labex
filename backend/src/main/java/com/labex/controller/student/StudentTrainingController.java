@@ -2,6 +2,7 @@ package com.labex.controller.student;
 
 import com.labex.common.Result;
 import com.labex.entity.*;
+import com.labex.kg.service.StudentMasteryService;
 import com.labex.service.*;
 import com.labex.entity.QuestionTestCase;
 import lombok.extern.slf4j.Slf4j;
@@ -42,15 +43,19 @@ public class StudentTrainingController {
 
     @Autowired
     private ObjectMapper objectMapper;
+    @Autowired
+    private StudentMasteryService studentMasteryService;
 
     private Integer getStudentId(Authentication auth) {
         return Integer.parseInt(auth.getName());
     }
 
     @GetMapping("/list")
-    public Result<List<Map<String, Object>>> list() {
+    public Result<List<Map<String, Object>>> list(Authentication auth) {
+        Integer studentId = getStudentId(auth);
         List<TrainingSet> sets = trainingSetService.lambdaQuery()
                 .eq(TrainingSet::getState, 1)
+                .and(w -> w.isNull(TrainingSet::getOwnerStudentId).or().eq(TrainingSet::getOwnerStudentId, studentId))
                 .orderByDesc(TrainingSet::getCreateTime)
                 .list();
 
@@ -60,6 +65,8 @@ public class StudentTrainingController {
             item.put("name", ts.getName());
             item.put("description", ts.getDescription());
             item.put("totalScore", ts.getTotalScore());
+            item.put("source", ts.getSource());
+            item.put("personalized", ts.getOwnerStudentId() != null);
 
             // Question count
             long qCount = trainingSetQuestionService.lambdaQuery()
@@ -74,8 +81,9 @@ public class StudentTrainingController {
     }
 
     @GetMapping("/{id}")
-    public Result<Map<String, Object>> detail(@PathVariable Integer id) {
-        TrainingSet ts = trainingSetService.getById(id);
+    public Result<Map<String, Object>> detail(@PathVariable Integer id, Authentication auth) {
+        Integer studentId = getStudentId(auth);
+        TrainingSet ts = accessibleTrainingSet(id, studentId);
         if (ts == null) return Result.error("训练集不存在");
 
         List<TrainingSetQuestion> links = trainingSetQuestionService.findByTrainingSetId(id);
@@ -91,7 +99,12 @@ public class StudentTrainingController {
     }
 
     @GetMapping("/{id}/questions")
-    public Result<List<Map<String, Object>>> getQuestions(@PathVariable Integer id) {
+    public Result<List<Map<String, Object>>> getQuestions(@PathVariable Integer id, Authentication auth) {
+        Integer studentId = getStudentId(auth);
+        if (accessibleTrainingSet(id, studentId) == null) {
+            return Result.error("Training set unavailable");
+        }
+
         List<TrainingSetQuestion> links = trainingSetQuestionService.findByTrainingSetId(id);
         List<Map<String, Object>> questions = links.stream().map(link -> {
             Question q = questionService.getById(link.getQuestionId());
@@ -121,6 +134,10 @@ public class StudentTrainingController {
     @GetMapping("/{id}/my-records")
     public Result<List<Map<String, Object>>> myRecords(@PathVariable Integer id, Authentication auth) {
         Integer studentId = getStudentId(auth);
+        if (accessibleTrainingSet(id, studentId) == null) {
+            return Result.error("Training set unavailable");
+        }
+
         List<StudentTraining> records = studentTrainingService.lambdaQuery()
                 .eq(StudentTraining::getTrainingSetId, id)
                 .eq(StudentTraining::getStudentId, studentId)
@@ -145,6 +162,12 @@ public class StudentTrainingController {
             @PathVariable Integer id, @PathVariable Integer questionId,
             @RequestParam String myAnswer, Authentication auth) {
         Integer studentId = getStudentId(auth);
+        if (accessibleTrainingSet(id, studentId) == null) {
+            return Result.error("Training set unavailable");
+        }
+        if (!questionBelongsToSet(id, questionId)) {
+            return Result.error("Question is not in this training set");
+        }
 
         // Find or create latest attempt
         StudentTraining attempt = findOrCreateAttempt(id, studentId);
@@ -182,7 +205,7 @@ public class StudentTrainingController {
     @Transactional(rollbackFor = Exception.class)
     public Result<Map<String, Object>> submit(@PathVariable Integer id, Authentication auth) {
         Integer studentId = getStudentId(auth);
-        TrainingSet ts = trainingSetService.getById(id);
+        TrainingSet ts = accessibleTrainingSet(id, studentId);
         if (ts == null) return Result.error("训练集不存在");
 
         List<TrainingSetQuestion> links = trainingSetQuestionService.findByTrainingSetId(id);
@@ -312,12 +335,22 @@ public class StudentTrainingController {
         result.put("attemptCount", attempt.getAttemptCount());
         result.put("questionResults", questionResults);
 
+        try {
+            studentMasteryService.computeMastery(studentId, "Student " + studentId);
+        } catch (Exception e) {
+            log.warn("Failed to refresh mastery after training submit: {}", e.getMessage());
+        }
+
         return Result.success(result);
     }
 
     @PostMapping("/{id}/retry")
     public Result<Map<String, Object>> retry(@PathVariable Integer id, Authentication auth) {
         Integer studentId = getStudentId(auth);
+        if (accessibleTrainingSet(id, studentId) == null) {
+            return Result.error("Training set unavailable");
+        }
+
         StudentTraining lastAttempt = studentTrainingService.lambdaQuery()
                 .eq(StudentTraining::getTrainingSetId, id)
                 .eq(StudentTraining::getStudentId, studentId)
@@ -333,13 +366,6 @@ public class StudentTrainingController {
         newAttempt.setScore(0);
         studentTrainingService.save(newAttempt);
 
-        // Delete old unsubmitted answers so they don't leak into the new attempt
-        if (lastAttempt != null) {
-            studentTrainingQuestionService.lambdaUpdate()
-                    .eq(StudentTrainingQuestion::getAttemptId, lastAttempt.getId())
-                    .remove();
-        }
-
         return Result.success(Map.of(
                 "attemptId", newAttempt.getId(),
                 "attemptCount", newAttempt.getAttemptCount()
@@ -348,9 +374,19 @@ public class StudentTrainingController {
 
     @GetMapping("/{id}/result/{attemptId}")
     public Result<Map<String, Object>> getResult(
-            @PathVariable Integer id, @PathVariable Integer attemptId) {
+            @PathVariable Integer id, @PathVariable Integer attemptId,
+            Authentication auth) {
+        Integer studentId = getStudentId(auth);
+        if (accessibleTrainingSet(id, studentId) == null) {
+            return Result.error("Training set unavailable");
+        }
+
         StudentTraining attempt = studentTrainingService.getById(attemptId);
         if (attempt == null) return Result.error("记录不存在");
+
+        if (!Objects.equals(attempt.getTrainingSetId(), id) || !Objects.equals(attempt.getStudentId(), studentId)) {
+            return Result.error("Training result unavailable");
+        }
 
         List<StudentTrainingQuestion> answers = studentTrainingQuestionService.lambdaQuery()
                 .eq(StudentTrainingQuestion::getAttemptId, attemptId)
@@ -411,6 +447,14 @@ public class StudentTrainingController {
             @RequestParam String code,
             @RequestParam(defaultValue = "java") String language,
             Authentication auth) {
+        Integer studentId = getStudentId(auth);
+        if (accessibleTrainingSet(trainingSetId, studentId) == null) {
+            return Result.error("Training set unavailable");
+        }
+        if (!questionBelongsToSet(trainingSetId, questionId)) {
+            return Result.error("Question is not in this training set");
+        }
+
         Question question = questionService.getById(questionId);
         if (question == null || question.getType() == null || question.getType() != 6) {
             return Result.error("题目不是编程题");
@@ -437,7 +481,6 @@ public class StudentTrainingController {
         // Save code and run result to the current attempt for persistence
         if (auth != null) {
             try {
-                Integer studentId = getStudentId(auth);
                 StudentTraining attempt = findOrCreateAttempt(trainingSetId, studentId);
                 StudentTrainingQuestion stq = studentTrainingQuestionService.lambdaQuery()
                         .eq(StudentTrainingQuestion::getTrainingSetId, trainingSetId)
@@ -446,7 +489,10 @@ public class StudentTrainingController {
                         .eq(StudentTrainingQuestion::getAttemptId, attempt.getId())
                         .one();
 
-                String serializedAnswer = "{\"language\":\"" + actualLang + "\",\"code\":\"" + actualCode.replace("\"", "\\\"") + "\"}";
+                Map<String, String> answerMap = new HashMap<>();
+                answerMap.put("language", actualLang);
+                answerMap.put("code", actualCode);
+                String serializedAnswer = objectMapper.writeValueAsString(answerMap);
                 if (stq == null) {
                     stq = new StudentTrainingQuestion();
                     stq.setTrainingSetId(trainingSetId);
@@ -498,7 +544,6 @@ public class StudentTrainingController {
         // Also persist judge result to StudentTrainingQuestion if auth is available
         if (auth != null) {
             try {
-                Integer studentId = getStudentId(auth);
                 StudentTraining attempt = findOrCreateAttempt(trainingSetId, studentId);
                 StudentTrainingQuestion stq = studentTrainingQuestionService.lambdaQuery()
                         .eq(StudentTrainingQuestion::getTrainingSetId, trainingSetId)
@@ -524,7 +569,15 @@ public class StudentTrainingController {
     }
 
     private String serializeProgrammingAnswer(String code, String language) {
-        return "{\"language\":\"" + language + "\",\"code\":\"" + code.replace("\"", "\\\"") + "\"}";
+        try {
+            Map<String, String> answerMap = new HashMap<>();
+            answerMap.put("language", language);
+            answerMap.put("code", code);
+            return objectMapper.writeValueAsString(answerMap);
+        } catch (JsonProcessingException e) {
+            log.warn("Failed to serialize programming answer", e);
+            return "{\"language\":\"" + language + "\",\"code\":\"\"}";
+        }
     }
 
     @PostMapping("/run-code")
@@ -540,6 +593,25 @@ public class StudentTrainingController {
     }
 
     // ---- Private helpers ----
+
+    private TrainingSet accessibleTrainingSet(Integer trainingSetId, Integer studentId) {
+        TrainingSet ts = trainingSetService.getById(trainingSetId);
+        if (ts == null || !Objects.equals(ts.getState(), 1)) {
+            return null;
+        }
+        Integer ownerStudentId = ts.getOwnerStudentId();
+        if (ownerStudentId != null && !Objects.equals(ownerStudentId, studentId)) {
+            return null;
+        }
+        return ts;
+    }
+
+    private boolean questionBelongsToSet(Integer trainingSetId, Integer questionId) {
+        return trainingSetQuestionService.lambdaQuery()
+                .eq(TrainingSetQuestion::getTrainingSetId, trainingSetId)
+                .eq(TrainingSetQuestion::getQuestionId, questionId)
+                .count() > 0;
+    }
 
     private StudentTraining findOrCreateAttempt(Integer trainingSetId, Integer studentId) {
         StudentTraining latest = studentTrainingService.lambdaQuery()

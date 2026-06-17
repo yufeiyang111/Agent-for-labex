@@ -53,6 +53,10 @@
           <el-icon><DataAnalysis /></el-icon>
           <template #title>我的达成度</template>
         </el-menu-item>
+        <el-menu-item index="/student/course-evaluation">
+          <el-icon><ChatDotRound /></el-icon>
+          <template #title>课程评价</template>
+        </el-menu-item>
         <el-menu-item index="/student/profile">
           <el-icon><UserFilled /></el-icon>
           <template #title>个人中心</template>
@@ -143,22 +147,24 @@ const handleCommand = async (command) => {
 </script>
 
 <style lang="scss" scoped>
+// Biophilic 亲自然风格 Layout - 学生视角的阳光绿植空间
 .student-layout {
   display: flex;
   width: 100%;
   height: 100vh;
   overflow: hidden;
-  background: #ffffff;
+  background: #f8faf6;
 }
 
 .sidebar {
   width: 248px;
   height: 100%;
-  background: #ffffff;
-  border-right: 1px solid #f0f0f0;
+  background: linear-gradient(180deg, #ffffff 0%, #fafcf8 100%);
+  border-right: 1px solid #d4ddd0;
   display: flex;
   flex-direction: column;
-  transition: width 0.35s cubic-bezier(0.25, 0.1, 0.25, 1);
+  transition: width 0.22s ease;
+  box-shadow: 2px 0 12px rgba(90, 143, 92, 0.04);
 
   &.collapsed {
     width: 68px;
@@ -169,17 +175,18 @@ const handleCommand = async (command) => {
     display: flex;
     align-items: center;
     justify-content: center;
-    border-bottom: 1px solid #f0f0f0;
+    border-bottom: 1px solid #e4ebe0;
     overflow: hidden;
+    background: linear-gradient(135deg, #f4f8f0 0%, #ffffff 100%);
 
     .logo {
       display: flex;
       align-items: center;
       gap: 10px;
-      font-size: 20px;
-      font-weight: 700;
-      color: #0f172a;
-      letter-spacing: -0.5px;
+      font-size: 18px;
+      font-weight: 600;
+      color: #2c3e2c;
+      letter-spacing: -0.3px;
     }
   }
 
@@ -187,40 +194,40 @@ const handleCommand = async (command) => {
     border-right: none;
     flex: 1;
     overflow-y: auto;
-    padding: 12px;
+    padding: 12px 8px;
     background: transparent;
 
     :deep(.el-menu-item) {
-      height: 48px;
-      line-height: 48px;
-      border-radius: 12px;
-      margin-bottom: 4px;
-      color: #6e6e73;
+      height: 42px;
+      line-height: 42px;
+      border-radius: 8px;
+      margin-bottom: 2px;
+      color: #5a6b5a;
       font-size: 14px;
-      font-weight: 500;
-      transition: all 0.25s cubic-bezier(0.25, 0.1, 0.25, 1);
+      font-weight: 400;
+      transition: all 0.18s ease;
 
       .el-icon {
-        font-size: 18px;
-        margin-right: 12px;
+        font-size: 16px;
+        margin-right: 10px;
+        transition: color 0.18s ease;
       }
 
       &:hover {
-        background: #f5f5f7;
-        color: #1d1d1f;
-
-        .el-icon {
-          color: #4caf50;
-        }
+        background: #f4f8f0;
+        color: #2c3e2c;
+        filter: brightness(1.02);
       }
 
       &.is-active {
-        background: #e6f4ea;
-        color: #4caf50;
-        font-weight: 600;
+        background: linear-gradient(90deg, #e8f0e4 0%, transparent 100%);
+        color: #3d6b3f;
+        font-weight: 500;
+        border-left: 3px solid #5a8f5c;
+        border-radius: 0 8px 8px 0;
 
         .el-icon {
-          color: #4caf50;
+          color: #5a8f5c;
         }
       }
     }
@@ -228,17 +235,25 @@ const handleCommand = async (command) => {
 
   &.collapsed {
     .el-menu {
+      padding: 12px 6px;
+
       :deep(.el-menu-item) {
         padding: 0 !important;
         display: flex;
         align-items: center;
         justify-content: center;
-        min-width: 68px;
+        min-width: 56px;
 
         .el-icon {
           margin: 0;
           width: 18px;
           text-align: center;
+        }
+
+        &.is-active {
+          border-left: none;
+          border-bottom: 3px solid #5a8f5c;
+          border-radius: 8px 8px 0 0;
         }
       }
     }
@@ -250,32 +265,32 @@ const handleCommand = async (command) => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: #f5f5f7;
 }
 
 .header {
-  height: 64px;
-  background: #ffffff;
-  border-bottom: 1px solid #f0f0f0;
+  height: 56px;
+  background: linear-gradient(90deg, #ffffff 0%, #fafcf8 100%);
+  border-bottom: 1px solid #d4ddd0;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 28px;
+  padding: 0 24px;
+  box-shadow: 0 2px 8px rgba(90, 143, 92, 0.04);
 
   .header-left {
     display: flex;
     align-items: center;
-    gap: 16px;
+    gap: 12px;
 
     :deep(.el-button) {
-      padding: 10px;
-      border-radius: 10px;
-      color: #6e6e73;
-      transition: all 0.25s cubic-bezier(0.25, 0.1, 0.25, 1);
+      padding: 8px;
+      border-radius: 6px;
+      color: #5a6b5a;
+      transition: all 0.18s ease;
 
       &:hover {
-        background: #f5f5f7;
-        color: #4caf50;
+        background: #f4f8f0;
+        color: #3d6b3f;
       }
     }
   }
@@ -284,20 +299,21 @@ const handleCommand = async (command) => {
     .user-dropdown {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 8px;
       cursor: pointer;
-      padding: 8px 16px;
-      border-radius: 12px;
-      transition: all 0.25s cubic-bezier(0.25, 0.1, 0.25, 1);
+      padding: 6px 14px;
+      border-radius: 8px;
+      transition: all 0.18s ease;
 
       &:hover {
-        background: #f5f5f7;
+        background: #f4f8f0;
+        box-shadow: 0 1px 3px rgba(90, 143, 92, 0.06);
       }
 
       .username {
         font-size: 14px;
-        color: #1d1d1f;
-        font-weight: 500;
+        color: #2c3e2c;
+        font-weight: 400;
       }
     }
   }
@@ -305,9 +321,21 @@ const handleCommand = async (command) => {
 
 .main-content {
   flex: 1;
-  padding: 28px;
+  padding: 32px;
   overflow-y: auto;
-  background: #f5f5f7;
-  min-height: calc(100vh - 64px);
+  background: linear-gradient(180deg, #f8faf6 0%, #f4f8f0 100%);
+  min-height: calc(100vh - 56px);
+  position: relative;
+
+  // 微噪点纸纤维质感
+  &::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    opacity: 0.015;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.5'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+  }
 }
 </style>

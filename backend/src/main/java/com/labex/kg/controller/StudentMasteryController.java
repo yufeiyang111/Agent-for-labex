@@ -9,6 +9,8 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
+
 @Slf4j
 @RestController
 @RequestMapping("/mastery")
@@ -28,18 +30,27 @@ public class StudentMasteryController {
             return Result.error("Invalid user ID");
         }
 
-        // Trigger refresh on demand
-        masteryService.computeMastery(studentId, userId);
-        StudentMasteryDTO dto = masteryService.getMastery(studentId);
-        return Result.success(dto);
+        try {
+            masteryService.computeMastery(studentId, userId);
+            StudentMasteryDTO dto = masteryService.getMastery(studentId);
+            return Result.success(dto);
+        } catch (Exception e) {
+            log.warn("Load mastery failed for student {}: {}", studentId, e.getMessage());
+            return Result.success(emptyMastery());
+        }
     }
 
     /** Teacher view of a student's mastery */
     @GetMapping("/student/{studentId}")
     public Result<StudentMasteryDTO> studentState(@PathVariable int studentId) {
-        masteryService.computeMastery(studentId, "Student " + studentId);
-        StudentMasteryDTO dto = masteryService.getMastery(studentId);
-        return Result.success(dto);
+        try {
+            masteryService.computeMastery(studentId, "Student " + studentId);
+            StudentMasteryDTO dto = masteryService.getMastery(studentId);
+            return Result.success(dto);
+        } catch (Exception e) {
+            log.warn("Load mastery failed for student {}: {}", studentId, e.getMessage());
+            return Result.success(emptyMastery());
+        }
     }
 
     private String getCurrentUserId() {
@@ -48,5 +59,14 @@ public class StudentMasteryController {
             return auth.getName();
         }
         return "anonymous";
+    }
+
+    private StudentMasteryDTO emptyMastery() {
+        StudentMasteryDTO dto = new StudentMasteryDTO();
+        dto.setOverallMastery(0.5);
+        dto.setWeakPoints(new ArrayList<>());
+        dto.setStrongPoints(new ArrayList<>());
+        dto.setRadarData(new ArrayList<>());
+        return dto;
     }
 }

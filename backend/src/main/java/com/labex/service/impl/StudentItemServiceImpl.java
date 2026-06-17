@@ -28,8 +28,7 @@ public class StudentItemServiceImpl extends ServiceImpl<StudentItemMapper, Stude
         return this.list(
                 new LambdaQueryWrapper<StudentItem>()
                         .eq(StudentItem::getStudentId, studentId)
-                        .inSql(StudentItem::getItemId,
-                                "SELECT experiment_item_id FROM t_experiment_item WHERE experiment_id = " + experimentId)
+                        .apply("item_id IN (SELECT experiment_item_id FROM t_experiment_item WHERE experiment_id = {0})", experimentId)
         );
     }
 }

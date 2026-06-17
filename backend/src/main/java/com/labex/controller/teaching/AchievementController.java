@@ -76,22 +76,24 @@ public class AchievementController {
     @PreAuthorize("hasRole('STUDENT')")
     public Result<StudentAchievementVO> myAchievement(@RequestParam Integer offeringId) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        Integer studentId = Integer.parseInt(auth.getName());
+        String account = auth.getName();  // 学号，如 "23201335"
 
-        Student stu = studentService.getById(studentId);
+        // 通过学号查询学生
+        Student stu = studentService.findByStudentNo(account);
         if (stu == null) {
             return Result.error("学生信息不存在");
         }
+
         CourseOffering offering = offeringMapper.selectById(offeringId);
         if (offering == null) {
             return Result.error("开课不存在");
         }
         if (stu.getClazzNo() == null || !stu.getClazzNo().equals(offering.getClazzNo())) {
             log.warn("Student {} (clazz={}) tried to query offering {} (clazz={})",
-                    studentId, stu.getClazzNo(), offeringId, offering.getClazzNo());
+                    account, stu.getClazzNo(), offeringId, offering.getClazzNo());
             return Result.error("您不在该开课的班级中");
         }
 
-        return Result.success(engine.calcForStudent(offeringId, studentId));
+        return Result.success(engine.calcForStudent(offeringId, stu.getStudentId()));
     }
 }

@@ -10,8 +10,10 @@ import com.labex.labexagent.service.AgentCommandService;
 import com.labex.labexagent.permission.PermissionApprovalRequest;
 import com.labex.labexagent.permission.PermissionService;
 import com.labex.labexagent.service.AgentConversationService;
+import com.labex.labexagent.service.AgentInteractionService;
 import com.labex.labexagent.service.AgentTaskService;
 import com.labex.labexagent.service.TokenTracker;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.springframework.security.core.Authentication;
@@ -35,8 +37,9 @@ public class StudentAgentController {
     private final AgentTaskService taskService;
     private final TokenTracker tokenTracker;
     private final PermissionService permissionService;
+    private final AgentInteractionService interactionService;
 
-    public StudentAgentController(AgentLoopEngine agentLoopEngine, AgentCancellationRegistry cancellationRegistry, DiffService diffService, AgentCommandService commandService, AgentConversationService conversationService, AgentTaskService taskService, TokenTracker tokenTracker, PermissionService permissionService) {
+    public StudentAgentController(AgentLoopEngine agentLoopEngine, AgentCancellationRegistry cancellationRegistry, DiffService diffService, AgentCommandService commandService, AgentConversationService conversationService, AgentTaskService taskService, TokenTracker tokenTracker, PermissionService permissionService, AgentInteractionService interactionService) {
         this.agentLoopEngine = agentLoopEngine;
         this.cancellationRegistry = cancellationRegistry;
         this.diffService = diffService;
@@ -45,6 +48,7 @@ public class StudentAgentController {
         this.taskService = taskService;
         this.tokenTracker = tokenTracker;
         this.permissionService = permissionService;
+        this.interactionService = interactionService;
     }
 
     @GetMapping(value={"/conversations"})
@@ -215,12 +219,37 @@ public class StudentAgentController {
             String requestId = request.get("requestId");
             String action = request.get("action");
             String feedback = request.get("feedback");
-            PermissionService.PermissionApprovalResult result = this.permissionService.reply(requestId, action, feedback);
+            PermissionService.PermissionApprovalResult result = this.permissionService.reply(projectId, requestId, action, feedback);
             return Result.success(Map.of(
                     "granted", result.isGranted(),
                     "remember", result.isRemember(),
                     "feedback", result.getFeedback() == null ? "" : result.getFeedback()
             ));
+        } catch (Exception e) {
+            return Result.error(e.getMessage());
+        }
+    }
+
+    @PostMapping(value={"/question/reply"})
+    public Result<Map<String, Object>> replyQuestion(@PathVariable Integer projectId, @RequestBody Map<String, String> request, Authentication auth) {
+        try {
+            String requestId = request.get("requestId");
+            String action = request.get("action");
+            String answer = request.get("answer");
+            AgentInteractionService.UserQuestionResult result = this.interactionService.reply(
+                    projectId,
+                    this.getStudentId(auth),
+                    requestId,
+                    action,
+                    answer
+            );
+            LinkedHashMap<String, Object> response = new LinkedHashMap<>();
+            response.put("answered", result.answered());
+            response.put("cancelled", result.cancelled());
+            response.put("timedOut", result.timedOut());
+            response.put("answer", result.answer() == null ? "" : result.answer());
+            response.put("feedback", result.feedback() == null ? "" : result.feedback());
+            return Result.success(response);
         } catch (Exception e) {
             return Result.error(e.getMessage());
         }

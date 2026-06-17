@@ -7,6 +7,8 @@ import com.labex.labexagent.tool.ToolDefinition;
 import com.labex.labexagent.tool.ToolResult;
 import com.labex.labexagent.tool.ToolSupport;
 import com.labex.service.StudentProjectService;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -28,14 +30,35 @@ implements AgentTool {
             return ToolResult.failed("file_path is required");
         }
         String content = this.studentProjectService.readProjectFile(context.getStudentId(), context.getProject().getProjectId(), path);
-        int offset = args.has("offset") ? args.get("offset").getAsInt() : 0;
-        int limit = args.has("limit") ? args.get("limit").getAsInt() : 2000;
-        String[] lines = content.split("\n");
+        int offset = Math.max(0, args.has("offset") ? args.get("offset").getAsInt() : 0);
+        int limit = Math.max(1, args.has("limit") ? args.get("limit").getAsInt() : 2000);
+        String[] lines = content.split("\n", -1);
+        offset = Math.min(offset, lines.length);
+        int end = Math.min(offset + limit, lines.length);
         StringBuilder result = new StringBuilder();
-        for (int i = offset; i < Math.min(offset + limit, lines.length); ++i) {
+        result.append("[read_file path=").append(path)
+                .append(" lines=").append(lines.length == 0 ? 0 : offset + 1)
+                .append("-").append(end)
+                .append("/").append(lines.length)
+                .append(" sha256=").append(shortHash(content))
+                .append("]\n");
+        for (int i = offset; i < end; ++i) {
             result.append(i + 1).append(": ").append(lines[i]).append("\n");
         }
         return ToolResult.ok((String)result.toString());
     }
-}
 
+    private String shortHash(String content) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] bytes = digest.digest((content == null ? "" : content).getBytes(StandardCharsets.UTF_8));
+            StringBuilder out = new StringBuilder();
+            for (int i = 0; i < Math.min(8, bytes.length); i++) {
+                out.append(String.format("%02x", bytes[i]));
+            }
+            return out.toString();
+        } catch (Exception e) {
+            return "";
+        }
+    }
+}

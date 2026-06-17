@@ -3,6 +3,8 @@ package com.labex.service;
 import com.baomidou.mybatisplus.extension.service.IService;
 import com.labex.entity.Student;
 
+import java.util.List;
+
 /**
  * 学生服务接口
  */
@@ -17,6 +19,13 @@ public interface StudentService extends IService<Student> {
      * 批量导入学生
      */
     void batchImport(String clazzNo, java.util.List<Student> students);
+
+    /**
+     * List students attached to a teaching class.
+     * Uses both the primary t_student.clazz_no field and the t_student_clazz relation table
+     * so CTL features keep working with legacy and multi-class data.
+     */
+    List<Student> listByTeachingClazz(String clazzNo);
 
     /**
      * 保存或更新学生，同时维护学生班级关联

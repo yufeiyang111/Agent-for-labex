@@ -1,1098 +1,752 @@
-﻿<template>
-  <div class="grading-page">
-    <!-- 面包屑导航 -->
-    <el-breadcrumb separator="/" class="breadcrumb">
-      <el-breadcrumb-item :to="{ path: '/teacher' }">教师首页</el-breadcrumb-item>
-      <el-breadcrumb-item>考试批改</el-breadcrumb-item>
-    </el-breadcrumb>
+<template>
+  <div class="grading-page wabi-page">
+    <div class="wabi-body">
+      <div class="page-header">
+        <h2 class="page-title">考试批改中心</h2>
+        <p class="page-desc">点击考试卡片查看学生答题情况</p>
+      </div>
 
-    <!-- 页面标题 -->
-    <div class="page-header">
-      <h2 class="page-title">考试批改中心</h2>
-      <p class="page-desc">点击考试卡片查看学生答题情况</p>
-    </div>
-
-    <!-- 主体内容区 - 左右布局 -->
-    <div class="main-content">
-      <!-- 左侧：考试列表 -->
-      <div class="exams-panel" :class="{ collapsed: sidebarCollapsed }">
-        <template v-if="!sidebarCollapsed">
+      <div class="grading-layout">
+        <!-- 左侧考试列表 -->
+        <div class="exam-panel">
           <div class="panel-header">
-            <div class="panel-title">考试列表</div>
-            <el-button text size="small" @click="sidebarCollapsed = true" class="collapse-btn">
-              <el-icon><DArrowLeft /></el-icon>
-            </el-button>
+            <span class="panel-title">考试列表</span>
+            <el-select v-model="examFilter" size="small" style="width: 120px" @change="loadExams(true)">
+              <el-option label="全部" value="all" />
+              <el-option label="待批改" value="pending" />
+              <el-option label="已批改" value="graded" />
+            </el-select>
           </div>
-          <div class="exam-list" ref="examListRef" @scroll="handleExamScroll" v-loading="loading">
+          <div
+            class="exam-list"
+            ref="examListRef"
+            @scroll="handleExamScroll"
+            v-loading="loading"
+          >
             <div
               v-for="exam in displayedExams"
               :key="exam.id"
-              class="exam-card"
+              class="exam-item"
               :class="{ active: selectedExamId === exam.id }"
               @click="handleExamClick(exam.id)"
             >
               <div class="exam-info">
                 <span class="exam-name">{{ exam.examName }}</span>
-                <span class="exam-time">{{ formatDateTime(exam.examDate) }}</span>
+                <span class="exam-time">{{ formatDateTime(exam.examDate || exam.time) }}</span>
               </div>
-              <div class="exam-badge" v-if="getPendingCount(exam.id) > 0">
-                {{ getPendingCount(exam.id) }} 待批
-              </div>
-              <el-icon class="exam-arrow"><ArrowRight /></el-icon>
+              <span v-if="exam._pendingCount > 0" class="pending-badge">
+                {{ exam._pendingCount }} 待批
+              </span>
             </div>
-            <el-empty v-if="!examList.length" description="暂无可批改的考试" />
-            <div v-if="loadingMoreExams" class="loading-more">
-              <el-icon class="is-loading"><Loading /></el-icon>
-              <span>加载中...</span>
+            <div v-if="!examList.length && !loading" class="list-empty">
+              <p>暂无考试</p>
             </div>
-            <div v-if="!hasMoreExams && displayedExams.length > 0" class="no-more-data">
-              已加载全部 {{ examList.length }} 个考试
-            </div>
-          </div>
-        </template>
-        <template v-else>
-          <div class="expand-placeholder" @click="sidebarCollapsed = false">
-            <el-icon class="expand-icon"><DArrowRight /></el-icon>
-          </div>
-        </template>
-      </div>
-
-      <!-- 右侧：答题详情 -->
-      <div class="details-panel" v-if="selectedExam">
-        <!-- 考试信息卡 -->
-        <div class="exam-header-card">
-          <div class="exam-header-info">
-            <div class="exam-header-name">{{ selectedExam.examName }}</div>
-            <div class="exam-header-meta">
-              <span>考试时间：{{ formatDateTime(selectedExam.examDate) }}</span>
-            </div>
+            <div v-if="loadingMoreExams" class="loading-more">加载中...</div>
           </div>
         </div>
 
-        <!-- 统计卡片 -->
-        <div class="stats-grid">
-          <div class="stat-card">
-            <div class="stat-value">{{ pendingStudents.length }}</div>
-            <div class="stat-label">待批学生</div>
+        <!-- 右侧批改详情 -->
+        <div class="grading-detail">
+          <div class="panel-header">
+            <span class="panel-title">{{ selectedExamName || '请选择考试' }}</span>
+            <el-radio-group v-model="studentFilter" size="small" @change="filterStudents">
+              <el-radio-button value="all">全部</el-radio-button>
+              <el-radio-button value="pending">待批改</el-radio-button>
+              <el-radio-button value="graded">已批改</el-radio-button>
+            </el-radio-group>
           </div>
-          <div class="stat-card">
-            <div class="stat-value">{{ gradedStudents.length }}</div>
-            <div class="stat-label">已批学生</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-value">{{ totalPending }}</div>
-            <div class="stat-label">待批题目</div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-value">{{ avgAutoScore }}</div>
-            <div class="stat-label">平均自动分</div>
-          </div>
-        </div>
-
-        <!-- 监考预警 -->
-        <div class="invigilation-section" v-loading="invigilationLoading">
-          <el-card class="invigilation-card">
-            <div class="invigilation-head">
-              <div>
-                <h3>监考预警</h3>
-                <p>学生切换标签页或窗口失焦时会自动记录</p>
-              </div>
-              <el-button size="small" @click="loadInvigilationEvents(selectedExamId)">刷新</el-button>
+          <div class="detail-content" v-loading="loadingSubmissions">
+            <div v-if="!selectedExamId" class="list-empty">
+              <p>请从左侧选择一个考试</p>
             </div>
-
-            <div class="invigilation-metrics">
-              <span>异常次数：<strong>{{ invigilationTotal }}</strong></span>
-              <span>涉及学生：<strong>{{ affectedStudents }}</strong></span>
-              <span>最近发生：<strong>{{ formatDateTime(invigilationLatestAt) }}</strong></span>
+            <div v-else-if="!filteredSubmissions.length" class="list-empty">
+              <p>{{ studentFilter === 'pending' ? '暂无待批改学生' : studentFilter === 'graded' ? '暂无已批改学生' : '暂无提交数据' }}</p>
             </div>
-
-            <el-table :data="invigilationSummary" size="small" max-height="200" empty-text="暂无监考异常">
-              <el-table-column prop="studentName" label="学生" min-width="120" />
-              <el-table-column prop="studentNo" label="学号" width="120" />
-              <el-table-column prop="warningCount" label="异常次数" width="80" />
-              <el-table-column label="最近时间" min-width="160">
-                <template #default="{ row }">{{ formatDateTime(row.latestAt) }}</template>
-              </el-table-column>
-            </el-table>
-
-            <div class="event-subtitle">最近事件</div>
-            <div class="event-list" ref="eventListRef" @scroll="handleEventScroll">
-              <div v-if="!displayedEvents.length" class="empty-events">暂无事件明细</div>
-              <div v-for="event in displayedEvents" :key="event.id || event.occurredAt" class="event-item">
-                <div class="event-time">{{ formatDateTime(event.occurredAt) }}</div>
-                <div class="event-student">{{ event.studentName }} ({{ event.studentNo }})</div>
-                <div class="event-type">
-                  <el-tag size="small" :type="eventTagType(event.eventType)">{{ eventTypeText(event.eventType) }}</el-tag>
+            <div v-else class="submission-list">
+              <div v-for="sub in paginatedSubmissions" :key="sub.studentId" class="submission-item">
+                <div class="student-info">
+                  <span class="student-no">{{ sub.studentNo }}</span>
+                  <span class="student-name">{{ sub.studentName }}</span>
                 </div>
-                <div class="event-desc">{{ event.eventDesc }}</div>
-              </div>
-              <div v-if="loadingMoreEvents" class="loading-more">
-                <el-icon class="is-loading"><Loading /></el-icon>
-                <span>加载中...</span>
-              </div>
-              <div v-if="!hasMoreEvents && displayedEvents.length > 0" class="no-more-events">
-                已加载全部 {{ invigilationEvents.length }} 条事件
+                <div class="submission-meta">
+                  <span class="wabi-tag" :class="sub.graded ? 'wabi-tag-accent' : 'wabi-tag-warning'">
+                    {{ sub.graded ? '已批改' : '待批改' }}
+                  </span>
+                  <span v-if="sub.finalScore != null" class="score">{{ sub.finalScore }} 分</span>
+                  <span v-else-if="sub.autoScore != null" class="score auto-score">{{ sub.autoScore }} 分(自动)</span>
+                </div>
+                <el-button size="small" text @click="handleGrade(sub)" class="wabi-btn-text">
+                  {{ sub.graded ? '查看' : '批改' }}
+                </el-button>
               </div>
             </div>
-          </el-card>
+          </div>
+          <!-- 分页组件 - 固定在底部 -->
+          <div v-if="filteredSubmissions.length" class="detail-pagination">
+            <el-pagination
+              v-model:current-page="subPagination.page"
+              v-model:page-size="subPagination.pageSize"
+              :total="filteredSubmissions.length"
+              :page-sizes="[10, 20, 50, 100]"
+              layout="total, sizes, prev, pager, next"
+              small
+              background
+            />
+          </div>
+          <!-- 统计信息 -->
+          <div v-if="submissions.length" class="detail-footer">
+            <span>共 {{ submissions.length }} 名学生</span>
+            <span>待批改：{{ submissions.filter(s => !s.graded).length }}</span>
+            <span>已批改：{{ submissions.filter(s => s.graded).length }}</span>
+          </div>
         </div>
-
-        <!-- 学生列表 -->
-        <div class="students-section">
-          <el-tabs v-model="studentTab" class="student-tabs">
-            <el-tab-pane label="待批改" name="pending">
-              <div class="student-list" v-if="pendingStudents.length > 0">
-                <div
-                  v-for="student in paginatedStudents"
-                  :key="student.studentId"
-                  class="student-item"
-                  @click="openGradingDialog(student)"
-                >
-                  <div class="student-info">
-                    <div class="student-avatar pending">{{ student.studentName?.charAt(0) || 'S' }}</div>
-                    <div class="student-details">
-                      <div class="student-name">{{ student.studentName }}</div>
-                      <div class="student-meta">{{ student.studentNo }}</div>
-                    </div>
-                  </div>
-                  <div class="student-score">
-                    <span class="score-text">待批 {{ student.pendingCount }} 题</span>
-                    <span class="score-auto">自动 {{ student.autoScore || 0 }} 分</span>
-                  </div>
-                  <el-icon class="item-arrow"><ArrowRight /></el-icon>
-                </div>
-              </div>
-              <div v-else class="empty-student-list">
-                <el-empty description="没有待批改的学生" :image-size="60" />
-              </div>
-              <el-pagination
-                v-if="pendingStudents.length > 0"
-                v-model:current-page="pagination.page"
-                v-model:page-size="pagination.pageSize"
-                :page-sizes="[10, 20, 50]"
-                :total="pendingStudents.length"
-                layout="total, prev, pager, next"
-                @size-change="handlePageChange"
-                @current-change="handlePageChange"
-                class="list-pagination"
-              />
-            </el-tab-pane>
-
-            <el-tab-pane label="已批改" name="graded">
-              <div class="student-list" v-if="gradedStudents.length > 0">
-                <div
-                  v-for="student in gradedStudents"
-                  :key="student.studentId"
-                  class="student-item graded"
-                >
-                  <div class="student-info">
-                    <div class="student-avatar graded">{{ student.studentName?.charAt(0) || 'S' }}</div>
-                    <div class="student-details">
-                      <div class="student-name">{{ student.studentName }}</div>
-                      <div class="student-meta">{{ student.studentNo }}</div>
-                    </div>
-                  </div>
-                  <div class="student-score">
-                    <span class="score-final">总分 {{ student.finalScore || 0 }} 分</span>
-                    <span class="score-time">{{ formatDateTime(student.gradedAt) }}</span>
-                  </div>
-                  <el-tag type="success" size="small">已完成</el-tag>
-                </div>
-              </div>
-              <div v-else class="empty-student-list">
-                <el-empty description="暂无已批改的学生" :image-size="60" />
-              </div>
-            </el-tab-pane>
-          </el-tabs>
-        </div>
-      </div>
-
-      <!-- 空状态 -->
-      <div class="empty-panel" v-else>
-        <el-empty description="请从左侧选择一个考试" />
       </div>
     </div>
 
     <!-- 批改对话框 -->
-    <el-dialog v-model="gradingDialogVisible" title="按题批改" width="900px" destroy-on-close>
-      <div class="grading-head">
-        <div>学生：{{ currentStudent?.studentName || '-' }}</div>
-        <div>学号：{{ currentStudent?.studentNo || '-' }}</div>
-        <div class="auto-score">自动分：{{ currentStudent?.autoScore ?? 0 }}</div>
+    <el-dialog v-model="gradeDialogVisible" :title="`批改 - ${currentStudent?.studentName || ''}`" width="1000" class="wabi-dialog">
+      <div v-loading="loadingQuestions">
+        <div v-if="!studentQuestions.length" class="list-empty">
+          <p>暂无题目数据</p>
+        </div>
+        <div v-else class="grade-questions">
+          <div v-for="(q, idx) in studentQuestions" :key="q.questionId" class="grade-question-item">
+            <div class="question-header">
+              <span class="question-index">{{ idx + 1 }}</span>
+              <span class="question-type">{{ q.typeName }}</span>
+              <span class="question-score">满分：{{ q.maxScore }}</span>
+            </div>
+            <div class="question-content">{{ q.question }}</div>
+            <div class="student-answer">
+              <div class="answer-label">学生答案：</div>
+              <div class="answer-content">{{ q.studentAnswer || '未作答' }}</div>
+            </div>
+            <div v-if="q.correctAnswer" class="correct-answer">
+              <div class="answer-label">参考答案：</div>
+              <div class="answer-content">{{ q.correctAnswer }}</div>
+            </div>
+            <div class="grade-input">
+              <span class="grade-label">评分：</span>
+              <el-input-number
+                v-model="q.score"
+                :min="0"
+                :max="q.maxScore"
+                size="small"
+                :disabled="currentStudent?.graded"
+              />
+              <span class="grade-max">/ {{ q.maxScore }}</span>
+            </div>
+          </div>
+        </div>
       </div>
-
-      <el-scrollbar height="480">
-        <div v-if="!pendingQuestions.length" class="empty-q">该学生暂时无待批题目</div>
-        <el-card v-for="(q, index) in pendingQuestions" :key="q.questionId" class="question-card" shadow="never">
-          <div class="q-top">
-            <strong>题目 {{ index + 1 }}</strong>
-            <span>满分 {{ q.fullScore }} 分</span>
-          </div>
-          <div class="q-content" v-html="q.questionContent"></div>
-          <div class="q-answer">
-            <div class="label">学生答案</div>
-            <div class="value">{{ q.studentAnswer || '未作答' }}</div>
-          </div>
-          <div class="q-score">
-            <span>给分</span>
-            <el-input-number v-model="q.score" :min="0" :max="q.fullScore" />
-          </div>
-        </el-card>
-      </el-scrollbar>
-
       <template #footer>
-        <el-button @click="gradingDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitting" @click="submitGrades">提交批改</el-button>
+        <el-button @click="gradeDialogVisible = false" class="wabi-btn-ghost">
+          {{ currentStudent?.graded ? '关闭' : '取消' }}
+        </el-button>
+        <el-button
+          v-if="!currentStudent?.graded"
+          type="primary"
+          @click="submitGrade"
+          :loading="submitting"
+          class="wabi-btn-primary"
+        >
+          提交评分
+        </el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Loading, ArrowRight, DArrowLeft, DArrowRight } from '@element-plus/icons-vue'
-import { teacherApi } from '@/api/index.js'
+import { teacherApi } from '@/api'
+
+const gradingApi = teacherApi.grading
+const examApi = teacherApi.exam
 
 const loading = ref(false)
-const submitting = ref(false)
-const invigilationLoading = ref(false)
-const loadingMoreEvents = ref(false)
 const loadingMoreExams = ref(false)
-const sidebarCollapsed = ref(false)
-const studentTab = ref('pending')
-
+const loadingSubmissions = ref(false)
+const loadingQuestions = ref(false)
+const submitting = ref(false)
 const examList = ref([])
+const allSubmissions = ref([])
+const submissions = ref([])
 const selectedExamId = ref(null)
-const pendingStudents = ref([])
-const gradedStudents = ref([])
-
-const gradingDialogVisible = ref(false)
+const examListRef = ref()
+const gradeDialogVisible = ref(false)
 const currentStudent = ref(null)
-const pendingQuestions = ref([])
+const studentQuestions = ref([])
+const examFilter = ref('all')
+const studentFilter = ref('all')
 
-const invigilationTotal = ref(0)
-const affectedStudents = ref(0)
-const invigilationLatestAt = ref(null)
-const invigilationSummary = ref([])
-const invigilationEvents = ref([])
+const PAGE_SIZE = 20
+const currentPage = ref(1)
+const hasMore = ref(true)
 
-const eventListRef = ref(null)
-const examListRef = ref(null)
-const INITIAL_EVENT_COUNT = 15
-const LOAD_MORE_EVENT_COUNT = 10
-const eventDisplayCount = ref(INITIAL_EVENT_COUNT)
-
-const INITIAL_EXAM_COUNT = 10
-const LOAD_MORE_EXAM_COUNT = 8
-const examDisplayCount = ref(INITIAL_EXAM_COUNT)
-
-const pagination = ref({ page: 1, pageSize: 24 })
-
-const displayedExams = computed(() => {
-  return examList.value.slice(0, examDisplayCount.value)
-})
-
-const hasMoreExams = computed(() => {
-  return examDisplayCount.value < examList.value.length
-})
-
-const displayedEvents = computed(() => {
-  return invigilationEvents.value.slice(0, eventDisplayCount.value)
-})
-
-const hasMoreEvents = computed(() => {
-  return eventDisplayCount.value < invigilationEvents.value.length
-})
-
-const selectedExam = computed(() => {
-  return examList.value.find(exam => exam.id === selectedExamId.value)
-})
-
-const totalPending = computed(() => pendingStudents.value.reduce((sum, s) => sum + (s.pendingCount || 0), 0))
-const avgAutoScore = computed(() => {
-  if (!pendingStudents.value.length) return 0
-  const total = pendingStudents.value.reduce((sum, s) => sum + (s.autoScore || 0), 0)
-  return Math.round(total / pendingStudents.value.length)
-})
-const paginatedStudents = computed(() => {
-  const start = (pagination.value.page - 1) * pagination.value.pageSize
-  const end = start + pagination.value.pageSize
-  return pendingStudents.value.slice(start, end)
-})
-
-onMounted(loadPendingExams)
-
-function getPendingCount(examId) {
-  return 0
+// 提交列表分页
+const subPagination = ref({ page: 1, pageSize: 20, total: 0 })
+const handleSubPageChange = () => {
+  // computed 自动更新
 }
 
-function resetInvigilationState() {
-  invigilationTotal.value = 0
-  affectedStudents.value = 0
-  invigilationLatestAt.value = null
-  invigilationSummary.value = []
-  invigilationEvents.value = []
-}
+const selectedExamName = computed(() => {
+  const exam = examList.value.find(e => e.id === selectedExamId.value)
+  return exam?.examName || ''
+})
 
-function formatDateTime(value) {
-  if (!value) return '-'
-  return new Date(value).toLocaleString('zh-CN')
-}
+const displayedExams = computed(() => examList.value)
 
-function eventTagType(type) {
-  if (type === 'TAB_HIDDEN') return 'warning'
-  if (type === 'WINDOW_BLUR') return 'danger'
-  return 'info'
-}
+// 分页后的提交列表
+const paginatedSubmissions = computed(() => {
+  const start = (subPagination.value.page - 1) * subPagination.value.pageSize
+  const end = start + subPagination.value.pageSize
+  return filteredSubmissions.value.slice(start, end)
+})
 
-function eventTypeText(type) {
-  if (type === 'TAB_HIDDEN') return '切换标签页'
-  if (type === 'WINDOW_BLUR') return '窗口失焦'
-  return type || '-'
-}
-
-async function loadPendingExams() {
-  try {
-    const res = await teacherApi.grading.getPendingExams()
-    examList.value = res.data || []
-    examDisplayCount.value = INITIAL_EXAM_COUNT
-  } catch {
-    ElMessage.error('加载考试列表失败')
+const filteredSubmissions = computed(() => {
+  let result = submissions.value
+  if (studentFilter.value === 'pending') {
+    result = result.filter(s => !s.graded)
+  } else if (studentFilter.value === 'graded') {
+    result = result.filter(s => s.graded)
   }
+  subPagination.value.total = result.length
+  const start = (subPagination.value.page - 1) * subPagination.value.pageSize
+  return result.slice(start, start + subPagination.value.pageSize)
+})
+
+const formatDateTime = (date) => {
+  if (!date) return '-'
+  return new Date(date).toLocaleString('zh-CN')
 }
 
-const loadMoreExams = () => {
-  if (loadingMoreExams.value || !hasMoreExams.value) return
-  loadingMoreExams.value = true
-  setTimeout(() => {
-    examDisplayCount.value += LOAD_MORE_EXAM_COUNT
-    loadingMoreExams.value = false
-  }, 300)
+const filterStudents = () => {
+  // computed 会自动更新
 }
 
-const handleExamScroll = (e) => {
-  const { scrollTop, scrollHeight, clientHeight } = e.target
-  if (scrollHeight - scrollTop - clientHeight < 50) {
-    loadMoreExams()
+const loadExams = async (reset = false) => {
+  if (reset) {
+    currentPage.value = 1
+    examList.value = []
+    hasMore.value = true
   }
-}
-
-async function loadPendingStudents(examId) {
-  const res = await teacherApi.grading.getPendingStudents(examId)
-  pendingStudents.value = res.data || []
-}
-
-async function loadGradedStudents(examId) {
-  const res = await teacherApi.grading.getGradedStudents(examId)
-  gradedStudents.value = res.data || []
-}
-
-async function loadInvigilationEvents(examId) {
-  if (!examId) {
-    resetInvigilationState()
-    return
-  }
-  invigilationLoading.value = true
-  try {
-    const res = await teacherApi.grading.getInvigilationEvents(examId)
-    invigilationTotal.value = res.data?.totalEvents || 0
-    affectedStudents.value = res.data?.affectedStudents || 0
-    invigilationLatestAt.value = res.data?.latestAt || null
-    invigilationSummary.value = res.data?.studentSummary || []
-    invigilationEvents.value = res.data?.events || []
-    eventDisplayCount.value = INITIAL_EVENT_COUNT
-  } catch {
-    ElMessage.error('加载监考记录失败')
-  } finally {
-    invigilationLoading.value = false
-  }
-}
-
-const loadMoreEvents = () => {
-  if (loadingMoreEvents.value || !hasMoreEvents.value) return
-  loadingMoreEvents.value = true
-  setTimeout(() => {
-    eventDisplayCount.value += LOAD_MORE_EVENT_COUNT
-    loadingMoreEvents.value = false
-  }, 300)
-}
-
-const handleEventScroll = (e) => {
-  const { scrollTop, scrollHeight, clientHeight } = e.target
-  if (scrollHeight - scrollTop - clientHeight < 50) {
-    loadMoreEvents()
-  }
-}
-
-async function handleExamClick(examId) {
-  selectedExamId.value = examId
-  pagination.value.page = 1
   loading.value = true
   try {
-    await Promise.all([loadPendingStudents(examId), loadGradedStudents(examId), loadInvigilationEvents(examId)])
-  } catch {
-    ElMessage.error('加载考试数据失败')
+    const params = { page: currentPage.value, pageSize: PAGE_SIZE }
+    const res = await examApi.list(params)
+    let data = res.data?.list || res.data || []
+
+    // 如果选择只显示待批改，需要过滤
+    if (examFilter.value === 'pending') {
+      // 这里简化处理，实际可能需要后端支持
+      data = data.filter(exam => exam.state === 1)
+    }
+
+    if (reset) {
+      examList.value = data
+    } else {
+      examList.value.push(...data)
+    }
+    hasMore.value = data.length === PAGE_SIZE
+  } catch (error) {
+    console.error('加载考试列表失败:', error)
   } finally {
     loading.value = false
   }
 }
 
-async function handlePageChange() {
-  // 分页变化不需要重新加载
-}
-
-async function openGradingDialog(student) {
-  currentStudent.value = student
-  gradingDialogVisible.value = true
-  try {
-    const res = await teacherApi.grading.getStudentQuestions(selectedExamId.value, student.studentId)
-    pendingQuestions.value = (res.data?.questions || []).map((q) => ({ ...q, score: q.currentScore || 0 }))
-  } catch {
-    ElMessage.error('加载题目失败')
+const handleExamScroll = (e) => {
+  const { scrollTop, scrollHeight, clientHeight } = e.target
+  if (scrollHeight - scrollTop - clientHeight < 50 && !loadingMoreExams.value && hasMore.value) {
+    loadingMoreExams.value = true
+    currentPage.value++
+    loadExams().finally(() => {
+      loadingMoreExams.value = false
+    })
   }
 }
 
-async function submitGrades() {
-  if (!currentStudent.value) return
+const handleExamClick = async (examId) => {
+  selectedExamId.value = examId
+  loadingSubmissions.value = true
+  studentFilter.value = 'all'
+  subPagination.value.page = 1
+  try {
+    // 同时获取待批改和已批改的学生
+    const [pendingRes, gradedRes] = await Promise.all([
+      gradingApi.getPendingStudents(examId),
+      gradingApi.getGradedStudents(examId)
+    ])
+
+    const pending = (pendingRes.data || []).map(s => ({ ...s, graded: false }))
+    const graded = (gradedRes.data || []).map(s => ({ ...s, graded: true }))
+
+    allSubmissions.value = [...pending, ...graded]
+    submissions.value = allSubmissions.value
+
+    // 更新考试列表中的待批改数量
+    const exam = examList.value.find(e => e.id === examId)
+    if (exam) {
+      exam._pendingCount = pending.length
+    }
+  } catch (error) {
+    console.error('加载提交列表失败:', error)
+  } finally {
+    loadingSubmissions.value = false
+  }
+}
+
+const handleGrade = async (sub) => {
+  currentStudent.value = sub
+  gradeDialogVisible.value = true
+  loadingQuestions.value = true
+  try {
+    const res = await gradingApi.getStudentQuestions(selectedExamId.value, sub.studentId)
+    // 后端返回格式: { questions: [{ questionId, questionContent, fullScore, studentAnswer, currentScore, graded }] }
+    const questions = res.data?.questions || res.data || []
+    studentQuestions.value = questions.map(q => ({
+      questionId: q.questionId,
+      typeName: q.typeName || '简答题',
+      question: q.questionContent || q.question,
+      maxScore: q.fullScore || q.maxScore || 0,
+      studentAnswer: q.studentAnswer || '',
+      correctAnswer: q.correctAnswer || '',
+      score: q.currentScore ?? q.score ?? 0
+    }))
+  } catch (error) {
+    console.error('加载题目失败:', error)
+  } finally {
+    loadingQuestions.value = false
+  }
+}
+
+const submitGrade = async () => {
   submitting.value = true
   try {
-    const grades = pendingQuestions.value.map((q) => ({ questionId: q.questionId, score: q.score }))
-    await teacherApi.grading.submitAllGrades(selectedExamId.value, currentStudent.value.studentId, grades)
-    ElMessage.success('批改已提交')
-    gradingDialogVisible.value = false
-    await handleExamClick(selectedExamId.value)
-  } catch {
+    const grades = studentQuestions.value.map(q => ({
+      questionId: q.questionId,
+      score: q.score
+    }))
+    await gradingApi.submitAllGrades(selectedExamId.value, currentStudent.value.studentId, grades)
+    ElMessage.success('评分提交成功')
+    gradeDialogVisible.value = false
+    // 重新加载提交列表
+    handleExamClick(selectedExamId.value)
+  } catch (error) {
     ElMessage.error('提交失败')
   } finally {
     submitting.value = false
   }
 }
+
+onMounted(() => loadExams(true))
 </script>
 
 <style scoped>
 .grading-page {
-  padding: 24px;
-  background: #f5f5f7;
   min-height: 100vh;
+  background: var(--wabi-bg, #f8f6f3);
 }
 
-.breadcrumb {
-  margin-bottom: 24px;
+.wabi-body {
+  padding: 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+  height: calc(100vh - 48px);
+  display: flex;
+  flex-direction: column;
+  animation: wabi-fade-in 0.4s ease;
 }
 
+@keyframes wabi-fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* 页面头部 */
 .page-header {
-  margin-bottom: 24px;
-  padding: 20px 24px;
-  background: #ffffff;
-  border-radius: 20px;
+  flex-shrink: 0;
+  margin-bottom: 20px;
 }
 
 .page-title {
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--wabi-text, #2c2c2c);
   margin: 0 0 4px 0;
-  font-size: 22px;
-  font-weight: 700;
-  color: #1d1d1f;
 }
 
 .page-desc {
-  margin: 0;
   font-size: 13px;
-  color: #6e6e73;
+  color: var(--wabi-text-secondary, #8a8580);
+  margin: 0;
 }
 
-.main-content {
+/* 布局 */
+.grading-layout {
+  flex: 1;
   display: flex;
-  gap: 24px;
+  gap: 16px;
+  min-height: 0;
 }
 
-.exams-panel {
-  width: 300px;
+/* 考试面板 */
+.exam-panel {
+  width: 320px;
   flex-shrink: 0;
-  background: #ffffff;
-  border-radius: 16px;
-  padding: 16px;
   display: flex;
   flex-direction: column;
-  transition: all 0.3s ease;
-  max-height: calc(100vh - 160px);
-  position: sticky;
-  top: 24px;
-}
-
-.exams-panel.collapsed {
-  width: 56px;
-  padding: 12px 8px;
+  background: var(--wabi-surface, #fff);
+  border: 1px solid var(--wabi-border, #e8e4df);
+  border-radius: 6px;
+  overflow: hidden;
 }
 
 .panel-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 12px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--wabi-border, #e8e4df);
+  background: var(--wabi-surface-warm, #faf9f7);
 }
 
 .panel-title {
-  font-size: 12px;
-  font-weight: 600;
-  color: #6e6e73;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  white-space: nowrap;
-}
-
-.collapse-btn {
-  color: #6e6e73;
-  padding: 8px;
-  border-radius: 10px;
-  transition: all 0.25s ease;
-}
-
-.collapse-btn:hover {
-  color: #4caf50;
-  background: #f5f5f7;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--wabi-text, #2c2c2c);
 }
 
 .exam-list {
   flex: 1;
   overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
 }
 
-.loading-more,
-.no-more-data {
-  padding: 12px;
-  text-align: center;
-  color: #9ca3af;
-  font-size: 12px;
+.exam-item {
   display: flex;
+  justify-content: space-between;
   align-items: center;
-  justify-content: center;
-  gap: 8px;
-}
-
-.loading-more .el-icon {
-  font-size: 16px;
-}
-
-.exam-card {
-  display: flex;
-  align-items: center;
-  padding: 14px 16px;
-  background: #f5f5f7;
-  border-radius: 12px;
+  padding: 12px 16px;
   cursor: pointer;
-  transition: all 0.25s ease;
-  border: 2px solid transparent;
+  border-bottom: 1px solid var(--wabi-border, #e8e4df);
+  transition: all 0.2s ease;
 }
 
-.exam-card:hover {
-  background: #e8e8ed;
+.exam-item:hover {
+  background: var(--wabi-accent-light, #e8ede5);
 }
 
-.exam-card.active {
-  background: #e6f4ea;
-  border-color: #4caf50;
+.exam-item.active {
+  background: var(--wabi-accent-light, #e8ede5);
+  border-left: 3px solid var(--wabi-accent, #7a8b6f);
 }
 
 .exam-info {
-  flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
+  flex: 1;
   min-width: 0;
 }
 
 .exam-name {
   font-size: 14px;
-  font-weight: 600;
-  color: #1d1d1f;
+  color: var(--wabi-text, #2c2c2c);
+  font-weight: 500;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .exam-time {
-  font-size: 11px;
-  color: #6e6e73;
+  font-size: 12px;
+  color: var(--wabi-text-secondary, #8a8580);
 }
 
-.exam-badge {
-  background: #fef3c7;
-  color: #92400e;
-  font-size: 11px;
-  font-weight: 600;
-  padding: 4px 8px;
+.pending-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  background: #f5efe4;
+  color: #a0937d;
+  font-size: 12px;
   border-radius: 10px;
-  white-space: nowrap;
+  flex-shrink: 0;
 }
 
-.exam-arrow {
-  color: #6e6e73;
-  font-size: 14px;
-  margin-left: 8px;
-}
-
-.exam-card.active .exam-arrow {
-  color: #4caf50;
-}
-
-.expand-placeholder {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  color: #909399;
-  min-height: 48px;
-  border-radius: 12px;
-  transition: all 0.25s cubic-bezier(0.25, 0.1, 0.25, 1);
-  background: #f5f5f7;
-  border: 1px dashed #e0e0e0;
-}
-
-.expand-placeholder:hover {
-  background: #e8f5e9;
-  border-color: #4caf50;
-  color: #4caf50;
-  box-shadow: 0 4px 12px rgba(76, 175, 80, 0.15);
-}
-
-.expand-icon {
-  font-size: 22px;
-  font-weight: 600;
-}
-
-.details-panel {
+/* 批改详情 */
+.grading-detail {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  background: var(--wabi-surface, #fff);
+  border: 1px solid var(--wabi-border, #e8e4df);
+  border-radius: 6px;
+  overflow: hidden;
 }
 
-.empty-panel {
+.detail-content {
   flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: #ffffff;
-  border-radius: 16px;
-  min-height: 400px;
-}
-
-.exam-header-card {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 20px 24px;
-  background: #ffffff;
-  border-radius: 16px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-}
-
-.exam-header-name {
-  font-size: 18px;
-  font-weight: 700;
-  color: #1d1d1f;
-  margin-bottom: 4px;
-}
-
-.exam-header-meta {
-  font-size: 13px;
-  color: #6e6e73;
-}
-
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
-}
-
-.stat-card {
-  background: #ffffff;
-  padding: 20px;
-  border-radius: 14px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-  text-align: center;
-}
-
-.stat-value {
-  font-size: 28px;
-  font-weight: 700;
-  color: #1d1d1f;
-  margin-bottom: 4px;
-}
-
-.stat-label {
-  font-size: 13px;
-  color: #6e6e73;
-}
-
-.invigilation-section {
-  margin-bottom: 0;
-}
-
-.invigilation-card {
-  border-radius: 16px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-}
-
-.invigilation-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-}
-
-.invigilation-head h3 {
-  margin: 0 0 4px 0;
-  font-size: 15px;
-  font-weight: 600;
-  color: #1d1d1f;
-}
-
-.invigilation-head p {
-  margin: 0;
-  font-size: 12px;
-  color: #6e6e73;
-}
-
-.invigilation-metrics {
-  display: flex;
-  gap: 20px;
-  flex-wrap: wrap;
-  color: #374151;
-  font-size: 13px;
-  margin-bottom: 16px;
-}
-
-.invigilation-metrics strong {
-  color: #1d1d1f;
-}
-
-.event-subtitle {
-  margin: 16px 0 12px;
-  font-size: 14px;
-  font-weight: 600;
-  color: #1d1d1f;
-}
-
-.event-list {
-  max-height: 280px;
   overflow-y: auto;
-  scrollbar-width: thin;
+  min-height: 0;
 }
 
-.empty-events {
-  padding: 30px;
-  text-align: center;
-  color: #9ca3af;
-  font-size: 13px;
-}
-
-.event-item {
-  display: grid;
-  grid-template-columns: 160px 140px 90px 1fr;
-  gap: 12px;
-  align-items: center;
-  padding: 10px 0;
-  border-bottom: 1px solid #f0f0f0;
-  font-size: 13px;
-}
-
-.event-item:last-child {
-  border-bottom: none;
-}
-
-.event-time {
-  color: #6e6e73;
-  font-size: 12px;
-}
-
-.event-student {
-  color: #374151;
-}
-
-.event-desc {
-  color: #6e6e73;
-  font-size: 12px;
-}
-
-.loading-more,
-.no-more-events {
-  padding: 12px;
-  text-align: center;
-  color: #9ca3af;
-  font-size: 12px;
-}
-
-.loading-more {
+/* 分页组件 - 固定在底部 */
+.detail-pagination {
   display: flex;
-  align-items: center;
   justify-content: center;
-  gap: 8px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--wabi-border, #e8e4df);
+  background: var(--wabi-surface, #fff);
 }
 
-.loading-more .el-icon {
-  font-size: 16px;
+.detail-footer {
+  display: flex;
+  gap: 24px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--wabi-border, #e8e4df);
+  background: var(--wabi-surface-warm, #faf9f7);
+  font-size: 13px;
+  color: var(--wabi-text-secondary, #8a8580);
 }
 
-.students-section {
-  background: #ffffff;
-  border-radius: 16px;
-  padding: 20px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-}
-
-.student-tabs {
-  :deep(.el-tabs__header) {
-    margin-bottom: 16px;
-  }
-
-  :deep(.el-tabs__item) {
-    font-size: 15px;
-    font-weight: 600;
-  }
-}
-
-.section-title {
-  font-size: 15px;
-  font-weight: 600;
-  color: #1d1d1f;
-  margin-bottom: 16px;
-}
-
-.student-list {
+/* 提交列表 */
+.submission-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
 }
 
-.empty-student-list {
+.submission-item {
   display: flex;
   align-items: center;
-  justify-content: center;
-  padding: 40px 0;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--wabi-border, #e8e4df);
+  transition: background 0.2s ease;
 }
 
-.student-item {
-  display: flex;
-  align-items: center;
-  padding: 14px 16px;
-  background: #f5f5f7;
-  border-radius: 12px;
-  cursor: pointer;
-  transition: all 0.25s ease;
-}
-
-.student-item:hover {
-  background: #e8e8ed;
-  transform: translateX(4px);
-}
-
-.student-item.graded {
-  cursor: default;
-  background: #f0fdf4;
-  border: 1px solid #bbf7d0;
-}
-
-.student-item.graded:hover {
-  transform: none;
+.submission-item:hover {
+  background: var(--wabi-accent-light, #e8ede5);
 }
 
 .student-info {
+  flex: 1;
   display: flex;
   align-items: center;
   gap: 12px;
-  flex: 1;
+  min-width: 0;
 }
 
-.student-avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: #5b8def;
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 16px;
-  font-weight: 600;
-}
-
-.student-avatar.pending {
-  background: #f59e0b;
-}
-
-.student-avatar.graded {
-  background: #4caf50;
-}
-
-.student-details {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+.student-no {
+  font-size: 13px;
+  color: var(--wabi-text-secondary, #8a8580);
+  font-family: monospace;
+  flex-shrink: 0;
 }
 
 .student-name {
   font-size: 14px;
-  font-weight: 600;
-  color: #1d1d1f;
+  color: var(--wabi-text, #2c2c2c);
+  font-weight: 500;
 }
 
-.student-meta {
-  font-size: 12px;
-  color: #6e6e73;
-}
-
-.student-score {
+.submission-meta {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 2px;
-  margin-right: 12px;
-}
-
-.score-text {
-  font-size: 13px;
-  font-weight: 600;
-  color: #f59e0b;
-}
-
-.score-auto {
-  font-size: 12px;
-  color: #6e6e73;
-}
-
-.score-final {
-  font-size: 14px;
-  font-weight: 700;
-  color: #4caf50;
-}
-
-.score-time {
-  font-size: 11px;
-  color: #9ca3af;
-}
-
-.item-arrow {
-  color: #6e6e73;
-  font-size: 14px;
-}
-
-.list-pagination {
-  margin-top: 16px;
-  display: flex;
-  justify-content: flex-end;
-}
-
-.grading-head {
-  display: flex;
-  gap: 20px;
   align-items: center;
-  margin-bottom: 16px;
-  padding: 12px 16px;
-  background: #f5f5f7;
-  border-radius: 10px;
-  color: #374151;
+  gap: 8px;
+  margin-right: 16px;
+}
+
+.score {
   font-size: 14px;
+  font-weight: 600;
+  color: var(--wabi-accent, #7a8b6f);
+  font-family: 'Georgia', serif;
 }
 
 .auto-score {
-  color: #4caf50;
-  font-weight: 700;
-}
-
-.empty-q {
-  color: #9ca3af;
-  padding: 40px;
-  text-align: center;
-}
-
-.question-card {
-  margin-bottom: 12px;
-  border-radius: 12px;
-}
-
-.q-top {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 10px;
-  color: #1d1d1f;
-  font-size: 14px;
-}
-
-.q-content {
-  background: #f5f5f7;
-  border-radius: 8px;
-  padding: 12px;
-  margin-bottom: 10px;
-  color: #374151;
-}
-
-.q-answer {
-  border: 1px dashed #d1d5db;
-  border-radius: 8px;
-  padding: 12px;
-  margin-bottom: 10px;
-}
-
-.q-answer .label {
   font-size: 12px;
-  color: #6e6e73;
-  margin-bottom: 6px;
+  color: var(--wabi-text-secondary, #8a8580);
+  font-weight: 400;
 }
 
-.q-answer .value {
-  color: #1d1d1f;
-  white-space: pre-wrap;
-  word-break: break-word;
-  font-size: 13px;
+/* 批改题目 */
+.grade-questions {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 4px;
 }
 
-.q-score {
+.grade-question-item {
+  padding: 16px;
+  background: var(--wabi-surface, #fff);
+  border: 1px solid var(--wabi-border, #e8e4df);
+  border-radius: 6px;
+}
+
+.question-header {
   display: flex;
   align-items: center;
-  gap: 12px;
-  font-size: 14px;
-  color: #374151;
+  gap: 8px;
+  margin-bottom: 8px;
 }
 
-:deep(.el-table) {
-  font-size: 13px;
-}
-
-:deep(.el-table th.el-table__cell) {
-  background-color: #fafafa;
+.question-index {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--wabi-accent-light, #e8ede5);
+  color: var(--wabi-accent, #7a8b6f);
+  font-size: 12px;
   font-weight: 600;
-  color: #6e6e73;
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
+  border-radius: 4px;
 }
 
-:deep(.el-table__row:hover > td.el-table__cell) {
-  background-color: #fafafa !important;
+.question-type {
+  font-size: 12px;
+  padding: 2px 8px;
+  background: var(--wabi-border-light, #f0ece8);
+  color: var(--wabi-text-secondary, #8a8580);
+  border-radius: 2px;
 }
 
-@media (max-width: 1024px) {
-  .main-content {
+.question-score {
+  font-size: 12px;
+  color: var(--wabi-text-secondary, #8a8580);
+  margin-left: auto;
+}
+
+.question-content {
+  font-size: 14px;
+  color: var(--wabi-text, #2c2c2c);
+  line-height: 1.6;
+  margin-bottom: 12px;
+}
+
+.student-answer,
+.correct-answer {
+  margin-bottom: 12px;
+}
+
+.answer-label {
+  font-size: 12px;
+  color: var(--wabi-text-secondary, #8a8580);
+  margin-bottom: 4px;
+}
+
+.answer-content {
+  font-size: 13px;
+  color: var(--wabi-text, #2c2c2c);
+  padding: 8px 12px;
+  background: var(--wabi-surface-warm, #faf9f7);
+  border-radius: 4px;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.correct-answer .answer-content {
+  background: var(--wabi-accent-light, #e8ede5);
+}
+
+.grade-input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--wabi-border, #e8e4df);
+}
+
+.grade-label {
+  font-size: 13px;
+  color: var(--wabi-text-secondary, #8a8580);
+}
+
+.grade-max {
+  font-size: 12px;
+  color: var(--wabi-text-secondary, #8a8580);
+}
+
+/* 空状态 */
+.list-empty {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 40px 0;
+  color: var(--wabi-text-secondary, #8a8580);
+  font-size: 14px;
+}
+
+.loading-more {
+  text-align: center;
+  padding: 12px;
+  font-size: 13px;
+  color: var(--wabi-text-secondary, #8a8580);
+}
+
+/* 标签 */
+.wabi-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  background: var(--wabi-border-light, #f0ece8);
+  color: var(--wabi-text-secondary, #8a8580);
+  font-size: 12px;
+  border-radius: 2px;
+}
+
+.wabi-tag-accent {
+  background: var(--wabi-accent-light, #e8ede5);
+  color: var(--wabi-accent, #7a8b6f);
+}
+
+.wabi-tag-warning {
+  background: #f5efe4;
+  color: #a0937d;
+}
+
+/* 按钮 */
+.wabi-btn-primary {
+  background: var(--wabi-accent, #7a8b6f);
+  border-color: var(--wabi-accent, #7a8b6f);
+  border-radius: 4px;
+}
+
+.wabi-btn-primary:hover {
+  background: #6b7d60;
+  border-color: #6b7d60;
+}
+
+.wabi-btn-ghost {
+  border-color: var(--wabi-border, #e8e4df);
+  color: var(--wabi-text-secondary, #8a8580);
+  border-radius: 4px;
+}
+
+.wabi-btn-text {
+  color: var(--wabi-text-secondary, #8a8580);
+}
+
+.wabi-btn-text:hover {
+  color: var(--wabi-accent, #7a8b6f);
+}
+
+/* 响应式 */
+@media (max-width: 768px) {
+  .wabi-body {
+    padding: 16px;
+  }
+
+  .grading-layout {
     flex-direction: column;
   }
 
-  .exams-panel {
+  .exam-panel {
     width: 100%;
-    max-height: none;
-    position: static;
-  }
-
-  .stats-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .event-item {
-    grid-template-columns: 1fr 1fr;
+    max-height: 300px;
   }
 }
 </style>

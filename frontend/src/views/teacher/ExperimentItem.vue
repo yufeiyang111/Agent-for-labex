@@ -1,153 +1,100 @@
-﻿<template>
-  <div class="experiment-item-page">
-    <!-- 面包屑导航 -->
-    <el-breadcrumb separator="/" class="breadcrumb">
-      <el-breadcrumb-item :to="{ path: '/teacher' }">教师首页</el-breadcrumb-item>
-      <el-breadcrumb-item :to="{ path: '/teacher/experiment' }">实验管理</el-breadcrumb-item>
-      <el-breadcrumb-item>题目管理</el-breadcrumb-item>
-    </el-breadcrumb>
-
-    <!-- 页面标题和实验信息 -->
-    <div class="page-header">
-      <div class="header-left">
-        <h2 class="page-title">{{ experimentInfo.experimentName || '实验题目管理' }}</h2>
-        <p class="experiment-no">实验编号: {{ experimentNo }}</p>
+<template>
+  <div class="experiment-item-page wabi-page">
+    <div class="wabi-body">
+      <!-- 页面头部 -->
+      <div class="page-header">
+        <div class="header-left">
+          <el-button :icon="ArrowLeft" @click="$router.back()" text class="wabi-btn-text">返回</el-button>
+          <div>
+            <h2 class="page-title">{{ experimentInfo.experimentName || '实验题目管理' }}</h2>
+            <span class="page-subtitle">实验编号: {{ experimentNo }}</span>
+          </div>
+        </div>
+        <el-button type="primary" :icon="Plus" @click="handleAdd" class="wabi-btn-primary">
+          新增题目
+        </el-button>
       </div>
-      <el-button type="primary" @click="handleAdd" class="add-btn">
-        <el-icon><Plus /></el-icon>
-        新增题目
-      </el-button>
+
+      <!-- 题目列表 -->
+      <div class="list-container">
+        <div class="list-content" v-loading="loading">
+          <div v-if="!loading && !itemList.length" class="list-empty">
+            <el-empty description="暂无题目数据">
+              <el-button type="primary" @click="handleAdd">新增题目</el-button>
+            </el-empty>
+          </div>
+          <div v-else class="item-list">
+            <div v-for="item in itemList" :key="item.experimentItemId" class="item-card">
+              <div class="item-header">
+                <div class="item-info">
+                  <span class="item-no">{{ item.experimentItemNo }}</span>
+                  <span class="wabi-tag" :class="getTypeClass(item.experimentItemType)">
+                    {{ getTypeName(item.experimentItemType) }}
+                  </span>
+                  <span class="wabi-tag" :class="item.state === 1 ? 'wabi-tag-accent' : ''">
+                    {{ item.state === 1 ? '启用' : '禁用' }}
+                  </span>
+                </div>
+                <span class="item-score">{{ item.experimentItemScore }} 分</span>
+              </div>
+              <div class="item-name">{{ item.experimentItemName }}</div>
+              <div v-if="item.experimentItemAnswer" class="item-answer">
+                <span class="answer-label">参考答案：</span>
+                {{ item.experimentItemAnswer }}
+              </div>
+              <div class="item-actions">
+                <el-button size="small" text @click="handleEdit(item)" class="wabi-btn-text">编辑</el-button>
+                <el-button size="small" text type="danger" @click="handleDelete(item)" class="wabi-btn-text wabi-btn-danger">删除</el-button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
-    <!-- 题目列表表格 -->
-    <el-card class="table-card" shadow="hover">
-      <el-table
-        :data="itemList"
-        v-loading="loading"
-        stripe
-        hover
-        style="width: 100%"
-        @selection-change="handleSelectionChange"
-      >
-        <el-table-column type="selection" width="55" />
-        <el-table-column prop="experimentItemNo" label="题号" min-width="100" />
-        <el-table-column prop="experimentItemName" label="题目名称" min-width="150" />
-        <el-table-column label="题型" min-width="100">
-          <template #default="{ row }">
-            <el-tag :type="getQuestionTypeTag(row.experimentItemType)">
-              {{ getQuestionTypeName(row.experimentItemType) }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="experimentItemScore" label="分值" width="80" />
-        <el-table-column prop="experimentItemAnswer" label="标准答案" min-width="200" show-overflow-tooltip />
-        <el-table-column label="状态" width="90">
-          <template #default="{ row }">
-            <el-tag :type="row.state === 1 ? 'success' : 'info'">
-              {{ row.state === 1 ? '启用' : '禁用' }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="180" fixed="right">
-          <template #default="{ row }">
-            <el-button type="primary" size="small" @click="handleEdit(row)">
-              编辑
-            </el-button>
-            <el-button type="danger" size="small" @click="handleDelete(row)">
-              删除
-            </el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-
-      <!-- 分页 -->
-      <el-pagination
-        v-model:current-page="pagination.page"
-        v-model:page-size="pagination.pageSize"
-        :page-sizes="[20, 40, 60, 100]"
-        :total="pagination.total"
-        layout="total, sizes, prev, pager, next, jumper"
-        @size-change="loadItemList"
-        @current-change="loadItemList"
-        class="pagination"
-      />
-
-      <!-- 批量操作 -->
-      <div class="batch-actions" v-if="selectedRows.length > 0">
-        <el-button type="danger" @click="handleBatchDelete" :loading="batchDeleting">
-          批量删除 ({{ selectedRows.length }})
-        </el-button>
-        <el-button @click="clearSelection">取消选择</el-button>
-      </div>
-    </el-card>
-
     <!-- 新增/编辑题目对话框 -->
-    <el-dialog
-      v-model="dialogVisible"
-      :title="dialogTitle"
-      width="600px"
-      class="item-dialog"
-    >
-      <el-form
-        ref="formRef"
-        :model="formData"
-        :rules="formRules"
-        label-width="100px"
-      >
+    <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑题目' : '新增题目'" width="700" class="wabi-dialog">
+      <el-form ref="formRef" :model="formData" :rules="formRules" label-width="100" class="wabi-form">
         <el-form-item label="题号" prop="experimentItemNo">
-          <el-input v-model="formData.experimentItemNo" placeholder="请输入题号" :disabled="isEdit" />
+          <el-input v-model="formData.experimentItemNo" placeholder="如 1.1" />
         </el-form-item>
         <el-form-item label="题目名称" prop="experimentItemName">
           <el-input v-model="formData.experimentItemName" placeholder="请输入题目名称" />
         </el-form-item>
-        <el-form-item label="题目内容" prop="experimentItemContent">
-          <el-input
-            v-model="formData.experimentItemContent"
-            type="textarea"
-            :rows="4"
-            placeholder="请输入题目内容"
-          />
+        <el-form-item label="题目内容">
+          <el-input v-model="formData.experimentItemContent" type="textarea" :rows="4" placeholder="请输入题目内容" />
         </el-form-item>
-        <el-form-item label="标准答案" prop="experimentItemAnswer">
-          <el-input
-            v-model="formData.experimentItemAnswer"
-            type="textarea"
-            :rows="3"
-            placeholder="请输入标准答案"
-          />
+        <el-form-item label="标准答案">
+          <el-input v-model="formData.experimentItemAnswer" type="textarea" :rows="3" placeholder="请输入标准答案" />
         </el-form-item>
-        <el-form-item label="分值" prop="experimentItemScore">
-          <el-input-number
-            v-model="formData.experimentItemScore"
-            :min="0"
-            :max="100"
-            placeholder="请输入分值"
-          />
-        </el-form-item>
-        <el-form-item label="题型">
-          <el-select v-model="formData.experimentItemType" placeholder="请选择题型" style="width: 100%">
-            <el-option label="选择题" :value="1" />
-            <el-option label="填空题" :value="2" />
-            <el-option label="简答题" :value="3" />
-            <el-option label="编程题" :value="4" />
-            <el-option label="综合题" :value="5" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="状态">
-          <el-switch
-            v-model="formData.state"
-            :active-value="1"
-            :inactive-value="0"
-            active-text="启用"
-            inactive-text="禁用"
-          />
-        </el-form-item>
+        <el-row :gutter="16">
+          <el-col :span="8">
+            <el-form-item label="分值" prop="experimentItemScore">
+              <el-input-number v-model="formData.experimentItemScore" :min="1" :max="100" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="题型">
+              <el-select v-model="formData.experimentItemType" placeholder="选择题型" style="width: 100%">
+                <el-option label="填空题" :value="1" />
+                <el-option label="单选题" :value="2" />
+                <el-option label="多选题" :value="3" />
+                <el-option label="判断题" :value="4" />
+                <el-option label="简答题" :value="5" />
+                <el-option label="编程题" :value="6" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :span="8">
+            <el-form-item label="状态">
+              <el-switch v-model="formData.state" :active-value="1" :inactive-value="0" active-text="启用" inactive-text="禁用" />
+            </el-form-item>
+          </el-col>
+        </el-row>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSubmit" :loading="submitting">
-          确定
-        </el-button>
+        <el-button @click="dialogVisible = false" class="wabi-btn-ghost">取消</el-button>
+        <el-button type="primary" @click="handleSubmit" :loading="saving" class="wabi-btn-primary">保存</el-button>
       </template>
     </el-dialog>
   </div>
@@ -155,328 +102,363 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus } from '@element-plus/icons-vue'
-import { teacherApi } from '@/api/index.js'
+import { ArrowLeft, Plus } from '@element-plus/icons-vue'
+import { teacherApi } from '@/api'
 
 const route = useRoute()
-const router = useRouter()
+const experimentId = computed(() => Number(route.params.experimentId))
+const experimentItemApi = teacherApi.experimentItem
+const experimentApi = teacherApi.experiment
 
-// 响应式数据
 const loading = ref(false)
-const submitting = ref(false)
-const batchDeleting = ref(false)
+const saving = ref(false)
 const itemList = ref([])
 const experimentInfo = ref({})
-const experimentNo = ref('')
 const dialogVisible = ref(false)
-const dialogTitle = computed(() => isEdit.value ? '编辑题目' : '新增题目')
+const formRef = ref()
 const isEdit = ref(false)
-const formRef = ref(null)
-const selectedRows = ref([])
 
-// 分页
-const pagination = reactive({
-  page: 1,
-  pageSize: 20,
-  total: 0
-})
+const experimentNo = computed(() => experimentInfo.value?.experimentNo || '')
 
-// 表单数据
 const formData = reactive({
+  experimentItemId: null,
+  experimentId: null,
   experimentItemNo: '',
   experimentItemName: '',
   experimentItemContent: '',
   experimentItemAnswer: '',
   experimentItemScore: 10,
   experimentItemType: 1,
-  state: 1,
-  experimentId: null
+  state: 1
 })
 
-// 表单验证规则
 const formRules = {
-  experimentItemNo: [
-    { required: true, message: '请输入题号', trigger: 'blur' }
-  ],
-  experimentItemName: [
-    { required: true, message: '请输入题目名称', trigger: 'blur' }
-  ],
-  experimentItemContent: [
-    { required: true, message: '请输入题目内容', trigger: 'blur' }
-  ],
-  experimentItemAnswer: [
-    { required: true, message: '请输入标准答案', trigger: 'blur' }
-  ],
-  experimentItemScore: [
-    { required: true, message: '请输入分值', trigger: 'blur' }
-  ]
+  experimentItemNo: [{ required: true, message: '请输入题号', trigger: 'blur' }],
+  experimentItemName: [{ required: true, message: '请输入题目名称', trigger: 'blur' }],
+  experimentItemScore: [{ required: true, message: '请输入分值', trigger: 'change' }]
 }
 
-// 题型标签类型
-const getQuestionTypeTag = (type) => {
-  const tagMap = {
-    1: 'success',
-    2: 'warning',
-    3: 'danger',
-    4: 'primary',
-    5: 'info'
-  }
-  return tagMap[type] || 'info'
-}
+const getTypeName = (type) => ({
+  1: '填空题',
+  2: '单选题',
+  3: '多选题',
+  4: '判断题',
+  5: '简答题',
+  6: '编程题'
+}[type] || '未知')
 
-// 题型名称
-const getQuestionTypeName = (type) => {
-  const nameMap = {
-    1: '选择题',
-    2: '填空题',
-    3: '简答题',
-    4: '编程题',
-    5: '综合题'
-  }
-  return nameMap[type] || '未知'
-}
+const getTypeClass = (type) => ({
+  1: '',
+  2: 'wabi-tag-accent',
+  3: 'wabi-tag-accent',
+  4: '',
+  5: 'wabi-tag-warning',
+  6: 'wabi-tag-info'
+}[type] || '')
 
-// 加载实验信息
-const loadExperimentInfo = async () => {
-  try {
-    const response = await teacherApi.experiment.get(experimentNo.value)
-    experimentInfo.value = response.data || {}
-  } catch (error) {
-    console.error('加载实验信息失败', error)
-  }
-}
-
-// 加载题目列表
 const loadItemList = async () => {
+  if (!experimentId.value) return
   loading.value = true
   try {
-    const params = {
-      page: pagination.page,
-      pageSize: pagination.pageSize,
-      experimentId: parseInt(experimentNo.value)
-    }
-    const response = await teacherApi.experimentItem.list(params)
-    itemList.value = response.data?.list || []
-    pagination.total = response.data?.total || 0
+    const res = await experimentItemApi.listByExperiment(experimentId.value)
+    itemList.value = res.data || []
+    // 获取实验信息
+    const expRes = await experimentApi.get(experimentId.value)
+    experimentInfo.value = expRes.data || {}
   } catch (error) {
-    ElMessage.error('加载题目列表失败')
-    console.error(error)
+    console.error('加载题目列表失败:', error)
   } finally {
     loading.value = false
   }
 }
 
-// 选择变化
-const handleSelectionChange = (selection) => {
-  selectedRows.value = selection
-}
-
-// 清空选择
-const clearSelection = () => {
-  selectedRows.value = []
-}
-
-// 重置表单
 const resetForm = () => {
   Object.assign(formData, {
+    experimentItemId: null,
+    experimentId: experimentId.value,
     experimentItemNo: '',
     experimentItemName: '',
     experimentItemContent: '',
     experimentItemAnswer: '',
     experimentItemScore: 10,
     experimentItemType: 1,
-    state: 1,
-    experimentId: experimentNo.value ? parseInt(experimentNo.value) : null
+    state: 1
   })
 }
 
-// 新增题目
 const handleAdd = () => {
   resetForm()
   isEdit.value = false
   dialogVisible.value = true
 }
 
-// 编辑题目
 const handleEdit = (row) => {
   Object.assign(formData, {
     experimentItemId: row.experimentItemId,
-    experimentItemNo: row.experimentItemNo,
-    experimentItemName: row.experimentItemName,
-    experimentItemContent: row.experimentItemContent,
-    experimentItemAnswer: row.experimentItemAnswer,
-    experimentItemScore: row.experimentItemScore,
-    experimentItemType: row.experimentItemType,
+    experimentId: row.experimentId,
+    experimentItemNo: row.experimentItemNo || '',
+    experimentItemName: row.experimentItemName || '',
+    experimentItemContent: row.experimentItemContent || '',
+    experimentItemAnswer: row.experimentItemAnswer || '',
+    experimentItemScore: row.experimentItemScore || 10,
+    experimentItemType: row.experimentItemType || 1,
     state: row.state
   })
   isEdit.value = true
   dialogVisible.value = true
 }
 
-// 提交表单
 const handleSubmit = async () => {
   try {
     await formRef.value.validate()
-    submitting.value = true
-
-    const submitData = {
-      experimentId: parseInt(experimentNo.value),
-      experimentItemNo: formData.experimentItemNo,
-      experimentItemName: formData.experimentItemName,
-      experimentItemContent: formData.experimentItemContent,
-      experimentItemAnswer: formData.experimentItemAnswer,
-      experimentItemScore: formData.experimentItemScore,
-      experimentItemType: formData.experimentItemType,
-      state: formData.state
-    }
-
+    saving.value = true
     if (isEdit.value) {
-      await teacherApi.experimentItem.update(formData.experimentItemId, submitData)
+      await experimentItemApi.update(formData.experimentItemId, formData)
       ElMessage.success('更新成功')
     } else {
-      await teacherApi.experimentItem.add(submitData)
-      ElMessage.success('添加成功')
+      await experimentItemApi.add(formData)
+      ElMessage.success('创建成功')
     }
-
     dialogVisible.value = false
     loadItemList()
   } catch (error) {
-    if (error !== false) {
-      ElMessage.error('操作失败')
-      console.error(error)
-    }
+    console.error('保存失败:', error)
   } finally {
-    submitting.value = false
+    saving.value = false
   }
 }
 
-// 删除题目
-const handleDelete = (row) => {
-  ElMessageBox.confirm(
-    `确认删除题目 "${row.experimentItemName}" 吗？此操作不可恢复！`,
-    '警告',
-    { type: 'warning' }
-  ).then(async () => {
-    try {
-      await teacherApi.experimentItem.delete(row.experimentItemId)
-      ElMessage.success('删除成功')
-      loadItemList()
-    } catch (error) {
-      ElMessage.error('删除失败')
-      console.error(error)
-    }
-  }).catch(() => {})
-}
-
-// 批量删除
-const handleBatchDelete = () => {
-  ElMessageBox.confirm(
-    `确认删除选中的 ${selectedRows.value.length} 道题目吗？此操作不可恢复！`,
-    '警告',
-    { type: 'warning' }
-  ).then(async () => {
-    try {
-      const ids = selectedRows.value.map(row => row.experimentItemId)
-      await teacherApi.experimentItem.batchDelete(ids)
-      ElMessage.success('批量删除成功')
-      clearSelection()
-      loadItemList()
-    } catch (error) {
-      ElMessage.error('批量删除失败')
-      console.error(error)
-    }
-  }).catch(() => {})
-}
-
-// 页面初始化
-onMounted(() => {
-  experimentNo.value = route.params.experimentId
-  loadExperimentInfo()
+const handleDelete = async (row) => {
+  await ElMessageBox.confirm('确定删除该题目?', '提示', { type: 'warning' })
+  await experimentItemApi.delete(row.experimentItemId)
+  ElMessage.success('已删除')
   loadItemList()
-})
+}
+
+onMounted(loadItemList)
 </script>
 
 <style scoped>
 .experiment-item-page {
-  padding: 20px;
+  min-height: 100vh;
+  background: var(--wabi-bg, #f8f6f3);
 }
 
-.breadcrumb {
-  margin-bottom: 20px;
+.wabi-body {
+  padding: 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+  height: calc(100vh - 48px);
+  display: flex;
+  flex-direction: column;
+  animation: wabi-fade-in 0.4s ease;
 }
 
+@keyframes wabi-fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* 页面头部 */
 .page-header {
+  flex-shrink: 0;
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
   margin-bottom: 20px;
-  flex-wrap: wrap;
-  gap: 15px;
 }
 
 .header-left {
   display: flex;
-  flex-direction: column;
-  gap: 5px;
+  align-items: center;
+  gap: 16px;
 }
 
 .page-title {
-  font-size: 24px;
-  font-weight: 600;
-  color: #2d8a4e;
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--wabi-text, #2c2c2c);
   margin: 0;
 }
 
-.experiment-no {
-  color: #909399;
-  font-size: 14px;
-  margin: 0;
+.page-subtitle {
+  font-size: 13px;
+  color: var(--wabi-text-secondary, #8a8580);
 }
 
-.add-btn {
-  background: #5cb85c;
-  border: none;
-  transition: all 0.3s ease;
+/* 列表容器 */
+.list-container {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--wabi-surface, #fff);
+  border: 1px solid var(--wabi-border, #e8e4df);
+  border-radius: var(--wabi-radius, 3px);
+  overflow: hidden;
 }
 
-.add-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(92, 184, 92, 0.4);
-}
-
-.table-card {
-  border-radius: 12px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-  border: 1px solid #e8f5e9;
-}
-
-.table-card :deep(.el-card__body) {
+.list-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   padding: 20px;
 }
 
-.pagination {
-  margin-top: 20px;
-  justify-content: flex-end;
-}
-
-.batch-actions {
-  margin-top: 15px;
-  padding: 15px;
-  background: #f0f9f0;
-  border-radius: 8px;
+.list-empty {
   display: flex;
-  gap: 10px;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  min-height: 200px;
 }
 
-.item-dialog :deep(.el-dialog__header) {
-  background: #e8f5e9;
-  border-radius: 8px 8px 0 0;
+/* 题目列表 */
+.item-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
-.item-dialog :deep(.el-dialog__title) {
-  color: #2d8a4e;
+.item-card {
+  padding: 16px;
+  background: var(--wabi-surface, #fff);
+  border: 1px solid var(--wabi-border, #e8e4df);
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.item-card:hover {
+  border-color: var(--wabi-accent, #7a8b6f);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.item-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.item-no {
+  font-family: monospace;
+  font-size: 13px;
+  color: var(--wabi-text-secondary, #8a8580);
+}
+
+.item-score {
+  font-size: 14px;
   font-weight: 600;
+  color: var(--wabi-accent, #7a8b6f);
+  font-family: 'Georgia', serif;
+}
+
+.item-name {
+  font-size: 15px;
+  color: var(--wabi-text, #2c2c2c);
+  margin-bottom: 8px;
+  line-height: 1.5;
+}
+
+.item-answer {
+  font-size: 13px;
+  color: var(--wabi-text-secondary, #8a8580);
+  padding: 8px 12px;
+  background: var(--wabi-surface-warm, #faf9f7);
+  border-radius: 4px;
+  margin-bottom: 12px;
+}
+
+.answer-label {
+  font-weight: 500;
+}
+
+.item-actions {
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+  border-top: 1px solid var(--wabi-border, #e8e4df);
+  padding-top: 12px;
+}
+
+/* 标签 */
+.wabi-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  background: var(--wabi-border-light, #f0ece8);
+  color: var(--wabi-text-secondary, #8a8580);
+  font-size: 12px;
+  border-radius: 2px;
+}
+
+.wabi-tag-accent {
+  background: var(--wabi-accent-light, #e8ede5);
+  color: var(--wabi-accent, #7a8b6f);
+}
+
+.wabi-tag-warning {
+  background: #f5efe4;
+  color: #a0937d;
+}
+
+.wabi-tag-info {
+  background: #e8f0f5;
+  color: #6b8a9a;
+}
+
+/* 按钮 */
+.wabi-btn-primary {
+  background: var(--wabi-accent, #7a8b6f);
+  border-color: var(--wabi-accent, #7a8b6f);
+  border-radius: 4px;
+}
+
+.wabi-btn-primary:hover {
+  background: #6b7d60;
+  border-color: #6b7d60;
+}
+
+.wabi-btn-ghost {
+  border-color: var(--wabi-border, #e8e4df);
+  color: var(--wabi-text-secondary, #8a8580);
+  border-radius: 4px;
+}
+
+.wabi-btn-ghost:hover {
+  border-color: var(--wabi-accent, #7a8b6f);
+  color: var(--wabi-accent, #7a8b6f);
+}
+
+.wabi-btn-text {
+  color: var(--wabi-text-secondary, #8a8580);
+}
+
+.wabi-btn-text:hover {
+  color: var(--wabi-accent, #7a8b6f);
+}
+
+.wabi-btn-danger:hover {
+  color: #c47c7c;
+}
+
+/* 响应式 */
+@media (max-width: 768px) {
+  .wabi-body {
+    padding: 16px;
+  }
+
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
 }
 </style>

@@ -94,7 +94,7 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue'
+import { ref, watch, onBeforeUnmount } from 'vue'
 import { Search, Filter, FullScreen, FullScreen as FullScreenIcon, Close as CloseFullScreenIcon, Refresh } from '@element-plus/icons-vue'
 
 const props = defineProps({
@@ -143,6 +143,14 @@ watch(() => props.filterTypes, (val) => {
 // 监听外部节点数量变化
 watch(() => props.maxNodes, (val) => {
   currentMaxNodes.value = val
+})
+
+// 清理定时器，防止内存泄漏
+onBeforeUnmount(() => {
+  if (searchTimer) {
+    clearTimeout(searchTimer)
+    searchTimer = null
+  }
 })
 </script>
 

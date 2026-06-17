@@ -76,7 +76,11 @@
       "Bash(powershell -Command \"Select-String -Path D:\\\\workfordasan\\\\backend\\\\src\\\\main\\\\java -Pattern 'PasswordEncoderUtil' -Recurse | Select-Object Filename, LineNumber | Select-Object -First 10\")",
       "Bash(powershell -Command \"Get-ChildItem -Path D:\\\\workfordasan\\\\backend\\\\src\\\\main\\\\java -Filter '*.java' -Recurse | Select-String -Pattern 'PasswordEncoderUtil' | Select-Object Filename, LineNumber | Select-Object -First 10\")",
       "Bash(powershell -Command \"cd D:\\\\workfordasan\\\\backend; mvn test -Dtest=PasswordEncoderUtilTest 2>&1 | Select-String -Pattern 'Tests run|BUILD|FAIL' | Select-Object -Last 5\")",
-      "Bash(powershell -Command \"cd D:\\\\workfordasan\\\\backend; mvn test -Dtest=PasswordEncoderUtilTest 2>&1 | Select-String -Pattern 'Tests run|BUILD' | Select-Object -Last 3\")"
+      "Bash(powershell -Command \"cd D:\\\\workfordasan\\\\backend; mvn test -Dtest=PasswordEncoderUtilTest 2>&1 | Select-String -Pattern 'Tests run|BUILD' | Select-Object -Last 3\")",
+      "Bash(xxd)",
+      "Bash(python3 -c ' *)",
+      "Bash(mysql -u root -p'yu6670980506' labex -e \"SELECT student_id, student_name FROM t_student LIMIT 5;\")",
+      "Bash(Get-ChildItem -Path \"D:\\\\\" -Directory -Recurse -Depth 2 -Filter \"*opencode*\" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName)"
     ],
     "additionalDirectories": [
       "d:\\workfordasan\\.claude",

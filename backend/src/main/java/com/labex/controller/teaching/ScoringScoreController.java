@@ -61,13 +61,21 @@ public class ScoringScoreController {
     }
 
     @GetMapping("/matrix")
-    public Result<ScoreMatrixVO> getMatrix(@RequestParam Integer offeringId) {
-        return Result.success(scoreService.getMatrix(offeringId));
+    public Result<ScoreMatrixVO> getMatrix(@RequestParam Integer offeringId,
+                                            @RequestParam(defaultValue = "1") Integer page,
+                                            @RequestParam(defaultValue = "20") Integer pageSize) {
+        return Result.success(scoreService.getMatrix(offeringId, page, pageSize));
     }
 
     @GetMapping("/list")
     public Result<List<ScoringScore>> listByItem(@RequestParam Integer itemId) {
         return Result.success(scoreService.listByItem(itemId));
+    }
+
+    @PostMapping("/sync")
+    public Result<Map<String, Object>> syncFromSource(@RequestParam Integer offeringId) {
+        int count = scoreService.syncFromSource(offeringId);
+        return Result.success("同步完成", Map.of("synced", count));
     }
 
     @PostMapping("/import")

@@ -1,5 +1,6 @@
 import { mount } from '@vue/test-utils'
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach } from 'vitest'
+import { nextTick } from 'vue'
 import Pagination from '@/components/Pagination.vue'
 
 /**
@@ -23,19 +24,21 @@ describe('Pagination Component Tests', () => {
     disabled: false
   }
 
+  const mountPagination = (props = {}) => mount(Pagination, {
+    props: { ...defaultProps, ...props },
+    global: {
+      stubs: {
+        'el-pagination': {
+          template: '<div class="el-pagination-stub" />'
+        }
+      }
+    }
+  })
+
   let wrapper
 
   beforeEach(() => {
-    wrapper = mount(Pagination, {
-      props: defaultProps,
-      global: {
-        stubs: {
-          'el-pagination': {
-            template: '<div class="el-pagination-stub" />'
-          }
-        }
-      }
-    })
+    wrapper = mountPagination()
   })
 
   it('UT-Pag-01: 默认配置正确渲染', () => {
@@ -59,7 +62,7 @@ describe('Pagination Component Tests', () => {
 
     // Simulate page change
     pagination.currentPageSync = 2
-    await wrapper.update()
+    await nextTick()
 
     expect(wrapper.emitted('update:modelValue')).toBeTruthy()
     expect(wrapper.emitted('page-change')).toBeTruthy()
@@ -70,7 +73,7 @@ describe('Pagination Component Tests', () => {
 
     // Change page size
     pagination.pageSizeSync = 20
-    await wrapper.update()
+    await nextTick()
 
     expect(wrapper.emitted('size-change')).toBeTruthy()
   })
@@ -82,36 +85,28 @@ describe('Pagination Component Tests', () => {
 
   it('UT-Pag-01: 自定义页大小选项正确渲染', () => {
     const customPageSizes = [10, 25, 50, 100]
-    const wrapper = mount(Pagination, {
-      props: { ...defaultProps, pageSizes: customPageSizes }
-    })
+    const wrapper = mountPagination({ pageSizes: customPageSizes })
     expect(wrapper.props('pageSizes')).toEqual(customPageSizes)
   })
 
   it('UT-Pag-04: 每页条数变化时page应重置为1', async () => {
-    const wrapper = mount(Pagination, {
-      props: { ...defaultProps, modelValue: { page: 3, pageSize: 10 } }
-    })
+    const wrapper = mountPagination({ modelValue: { page: 3, pageSize: 10 } })
 
     const pagination = wrapper.vm
     pagination.pageSizeSync = 20
-    await wrapper.update()
+    await nextTick()
 
     // Size change should emit with page: 1
     expect(wrapper.emitted('size-change')).toBeTruthy()
   })
 
   it('UT-Pag-01: 小尺寸分页正确渲染', () => {
-    const wrapper = mount(Pagination, {
-      props: { ...defaultProps, small: true }
-    })
+    const wrapper = mountPagination({ small: true })
     expect(wrapper.props('small')).toBe(true)
   })
 
   it('UT-Pag-01: 无数据时total为0', () => {
-    const wrapper = mount(Pagination, {
-      props: { ...defaultProps, total: 0 }
-    })
+    const wrapper = mountPagination({ total: 0 })
     expect(wrapper.props('total')).toBe(0)
   })
 })

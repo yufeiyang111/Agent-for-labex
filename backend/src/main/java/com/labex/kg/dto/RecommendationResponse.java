@@ -14,8 +14,14 @@ public class RecommendationResponse {
     private String question;
     private int type;
     private String typeName;
+    private String knowledgePointId;
     private String knowledgePoint;
     private String reason;
     private double difficulty;
     private double masteryScore;
+    private double priority;
+    private int attemptCount;
+    private String source;
+    private String actionText;
+    private String practiceUrl;
 }

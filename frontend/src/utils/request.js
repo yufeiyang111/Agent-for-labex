@@ -4,10 +4,15 @@ import { ElMessage } from 'element-plus'
 import { useUserStore } from '@/stores/user'
 import router from '@/router'
 
+export const REQUEST_TIMEOUTS = {
+  DEFAULT: 120000,
+  AI_GENERATION: 10 * 60 * 1000
+}
+
 // 创建实例
 const service = axios.create({
   baseURL: '/api',
-  timeout: 120000,
+  timeout: REQUEST_TIMEOUTS.DEFAULT,
   headers: {
     'Content-Type': 'application/json'
   }
@@ -31,6 +36,10 @@ service.interceptors.request.use(
 // 响应拦截器
 service.interceptors.response.use(
   (response) => {
+    if (response.config?.responseType === 'blob') {
+      return response.data
+    }
+
     const res = response.data
 
     // 响应状态码为0表示成功
@@ -58,6 +67,8 @@ service.interceptors.response.use(
       } else {
         ElMessage.error(error.response.data?.message || '请求失败')
       }
+    } else if (error.code === 'ECONNABORTED' || /timeout/i.test(error.message || '')) {
+      ElMessage.error(error.config?.timeoutMessage || '请求超时，请稍后刷新查看结果')
     } else {
       ElMessage.error('网络异常')
     }

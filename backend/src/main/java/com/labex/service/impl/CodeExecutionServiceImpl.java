@@ -163,7 +163,7 @@ public class CodeExecutionServiceImpl implements CodeExecutionService {
             compilePb.redirectErrorStream(true);
 
             Process compileProcess = compilePb.start();
-            String compileOutput = readStream(compileProcess.getInputStream(), processCharset);
+            String compileOutput = normalizeProcessOutput(readStream(compileProcess.getInputStream(), processCharset));
             int compileExitCode = compileProcess.waitFor();
 
             if (compileExitCode != 0) {
@@ -248,6 +248,7 @@ public class CodeExecutionServiceImpl implements CodeExecutionService {
                 cleanup(workDir);
                 return result;
             }
+            int runExitCode = runProcess.waitFor();
 
             long elapsedMs = (System.nanoTime() - startNs) / 1_000_000;
             result.put("timeMs", elapsedMs);
@@ -266,9 +267,12 @@ public class CodeExecutionServiceImpl implements CodeExecutionService {
             }
             result.put("memoryKb", maxMemoryKb[0] > 0 ? maxMemoryKb[0] : null);
 
-            output = outputBuilder.toString();
+            output = normalizeProcessOutput(outputBuilder.toString());
             if (output.length() > MAX_OUTPUT_SIZE) {
                 output = output.substring(0, (int) MAX_OUTPUT_SIZE) + "\n... (output truncated)";
+            }
+            if (runExitCode != 0) {
+                error = "Execution error:\n" + output;
             }
         } catch (Exception e) {
             log.error("Code execution error", e);
@@ -412,6 +416,23 @@ public class CodeExecutionServiceImpl implements CodeExecutionService {
             }
             return sb.toString();
         }
+    }
+
+    private String normalizeProcessOutput(String text) {
+        if (text == null || text.isEmpty()) {
+            return "";
+        }
+        StringBuilder out = new StringBuilder();
+        for (String line : text.replace("\r\n", "\n").replace('\r', '\n').split("\n", -1)) {
+            if (line.startsWith("Picked up JAVA_TOOL_OPTIONS:")) {
+                continue;
+            }
+            out.append(line).append('\n');
+        }
+        while (out.length() > 0 && (out.charAt(out.length() - 1) == '\n' || out.charAt(out.length() - 1) == '\r')) {
+            out.setLength(out.length() - 1);
+        }
+        return out.toString();
     }
 
     private void cleanup(Path dir) {

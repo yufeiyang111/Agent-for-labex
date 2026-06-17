@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.extension.service.IService;
 import com.labex.entity.teaching.QualityEvaluation;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * 课程质量评价服务（CTL-S6）
@@ -24,4 +25,13 @@ public interface QualityEvaluationService extends IService<QualityEvaluation> {
 
     /** 终稿（自动生成快照） */
     QualityEvaluation finalize(Integer id);
+
+    /** 获取学生评价统计 */
+    Map<String, Object> getEvaluationStats(Integer offeringId);
+
+    /** 获取评价维度数据 */
+    List<Map<String, Object>> getEvaluationDimensions(Integer offeringId);
+
+    /** 获取学生文字评价 */
+    List<Map<String, Object>> getStudentComments(Integer offeringId);
 }

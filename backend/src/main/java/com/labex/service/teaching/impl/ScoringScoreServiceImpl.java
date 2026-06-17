@@ -2,11 +2,12 @@ package com.labex.service.teaching.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.labex.entity.Student;
+import com.labex.entity.*;
 import com.labex.entity.teaching.CourseOffering;
 import com.labex.entity.teaching.ScoringItem;
 import com.labex.entity.teaching.ScoringItemObjective;
 import com.labex.entity.teaching.ScoringScore;
+import com.labex.mapper.*;
 import com.labex.mapper.teaching.CourseOfferingMapper;
 import com.labex.mapper.teaching.ScoringItemMapper;
 import com.labex.mapper.teaching.ScoringItemObjectiveMapper;
@@ -26,6 +27,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -45,6 +47,18 @@ public class ScoringScoreServiceImpl extends ServiceImpl<ScoringScoreMapper, Sco
 
     @Autowired
     private StudentService studentService;
+
+    @Autowired
+    private StudentHomeworkMapper studentHomeworkMapper;
+
+    @Autowired
+    private ExamGradingMapper examGradingMapper;
+
+    @Autowired
+    private ScoreMapper scoreMapper;
+
+    @Autowired
+    private StudentMapper studentMapper;
 
     @Override
     @Transactional
@@ -136,18 +150,84 @@ public class ScoringScoreServiceImpl extends ServiceImpl<ScoringScoreMapper, Sco
             return h;
         }).collect(Collectors.toList()));
 
-        // 2. 取该 offering 所属班级的学生
-        CourseOffering offering = offeringMapper.selectById(offeringId);
-        List<Student> students;
-        if (offering != null && offering.getClazzNo() != null) {
-            students = studentService.list(new LambdaQueryWrapper<Student>()
-                    .eq(Student::getClazzNo, offering.getClazzNo())
-                    .orderByAsc(Student::getStudentNo));
-        } else {
-            students = Collections.emptyList();
-        }
+        // 2. 取学生：优先从班级取，班级无学生则从已同步成绩中反查
+        List<Student> students = resolveStudents(offeringId, items);
 
         // 3. 取所有成绩
+        Map<Integer, Map<Integer, BigDecimal>> scoreMap = new HashMap<>();
+        if (!items.isEmpty() && !students.isEmpty()) {
+            List<Integer> itemIds = items.stream().map(ScoringItem::getItemId).collect(Collectors.toList());
+            List<Integer> stuIds = students.stream().map(Student::getStudentId).collect(Collectors.toList());
+            List<ScoringScore> scores = list(new LambdaQueryWrapper<ScoringScore>()
+                    .in(ScoringScore::getItemId, itemIds)
+                    .in(ScoringScore::getStudentId, stuIds));
+            for (ScoringScore s : scores) {
+                scoreMap.computeIfAbsent(s.getStudentId(), k -> new HashMap<>())
+                        .put(s.getItemId(), s.getScore());
+            }
+        }
+
+        matrix.setStudents(students.stream().map(stu -> {
+            ScoreMatrixVO.StudentRow row = new ScoreMatrixVO.StudentRow();
+            row.setStudentId(stu.getStudentId());
+            row.setStudentNo(stu.getStudentNo());
+            row.setStudentName(stu.getStudentName());
+            row.setScores(scoreMap.getOrDefault(stu.getStudentId(), new HashMap<>()));
+            return row;
+        }).collect(Collectors.toList()));
+
+        return matrix;
+    }
+
+    @Override
+    public ScoreMatrixVO getMatrix(Integer offeringId, int page, int pageSize) {
+        ScoreMatrixVO matrix = new ScoreMatrixVO();
+
+        // 1. 取所有评分项
+        List<ScoringItem> items = itemMapper.selectList(new LambdaQueryWrapper<ScoringItem>()
+                .eq(ScoringItem::getOfferingId, offeringId)
+                .orderByAsc(ScoringItem::getSortOrder)
+                .orderByAsc(ScoringItem::getItemId));
+
+        // 1.1 评分项 → 目标
+        Map<Integer, List<Integer>> itemObjs = new HashMap<>();
+        if (!items.isEmpty()) {
+            List<Integer> itemIds = items.stream().map(ScoringItem::getItemId).collect(Collectors.toList());
+            List<ScoringItemObjective> links = linkMapper.selectList(
+                    new LambdaQueryWrapper<ScoringItemObjective>().in(ScoringItemObjective::getItemId, itemIds));
+            for (ScoringItemObjective l : links) {
+                itemObjs.computeIfAbsent(l.getItemId(), k -> new ArrayList<>()).add(l.getObjectiveId());
+            }
+        }
+
+        matrix.setItems(items.stream().map(i -> {
+            ScoreMatrixVO.ItemHeader h = new ScoreMatrixVO.ItemHeader();
+            h.setItemId(i.getItemId());
+            h.setName(i.getName());
+            h.setType(i.getType());
+            h.setMaxScore(i.getMaxScore());
+            h.setPassingScore(i.getPassingScore());
+            h.setWeight(i.getWeight());
+            h.setSortOrder(i.getSortOrder());
+            h.setObjectiveIds(itemObjs.getOrDefault(i.getItemId(), Collections.emptyList()));
+            return h;
+        }).collect(Collectors.toList()));
+
+        // 2. 取学生：优先从班级取，班级无学生则从已同步成绩中反查
+        List<Student> allStudents = resolveStudents(offeringId, items);
+
+        // 分页处理
+        int totalStudents = allStudents.size();
+        int fromIndex = (page - 1) * pageSize;
+        int toIndex = Math.min(fromIndex + pageSize, totalStudents);
+        List<Student> students = fromIndex < totalStudents ? allStudents.subList(fromIndex, toIndex) : Collections.emptyList();
+
+        // 设置总数
+        matrix.setTotal(totalStudents);
+        matrix.setPage(page);
+        matrix.setPageSize(pageSize);
+
+        // 3. 取所有成绩（只取当前页学生的成绩）
         Map<Integer, Map<Integer, BigDecimal>> scoreMap = new HashMap<>();
         if (!items.isEmpty() && !students.isEmpty()) {
             List<Integer> itemIds = items.stream().map(ScoringItem::getItemId).collect(Collectors.toList());
@@ -266,8 +346,10 @@ public class ScoringScoreServiceImpl extends ServiceImpl<ScoringScoreMapper, Sco
         if (offering == null) {
             throw new RuntimeException("开课不存在");
         }
-        List<Student> students = studentService.list(new LambdaQueryWrapper<Student>()
-                .eq(Student::getClazzNo, offering.getClazzNo()));
+        List<Student> students = studentService.listByTeachingClazz(offering.getClazzNo());
+        if (students == null) {
+            students = Collections.emptyList();
+        }
         Map<String, Integer> noToId = students.stream()
                 .collect(Collectors.toMap(Student::getStudentNo, Student::getStudentId, (a, b) -> a));
 
@@ -310,6 +392,186 @@ public class ScoringScoreServiceImpl extends ServiceImpl<ScoringScoreMapper, Sco
     @Override
     public List<ScoringScore> listByItem(Integer itemId) {
         return list(new LambdaQueryWrapper<ScoringScore>().eq(ScoringScore::getItemId, itemId));
+    }
+
+    @Override
+    @Transactional
+    public int syncFromSource(Integer offeringId) {
+        // 1. 获取该 offering 下所有有 sourceTable + sourceId 的评分项
+        List<ScoringItem> items = itemMapper.selectList(new LambdaQueryWrapper<ScoringItem>()
+                .eq(ScoringItem::getOfferingId, offeringId)
+                .isNotNull(ScoringItem::getSourceTable)
+                .isNotNull(ScoringItem::getSourceId)
+                .ne(ScoringItem::getSourceTable, ""));
+        if (items.isEmpty()) {
+            log.info("syncFromSource: offering {} 无关联源表的评分项", offeringId);
+            return 0;
+        }
+
+        // 2. 获取该 offering 班级的学生（用于过滤，但不作为必须条件）
+        CourseOffering offering = offeringMapper.selectById(offeringId);
+        Set<Integer> classStudentIds = null;
+        if (offering != null && offering.getClazzNo() != null) {
+            List<Student> students = studentService.listByTeachingClazz(offering.getClazzNo());
+            if (students != null && !students.isEmpty()) {
+                classStudentIds = students.stream()
+                        .map(Student::getStudentId)
+                        .collect(Collectors.toSet());
+            }
+        }
+
+        int synced = 0;
+        for (ScoringItem item : items) {
+            synced += syncItemScores(item, classStudentIds);
+        }
+        log.info("syncFromSource: offering={}, classStudentIds={}, synced={} 条成绩",
+                offeringId, classStudentIds != null ? classStudentIds.size() : "null", synced);
+        return synced;
+    }
+
+    /**
+     * 同步单个评分项的成绩
+     */
+    private int syncItemScores(ScoringItem item, Set<Integer> classStudentIds) {
+        String sourceTable = item.getSourceTable();
+        Integer sourceId = item.getSourceId();
+        int count = 0;
+
+        switch (sourceTable) {
+            case "t_homework" -> count = syncHomeworkScores(item, sourceId, classStudentIds);
+            case "t_exam" -> count = syncExamScores(item, sourceId, classStudentIds);
+            case "t_experiment" -> count = syncExperimentScores(item, sourceId, classStudentIds);
+            default -> log.warn("syncItemScores: 未知源表 {}，跳过评分项 {}", sourceTable, item.getItemId());
+        }
+        return count;
+    }
+
+    /**
+     * 从 t_student_homework 同步作业成绩
+     */
+    private int syncHomeworkScores(ScoringItem item, Integer homeworkId, Set<Integer> classStudentIds) {
+        LambdaQueryWrapper<StudentHomework> wrapper = new LambdaQueryWrapper<StudentHomework>()
+                .eq(StudentHomework::getHomeworkId, homeworkId);
+        if (classStudentIds != null && !classStudentIds.isEmpty()) {
+            wrapper.in(StudentHomework::getStudentId, classStudentIds);
+        }
+        List<StudentHomework> submissions = studentHomeworkMapper.selectList(wrapper);
+        int count = 0;
+        for (StudentHomework sub : submissions) {
+            if (sub.getScore() == null) continue;
+            BigDecimal score = convertScore(sub.getScore(), 100, item.getMaxScore());
+            upsertCalculatedScore(item.getItemId(), sub.getStudentId(), score);
+            count++;
+        }
+        return count;
+    }
+
+    /**
+     * 从 t_exam_grading 同步考试成绩
+     */
+    private int syncExamScores(ScoringItem item, Integer examId, Set<Integer> classStudentIds) {
+        LambdaQueryWrapper<ExamGrading> wrapper = new LambdaQueryWrapper<ExamGrading>()
+                .eq(ExamGrading::getExamId, examId);
+        if (classStudentIds != null && !classStudentIds.isEmpty()) {
+            wrapper.in(ExamGrading::getStudentId, classStudentIds);
+        }
+        List<ExamGrading> gradings = examGradingMapper.selectList(wrapper);
+        int count = 0;
+        for (ExamGrading g : gradings) {
+            if (g.getFinalScore() == null) continue;
+            BigDecimal score = convertScore(g.getFinalScore(), 100, item.getMaxScore());
+            upsertCalculatedScore(item.getItemId(), g.getStudentId(), score);
+            count++;
+        }
+        return count;
+    }
+
+    /**
+     * 从 t_score 同步实验成绩
+     */
+    private int syncExperimentScores(ScoringItem item, Integer experimentId, Set<Integer> classStudentIds) {
+        LambdaQueryWrapper<Score> wrapper = new LambdaQueryWrapper<Score>()
+                .eq(Score::getExperimentId, experimentId);
+        if (classStudentIds != null && !classStudentIds.isEmpty()) {
+            wrapper.in(Score::getStudentId, classStudentIds);
+        }
+        List<Score> scores = scoreMapper.selectList(wrapper);
+        int count = 0;
+        for (Score s : scores) {
+            if (s.getScore() == null) continue;
+            BigDecimal score = convertScore(s.getScore(), 100, item.getMaxScore());
+            upsertCalculatedScore(item.getItemId(), s.getStudentId(), score);
+            count++;
+        }
+        return count;
+    }
+
+    /**
+     * 分数换算：原始分 → 评分项满分下的分数
+     */
+    private BigDecimal convertScore(Integer rawScore, int rawMax, Integer targetMax) {
+        if (rawScore == null) return BigDecimal.ZERO;
+        if (targetMax == null || targetMax == rawMax) return BigDecimal.valueOf(rawScore);
+        return BigDecimal.valueOf(rawScore)
+                .multiply(BigDecimal.valueOf(targetMax))
+                .divide(BigDecimal.valueOf(rawMax), 2, RoundingMode.HALF_UP);
+    }
+
+    /**
+     * 插入或更新 calculated 来源的成绩（不覆盖手动录入的成绩）
+     */
+    private void upsertCalculatedScore(Integer itemId, Integer studentId, BigDecimal score) {
+        ScoringScore existing = getOne(new LambdaQueryWrapper<ScoringScore>()
+                .eq(ScoringScore::getItemId, itemId)
+                .eq(ScoringScore::getStudentId, studentId));
+        if (existing != null) {
+            // 不覆盖手动录入或导入的成绩
+            if ("manual".equals(existing.getSource()) || "imported".equals(existing.getSource())) {
+                return;
+            }
+            existing.setScore(score);
+            existing.setSource("calculated");
+            updateById(existing);
+        } else {
+            ScoringScore ss = new ScoringScore();
+            ss.setItemId(itemId);
+            ss.setStudentId(studentId);
+            ss.setScore(score);
+            ss.setSource("calculated");
+            save(ss);
+        }
+    }
+
+    /**
+     * 获取学生列表：优先从班级取，班级无学生则从已同步成绩中反查
+     */
+    private List<Student> resolveStudents(Integer offeringId, List<ScoringItem> items) {
+        // 优先从班级取
+        CourseOffering offering = offeringMapper.selectById(offeringId);
+        if (offering != null && offering.getClazzNo() != null) {
+            List<Student> students = studentService.listByTeachingClazz(offering.getClazzNo());
+            if (students != null && !students.isEmpty()) {
+                return students;
+            }
+        }
+        // 班级无学生，从已同步成绩中反查
+        if (items.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<Integer> itemIds = items.stream().map(ScoringItem::getItemId).collect(Collectors.toList());
+        List<ScoringScore> scores = list(new LambdaQueryWrapper<ScoringScore>()
+                .in(ScoringScore::getItemId, itemIds));
+        if (scores.isEmpty()) {
+            return Collections.emptyList();
+        }
+        Set<Integer> studentIds = scores.stream()
+                .map(ScoringScore::getStudentId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        if (studentIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return studentMapper.selectBatchIds(studentIds);
     }
 
     private String getCellStringValue(Cell cell) {

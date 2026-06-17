@@ -35,25 +35,33 @@ public class HybridRetriever {
             return new ArrayList<>();
         }
 
-        // Get results from vector store
-        List<Map<String, Object>> vectorResults = vectorStore.searchByVector(query, Math.max(topK * 5, 20));
-        if (vectorResults.isEmpty()) {
-            return vectorResults;
+        int candidateLimit = Math.max(topK * 6, 30);
+        List<Map<String, Object>> vectorResults = vectorStore.searchByVector(query, candidateLimit);
+        List<Map<String, Object>> keywordResults = vectorStore.searchByKeyword(query, candidateLimit);
+        if (vectorResults.isEmpty() && keywordResults.isEmpty()) {
+            return new ArrayList<>();
         }
 
         List<String> queryTerms = extractTerms(query);
+        List<Map<String, Object>> candidates = mergeCandidates(vectorResults, keywordResults);
 
-        // Apply simple BM25-like scoring
-        List<Map<String, Object>> bm25Scored = bm25Score(queryTerms, vectorResults);
+        List<Map<String, Object>> bm25Scored = bm25Score(queryTerms, candidates);
 
-        // Combine scores (simple weighted average)
         for (Map<String, Object> result : bm25Scored) {
             double vectorScore = getDouble(result.get("score"));
+            double keywordScore = getDouble(result.get("keywordScore"));
             double bm25Score = getDouble(result.get("bm25Score"));
             double coverageScore = getDouble(result.get("coverageScore"));
             double titleScore = getDouble(result.get("titleScore"));
+            double rrfScore = getDouble(result.get("rrfScore"));
             result.put("vectorScore", vectorScore);
-            result.put("finalScore", 0.58 * vectorScore + 0.24 * bm25Score + 0.13 * coverageScore + 0.05 * titleScore);
+            result.put("finalScore",
+                    0.40 * vectorScore
+                            + 0.22 * keywordScore
+                            + 0.16 * bm25Score
+                            + 0.10 * coverageScore
+                            + 0.05 * titleScore
+                            + 0.07 * rrfScore);
         }
 
         List<Map<String, Object>> sorted = bm25Scored.stream()
@@ -72,6 +80,60 @@ public class HybridRetriever {
         }
 
         return diversify(relevant.isEmpty() ? sorted : relevant, topK);
+    }
+
+    private List<Map<String, Object>> mergeCandidates(
+            List<Map<String, Object>> vectorResults,
+            List<Map<String, Object>> keywordResults) {
+        Map<String, Map<String, Object>> merged = new LinkedHashMap<>();
+
+        for (int i = 0; i < vectorResults.size(); i++) {
+            Map<String, Object> source = vectorResults.get(i);
+            String id = resultId(source);
+            Map<String, Object> target = merged.computeIfAbsent(id, ignored -> new HashMap<>(source));
+            target.put("score", Math.max(getDouble(target.get("score")), getDouble(source.get("score"))));
+            target.put("vectorRank", i + 1);
+        }
+
+        for (int i = 0; i < keywordResults.size(); i++) {
+            Map<String, Object> source = keywordResults.get(i);
+            String id = resultId(source);
+            Map<String, Object> target = merged.computeIfAbsent(id, ignored -> new HashMap<>(source));
+            for (Map.Entry<String, Object> entry : source.entrySet()) {
+                target.putIfAbsent(entry.getKey(), entry.getValue());
+            }
+            target.put("keywordScore", Math.max(getDouble(target.get("keywordScore")), getDouble(source.get("keywordScore"))));
+            target.put("keywordRank", i + 1);
+            if (source.get("matchTerms") instanceof List<?> terms && !terms.isEmpty()) {
+                target.put("matchTerms", terms);
+            }
+        }
+
+        for (Map<String, Object> result : merged.values()) {
+            int vectorRank = ((Number) result.getOrDefault("vectorRank", candidatePenalty(vectorResults.size()))).intValue();
+            int keywordRank = ((Number) result.getOrDefault("keywordRank", candidatePenalty(keywordResults.size()))).intValue();
+            double rrf = reciprocalRank(vectorRank) + reciprocalRank(keywordRank);
+            result.put("rrfScore", Math.min(1.0, rrf * 30.0));
+            Map<String, Object> signals = new LinkedHashMap<>();
+            signals.put("vectorRank", result.get("vectorRank"));
+            signals.put("keywordRank", result.get("keywordRank"));
+            signals.put("rrfScore", result.get("rrfScore"));
+            result.put("retrievalSignals", signals);
+        }
+
+        return new ArrayList<>(merged.values());
+    }
+
+    private String resultId(Map<String, Object> result) {
+        return Objects.toString(result.getOrDefault("id", result.getOrDefault("documentId", UUID.randomUUID().toString())));
+    }
+
+    private int candidatePenalty(int size) {
+        return Math.max(size + 20, 80);
+    }
+
+    private double reciprocalRank(int rank) {
+        return 1.0 / (60.0 + Math.max(1, rank));
     }
 
     private List<Map<String, Object>> bm25Score(List<String> queryTerms, List<Map<String, Object>> documents) {
@@ -125,7 +187,8 @@ public class HybridRetriever {
         int lexicalHits = ((Number) result.getOrDefault("lexicalHits", 0)).intValue();
         int titleHits = ((Number) result.getOrDefault("titleHits", 0)).intValue();
         double vectorScore = getDouble(result.get("vectorScore"));
-        return lexicalHits > 0 || titleHits > 0 || vectorScore >= HIGH_CONFIDENCE_VECTOR_SCORE;
+        double keywordScore = getDouble(result.get("keywordScore"));
+        return lexicalHits > 0 || titleHits > 0 || vectorScore >= HIGH_CONFIDENCE_VECTOR_SCORE || keywordScore >= 0.35;
     }
 
     private List<Map<String, Object>> diversify(List<Map<String, Object>> sorted, int topK) {

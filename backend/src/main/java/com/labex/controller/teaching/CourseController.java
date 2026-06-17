@@ -1,5 +1,8 @@
 package com.labex.controller.teaching;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.labex.common.PageResult;
 import com.labex.common.Result;
 import com.labex.entity.Teacher;
 import com.labex.entity.teaching.Course;
@@ -36,8 +39,16 @@ public class CourseController {
     }
 
     @GetMapping("/list")
-    public Result<List<Course>> list() {
-        return Result.success(courseService.listByOwner(currentTeacherId()));
+    public Result<?> list(@RequestParam(defaultValue = "1") Integer pageNum,
+                          @RequestParam(defaultValue = "20") Integer pageSize) {
+        Integer ownerId = currentTeacherId();
+        LambdaQueryWrapper<Course> wrapper = new LambdaQueryWrapper<>();
+        if (ownerId != null) {
+            wrapper.eq(Course::getOwnerId, ownerId);
+        }
+        wrapper.orderByDesc(Course::getCourseId);
+        Page<Course> page = courseService.page(new Page<>(pageNum, pageSize), wrapper);
+        return Result.success(PageResult.success(page.getRecords(), pageNum, pageSize, page.getTotal()));
     }
 
     @GetMapping("/all")

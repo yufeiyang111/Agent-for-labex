@@ -5,6 +5,7 @@
         <svg v-if="call.status === 'running'" class="tc-spin" width="14" height="14" viewBox="0 0 24 24" fill="none" :stroke="statusColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
         <svg v-else-if="call.status === 'completed'" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
         <svg v-else-if="call.status === 'error'" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+        <svg v-else-if="call.status === 'waiting_user' || call.status === 'waiting_approval'" width="14" height="14" viewBox="0 0 24 24" fill="none" :stroke="statusColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
         <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
       </div>
       <div class="tc-info">
@@ -82,8 +83,41 @@
           </div>
         </div>
 
+        <div v-if="isQuestionAsk" class="tc-question">
+          <div class="tc-question-kicker">等待用户输入</div>
+          <div class="tc-question-title">{{ questionRequest.summary || 'Agent 需要你的回答' }}</div>
+          <div class="tc-question-text">{{ questionRequest.question }}</div>
+          <div v-if="questionOptions.length" class="tc-question-options">
+            <button
+              v-for="option in questionOptions"
+              :key="option"
+              type="button"
+              class="tc-option-btn"
+              @click.stop="setQuestionAnswer(option)"
+            >{{ option }}</button>
+          </div>
+          <textarea
+            v-model="answerDraft"
+            class="tc-textarea"
+            rows="3"
+            placeholder="输入你的回答，Agent 会基于这个回答继续执行"
+            @click.stop
+          />
+          <div class="tc-approval-actions">
+            <button type="button" class="tc-approval-btn primary" @click.stop="emitQuestion('answer')">发送回答</button>
+            <button type="button" class="tc-approval-btn danger" @click.stop="emitQuestion('cancel')">取消这次提问</button>
+          </div>
+        </div>
+
         <div v-if="isPermissionAsk" class="tc-approval">
           <div class="tc-approval-title">需要确认后才能继续执行</div>
+          <textarea
+            v-model="approvalFeedback"
+            class="tc-textarea"
+            rows="2"
+            placeholder="可选：填写拒绝原因或执行约束，Agent 会读到这段反馈"
+            @click.stop
+          />
           <div class="tc-approval-actions">
             <button type="button" class="tc-approval-btn primary" @click.stop="emitPermission('once')">允许一次</button>
             <button type="button" class="tc-approval-btn" @click.stop="emitPermission('always')">始终允许</button>
@@ -96,16 +130,18 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import DiffViewer from './DiffViewer.vue'
 
 const props = defineProps({
   call: { type: Object, required: true }
 })
 
-const emit = defineEmits(['permission'])
+const emit = defineEmits(['permission', 'question'])
 
-const expanded = ref(props.call.status === 'error' || props.call.status === 'waiting_approval')
+const expanded = ref(props.call.status === 'error' || props.call.status === 'waiting_approval' || props.call.status === 'waiting_user')
+const answerDraft = ref('')
+const approvalFeedback = ref('')
 
 const toolMap = {
   read_file: '读取文件', edit_file: '编辑文件', write_file: '写入文件',
@@ -124,9 +160,13 @@ const statusColor = computed(() => {
   if (props.call.status === 'running') return '#3b82f6'
   if (props.call.status === 'error') return '#ef4444'
   if (props.call.status === 'waiting_approval') return '#f59e0b'
+  if (props.call.status === 'waiting_user') return '#8b5cf6'
   return '#10b981'
 })
 const isPermissionAsk = computed(() => props.call.status === 'waiting_approval' && !!props.call.permissionRequest)
+const isQuestionAsk = computed(() => props.call.status === 'waiting_user' && !!props.call.questionRequest)
+const questionRequest = computed(() => props.call.questionRequest || {})
+const questionOptions = computed(() => Array.isArray(questionRequest.value.options) ? questionRequest.value.options.filter(Boolean) : [])
 
 const isEditTool = computed(() => ['edit_file', 'write_file', 'apply_patch'].includes(props.call.name))
 const isShellTool = computed(() => ['bash', 'run_command', 'execute_code', 'run_tests'].includes(props.call.name))
@@ -162,8 +202,28 @@ function truncate(text, max) {
 }
 
 function emitPermission(action) {
-  emit('permission', { call: props.call, action })
+  emit('permission', { call: props.call, action, feedback: approvalFeedback.value.trim() })
 }
+
+function setQuestionAnswer(option) {
+  answerDraft.value = option
+}
+
+function emitQuestion(action) {
+  emit('question', { call: props.call, action, answer: answerDraft.value.trim() })
+}
+
+watch(() => props.call.status, (status) => {
+  if (status === 'error' || status === 'waiting_approval' || status === 'waiting_user') {
+    expanded.value = true
+  }
+})
+
+watch(() => props.call.questionRequest, (request) => {
+  if (request?.answer) {
+    answerDraft.value = request.answer
+  }
+})
 </script>
 
 <style scoped>
@@ -177,6 +237,7 @@ function emitPermission(action) {
 .tc-card.tc-running { border-color: #93c5fd; }
 .tc-card.tc-error { border-color: #fca5a5; }
 .tc-card.tc-waiting_approval { border-color: #fbbf24; }
+.tc-card.tc-waiting_user { border-color: #c4b5fd; }
 .tc-header {
   display: flex;
   align-items: center;
@@ -304,6 +365,81 @@ function emitPermission(action) {
   word-break: break-all;
 }
 .tc-diff-wrap { margin-top: 4px; }
+
+.tc-question {
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 8px;
+  background: #f5f3ff;
+  border: 1px solid #ddd6fe;
+}
+
+.tc-question-kicker {
+  font-size: 10px;
+  font-weight: 700;
+  color: #7c3aed;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  margin-bottom: 4px;
+}
+
+.tc-question-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #4c1d95;
+  margin-bottom: 6px;
+}
+
+.tc-question-text {
+  font-size: 13px;
+  line-height: 1.6;
+  color: #312e81;
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin-bottom: 8px;
+}
+
+.tc-question-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.tc-option-btn {
+  border: 1px solid #c4b5fd;
+  border-radius: 999px;
+  background: #fff;
+  color: #5b21b6;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 5px 9px;
+}
+
+.tc-option-btn:hover {
+  background: #ede9fe;
+}
+
+.tc-textarea {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  min-height: 48px;
+  border: 1px solid #d1d5db;
+  border-radius: 7px;
+  background: #fff;
+  color: #111827;
+  font-size: 12px;
+  line-height: 1.5;
+  padding: 7px 9px;
+  outline: none;
+  margin-bottom: 8px;
+}
+
+.tc-textarea:focus {
+  border-color: #8b5cf6;
+  box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.15);
+}
 
 .tc-approval {
   margin-top: 10px;

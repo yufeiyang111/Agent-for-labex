@@ -1,362 +1,310 @@
 <template>
-  <div class="question-page">
-    <el-breadcrumb separator="/" class="breadcrumb">
-      <el-breadcrumb-item :to="{ path: '/teacher' }">教师首页</el-breadcrumb-item>
-      <el-breadcrumb-item>题库管理</el-breadcrumb-item>
-    </el-breadcrumb>
+  <div class="question-page wabi-page">
+    <div class="wabi-body">
+      <!-- 页面头部 -->
+      <div class="page-header">
+        <div class="header-left">
+          <h2 class="page-title">题库管理</h2>
+          <div class="filter-wrapper">
+            <el-select v-model="searchType" placeholder="题型" clearable @change="handleSearch" size="small" class="type-select">
+              <el-option label="填空题" :value="1" />
+              <el-option label="选择题" :value="2" />
+              <el-option label="判断题" :value="4" />
+              <el-option label="简答题" :value="5" />
+              <el-option label="编程题" :value="6" />
+            </el-select>
+            <el-input
+              v-model="searchQuery"
+              placeholder="搜索题目内容"
+              clearable
+              @clear="handleSearch"
+              @keyup.enter="handleSearch"
+              size="small"
+              class="wabi-search"
+            >
+              <template #prefix><el-icon><Search /></el-icon></template>
+            </el-input>
+          </div>
+        </div>
+        <el-button type="primary" :icon="Plus" @click="handleAdd" class="wabi-btn-primary">
+          新增题目
+        </el-button>
+      </div>
 
-    <div class="page-header">
-      <h2 class="page-title">题库管理</h2>
-      <div class="search-area">
-        <el-select v-model="searchType" placeholder="题型" clearable style="width: 140px" @change="handleSearch">
-          <el-option label="填空题" :value="1" />
-          <el-option label="选择题" :value="2" />
-          <el-option label="解答题" :value="5" />
-          <el-option label="编程题" :value="6" />
-        </el-select>
-        <el-input
-          v-model="searchQuery"
-          placeholder="搜索题目内容"
-          clearable
-          @clear="handleSearch"
-          @keyup.enter="handleSearch"
-          class="search-input"
-        >
-          <template #prefix><el-icon><Search /></el-icon></template>
-        </el-input>
-        <el-button type="primary" @click="handleSearch">搜索</el-button>
+      <!-- 列表容器 -->
+      <div class="list-container">
+        <div class="list-content" v-loading="loading">
+          <div v-if="!loading && !questionList.length" class="list-empty">
+            <el-empty description="暂无题目数据" />
+          </div>
+          <div v-else class="question-list">
+            <div v-for="q in questionList" :key="q.id" class="question-item">
+              <div class="question-info">
+                <div class="question-header">
+                  <span class="question-id">#{{ q.id }}</span>
+                  <span class="wabi-tag" :class="getTypeClass(q.type)">{{ q.typeName || getTypeName(q.type) }}</span>
+                  <span class="wabi-tag" :class="q.state === 1 ? 'wabi-tag-accent' : ''">
+                    {{ q.state === 1 ? '启用' : '禁用' }}
+                  </span>
+                </div>
+                <div class="question-text">{{ shortText(q.question, 150) }}</div>
+              </div>
+              <div class="question-actions">
+                <el-button size="small" text @click="handleEdit(q)" class="wabi-btn-text">编辑</el-button>
+                <el-button size="small" text type="danger" @click="handleDelete(q)" class="wabi-btn-text wabi-btn-danger">删除</el-button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 分页 -->
+        <div class="list-pagination" v-if="pagination.total > 0">
+          <el-pagination
+            v-model:current-page="pagination.page"
+            v-model:page-size="pagination.pageSize"
+            :page-sizes="[20, 40, 60, 100]"
+            :total="pagination.total"
+            layout="total, sizes, prev, pager, next, jumper"
+            @size-change="loadQuestionList"
+            @current-change="loadQuestionList"
+          />
+        </div>
       </div>
     </div>
 
-    <div class="action-bar">
-      <el-button type="success" @click="handleAdd">
-        <el-icon><Plus /></el-icon>
-        新增题目
-      </el-button>
-    </div>
-
-    <el-card class="table-card" shadow="hover">
-      <el-table :data="questionList" v-loading="loading" stripe>
-        <el-table-column prop="id" label="ID" min-width="80" />
-        <el-table-column label="类型" width="110">
-          <template #default="{ row }">
-            <el-tag :type="getTypeTag(row.type)">{{ row.typeName || getTypeName(row.type) }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="题目内容" min-width="340">
-          <template #default="{ row }">
-            <div>{{ shortText(row.question, 120) }}</div>
-          </template>
-        </el-table-column>
-        <el-table-column label="分值" width="90">
-          <template #default="{ row }">{{ row.score || 10 }}</template>
-        </el-table-column>
-        <el-table-column label="出题人" width="100">
-          <template #default="{ row }">{{ row.teacherName || '-' }}</template>
-        </el-table-column>
-        <el-table-column label="状态" width="90">
-          <template #default="{ row }">
-            <el-tag :type="row.state === 1 ? 'success' : 'info'">{{ row.state === 1 ? '启用' : '禁用' }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="200" fixed="right">
-          <template #default="{ row }">
-            <div class="action-buttons">
-              <el-button type="primary" size="small" plain @click="handleEdit(row)">编辑</el-button>
-              <el-button type="danger" size="small" plain @click="handleDelete(row)">删除</el-button>
-            </div>
-          </template>
-        </el-table-column>
-      </el-table>
-
-      <el-pagination
-        v-model:current-page="pagination.page"
-        v-model:page-size="pagination.pageSize"
-        :page-sizes="[20, 40, 60]"
-        :total="pagination.total"
-        layout="total, sizes, prev, pager, next"
-        @size-change="loadQuestionList"
-        @current-change="loadQuestionList"
-        class="pagination"
-      />
-    </el-card>
-
-    <el-dialog v-model="dialogVisible" :title="dialogTitle" width="860px" destroy-on-close>
-      <el-form ref="formRef" :model="formData" :rules="formRules" label-width="92px" class="question-form">
-        <div class="form-grid">
-          <el-form-item label="题目类型" prop="type">
-            <el-select v-model="formData.type" placeholder="请选择题目类型" style="width: 100%" @change="onTypeChange">
-              <el-option label="填空题" :value="1" />
-              <el-option label="选择题" :value="2" />
-              <el-option label="解答题" :value="5" />
-              <el-option label="编程题" :value="6" />
-            </el-select>
-          </el-form-item>
-
-          <el-form-item label="分值" prop="score">
-            <el-input-number v-model="formData.score" :min="1" :max="100" />
-          </el-form-item>
-        </div>
-
-        <el-form-item label="题目内容" prop="question">
-          <el-input
-            v-model="formData.question"
-            type="textarea"
-            :rows="4"
-            placeholder="请输入题目描述"
-          />
+    <!-- 编辑题目对话框 -->
+    <el-dialog v-model="editDialogVisible" :title="isEdit ? '编辑题目' : '新增题目'" width="800" class="wabi-dialog">
+      <el-form ref="editFormRef" :model="editForm" :rules="editRules" label-width="100" class="wabi-form">
+        <el-form-item label="题型" prop="type">
+          <el-select v-model="editForm.type" placeholder="选择题型" style="width: 100%" @change="onTypeChange">
+            <el-option label="填空题" :value="1" />
+            <el-option label="单选题" :value="2" />
+            <el-option label="多选题" :value="3" />
+            <el-option label="判断题" :value="4" />
+            <el-option label="简答题" :value="5" />
+            <el-option label="编程题" :value="6" />
+            <el-option label="综合题" :value="7" />
+          </el-select>
         </el-form-item>
-
-        <template v-if="formData.type === 1">
-          <el-form-item label="填空数量">
-            <el-input-number v-model="formData.blankCount" :min="1" :max="10" @change="updateBlankPlaceholders" />
-          </el-form-item>
-          <el-form-item label="标准答案" prop="answer">
-            <div class="answer-inputs">
-              <div v-for="idx in formData.blankCount" :key="idx" class="answer-row">
-                <span class="answer-label">第 {{ idx }} 空:</span>
-                <el-input v-model="formData.answers[idx - 1]" placeholder="请输入答案" />
-              </div>
+        <el-form-item label="题目内容" prop="question">
+          <el-input v-model="editForm.question" type="textarea" :rows="6" placeholder="请输入题目内容" />
+        </el-form-item>
+        <!-- 填空题：多个答案输入框 -->
+        <template v-if="editForm.type === 1">
+          <el-form-item label="答案">
+            <div v-for="(blank, idx) in editForm.fillBlanks" :key="idx" class="option-item">
+              <el-input v-model="editForm.fillBlanks[idx]" :placeholder="`第 ${idx + 1} 空答案`" />
+              <el-button text type="danger" @click="editForm.fillBlanks.splice(idx, 1)" v-if="editForm.fillBlanks.length > 1">删除</el-button>
             </div>
+            <el-button text @click="editForm.fillBlanks.push('')" class="add-option-btn">添加一空</el-button>
           </el-form-item>
         </template>
 
-        <template v-if="formData.type === 2">
-          <el-form-item label="选项配置" required>
-            <div class="choice-editor">
-              <div v-for="(item, idx) in choiceOptions" :key="idx" class="choice-row">
-                <el-input v-model="item.key" maxlength="4" style="width: 80px" />
-                <el-input v-model="item.content" placeholder="选项内容" />
-                <el-button type="danger" plain @click="removeChoiceOption(idx)" :disabled="choiceOptions.length <= 2">
-                  删除
-                </el-button>
-              </div>
-              <el-button type="primary" plain @click="addChoiceOption">添加选项</el-button>
+        <!-- 选择题：选项 key + 内容分离，答案 radio -->
+        <template v-if="editForm.type === 2 || editForm.type === 3">
+          <el-form-item label="选项">
+            <div v-for="(opt, idx) in editForm.choiceOptions" :key="idx" class="option-item">
+              <span class="option-key">{{ opt.key }}.</span>
+              <el-input v-model="opt.content" :placeholder="`选项 ${opt.key} 内容`" style="flex: 1" />
+              <el-button text type="danger" @click="removeChoiceOption(idx)" v-if="editForm.choiceOptions.length > 2">删除</el-button>
             </div>
+            <el-button text @click="addChoiceOption" class="add-option-btn">添加选项</el-button>
           </el-form-item>
           <el-form-item label="正确答案" prop="answer">
-            <el-radio-group v-model="choiceAnswer">
-              <el-radio v-for="opt in validChoiceOptions" :key="opt.key" :value="opt.key">
-                {{ opt.key }}
-              </el-radio>
+            <el-radio-group v-if="editForm.type === 2" v-model="editForm.answer">
+              <el-radio v-for="opt in editForm.choiceOptions" :key="opt.key" :value="opt.key">{{ opt.key }}</el-radio>
             </el-radio-group>
+            <el-checkbox-group v-else v-model="editForm.answer">
+              <el-checkbox v-for="opt in editForm.choiceOptions" :key="opt.key" :value="opt.key" :label="opt.key">{{ opt.key }}</el-checkbox>
+            </el-checkbox-group>
           </el-form-item>
         </template>
 
-        <template v-if="formData.type === 5">
-          <el-form-item label="参考答案">
-            <el-input v-model="formData.answer" type="textarea" :rows="3" placeholder="可选：用于老师批改参考" />
-          </el-form-item>
-        </template>
-
-        <template v-if="formData.type === 6">
-          <el-form-item label="默认语言">
-            <el-select v-model="programmingLanguage" style="width: 160px">
-              <el-option label="Java" value="java" />
-              <el-option label="C" value="c" />
-            </el-select>
-          </el-form-item>
+        <!-- 编程题：测试用例编辑 -->
+        <template v-if="editForm.type === 6">
           <el-form-item label="测试用例">
-            <div class="test-cases">
-              <div v-for="(tc, index) in testCases" :key="index" class="test-case-item">
-                <div class="test-case-head">
-                  <span>测试点 {{ index + 1 }}</span>
-                  <el-button type="danger" plain size="small" @click="removeTestCase(index)" :disabled="testCases.length <= 1">
-                    删除
-                  </el-button>
-                </div>
-                <el-input v-model="tc.input" type="textarea" :rows="2" placeholder="输入（可为空）" />
-                <el-input v-model="tc.expectedOutput" type="textarea" :rows="2" placeholder="期望输出" style="margin-top: 8px" />
-                <div class="test-case-foot">
-                  <span>权重</span>
-                  <el-input-number v-model="tc.scoreWeight" :min="1" :max="100" size="small" />
-                </div>
+            <div v-for="(tc, idx) in editForm.testCases" :key="idx" class="test-case-item">
+              <div class="test-case-header">
+                <span class="test-case-label">用例 {{ idx + 1 }}</span>
+                <el-button text type="danger" size="small" @click="removeTestCase(idx)" v-if="editForm.testCases.length > 1">删除</el-button>
               </div>
-              <el-button type="primary" plain @click="addTestCase">添加测试点</el-button>
+              <el-input v-model="tc.input" type="textarea" :rows="2" placeholder="输入 (input)" />
+              <el-input v-model="tc.expectedOutput" type="textarea" :rows="2" placeholder="期望输出 (expectedOutput)" />
+              <el-input-number v-model="tc.scoreWeight" :min="0" :max="100" :step="0.1" size="small" placeholder="分值权重" />
             </div>
+            <el-button text @click="addTestCase" class="add-option-btn">添加测试用例</el-button>
           </el-form-item>
         </template>
 
-        <el-form-item label="答案解析">
-          <el-input v-model="formData.analysis" type="textarea" :rows="2" placeholder="可选：答案解析" />
+        <!-- 其他题型：通用答案输入 -->
+        <el-form-item label="正确答案" prop="answer" v-if="editForm.type !== 2 && editForm.type !== 3 && editForm.type !== 6">
+          <el-input v-model="editForm.answer" type="textarea" :rows="3" placeholder="请输入正确答案" />
         </el-form-item>
-
+        <el-form-item label="解析">
+          <el-input v-model="editForm.analysis" type="textarea" :rows="3" placeholder="请输入答案解析" />
+        </el-form-item>
+        <el-row :gutter="16">
+          <el-col :span="12">
+            <el-form-item label="分值">
+              <el-input-number v-model="editForm.score" :min="1" :max="100" style="width: 100%" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="12">
+            <el-form-item label="难度">
+              <el-select v-model="editForm.difficulty" placeholder="选择难度" style="width: 100%">
+                <el-option label="简单" :value="1" />
+                <el-option label="中等" :value="2" />
+                <el-option label="困难" :value="3" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+        </el-row>
         <el-form-item label="状态">
-          <el-radio-group v-model="formData.state">
-            <el-radio :value="1">启用</el-radio>
-            <el-radio :value="0">禁用</el-radio>
-          </el-radio-group>
+          <el-switch v-model="editForm.state" :active-value="1" :inactive-value="0" active-text="启用" inactive-text="禁用" />
         </el-form-item>
       </el-form>
-
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSubmit" :loading="submitting">确定</el-button>
+        <el-button @click="editDialogVisible = false" class="wabi-btn-ghost">取消</el-button>
+        <el-button type="primary" @click="handleSave" :loading="saving" class="wabi-btn-primary">保存</el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Search } from '@element-plus/icons-vue'
-import { teacherApi } from '@/api/index.js'
+import { teacherApi } from '@/api'
+
+const questionApi = teacherApi.question
 
 const loading = ref(false)
-const submitting = ref(false)
+const saving = ref(false)
 const questionList = ref([])
-const dialogVisible = ref(false)
-const isEdit = ref(false)
-const formRef = ref(null)
 const searchQuery = ref('')
-const searchType = ref(null)
-const dialogTitle = computed(() => (isEdit.value ? '编辑题目' : '新增题目'))
+const searchType = ref('')
+const editDialogVisible = ref(false)
+const editFormRef = ref()
+const isEdit = ref(false)
 
-const pagination = reactive({ page: 1, pageSize: 20, total: 0 })
-
-const formData = reactive({
-  id: null,
-  type: 1,
-  question: '',
-  answer: '',
-  analysis: '',
-  options: '',
-  score: 10,
-  state: 1,
-  blankCount: 1,
-  answers: ['']
+const pagination = reactive({
+  page: 1,
+  pageSize: 20,
+  total: 0
 })
 
-const programmingLanguage = ref('java')
-const testCases = ref([{ input: '', expectedOutput: '', scoreWeight: 1 }])
-const choiceOptions = ref([
-  { key: 'A', content: '' },
-  { key: 'B', content: '' }
-])
-const choiceAnswer = ref('A')
-
-const validChoiceOptions = computed(() =>
-  choiceOptions.value.filter((item) => item.key && String(item.key).trim() && item.content && String(item.content).trim())
-)
-
-const formRules = computed(() => ({
-  type: [{ required: true, message: '请选择题目类型', trigger: 'change' }],
-  question: [{ required: true, message: '请输入题目内容', trigger: 'blur' }],
-  score: [{ required: true, message: '请输入分值', trigger: 'change' }],
-  answer: formData.type === 1 || formData.type === 2
-    ? [{ required: true, message: '请输入正确答案', trigger: 'blur' }]
-    : []
-}))
-
-const getTypeName = (type) => {
-  const map = { 1: '填空题', 2: '选择题', 5: '解答题', 6: '编程题' }
-  return map[type] || `类型${type || '-'}`
-}
-
-const getTypeTag = (type) => {
-  const map = { 1: 'warning', 2: 'primary', 5: 'success', 6: 'danger' }
-  return map[type] || 'info'
-}
-
-const shortText = (text, length = 100) => {
-  if (!text) return '-'
-  return text.length > length ? `${text.slice(0, length)}...` : text
-}
-
-const resetForm = () => {
-  Object.assign(formData, {
-    id: null,
-    type: 1,
-    question: '',
-    answer: '',
-    analysis: '',
-    options: '',
-    score: 10,
-    state: 1
-  })
-  programmingLanguage.value = 'java'
-  testCases.value = [{ input: '', expectedOutput: '', scoreWeight: 1 }]
-  choiceOptions.value = [
+const editForm = reactive({
+  id: null,
+  type: 2,
+  question: '',
+  options: ['', '', '', ''],
+  answer: '',
+  analysis: '',
+  score: 10,
+  difficulty: 2,
+  state: 1,
+  choiceOptions: [
     { key: 'A', content: '' },
-    { key: 'B', content: '' }
-  ]
-  choiceAnswer.value = 'A'
+    { key: 'B', content: '' },
+    { key: 'C', content: '' },
+    { key: 'D', content: '' }
+  ],
+  testCases: [{ input: '', expectedOutput: '', scoreWeight: 1 }],
+  fillBlanks: ['']
+})
+
+const editRules = {
+  type: [{ required: true, message: '请选择题型', trigger: 'change' }],
+  question: [{ required: true, message: '请输入题目内容', trigger: 'blur' }],
+  answer: [{ required: true, message: '请输入正确答案', trigger: 'blur' }]
 }
 
-const onTypeChange = () => {
-  if (formData.type === 1) {
-    formData.blankCount = 0
-    formData.answers = []
-    // 第一个空不追加横线，让用户自己加
-  } else if (formData.type === 2) {
-    formData.answer = choiceAnswer.value
-  } else if (formData.type === 6) {
-    formData.answer = ''
-    formData.options = JSON.stringify({ defaultLanguage: programmingLanguage.value })
+const getTypeName = (type) => ({
+  1: '填空题',
+  2: '单选题',
+  3: '多选题',
+  4: '判断题',
+  5: '简答题',
+  6: '编程题',
+  7: '综合题'
+}[type] || '未知')
+
+const getTypeClass = (type) => ({
+  1: '',
+  2: 'wabi-tag-accent',
+  3: 'wabi-tag-accent',
+  4: '',
+  5: 'wabi-tag-warning',
+  6: 'wabi-tag-info',
+  7: 'wabi-tag-warning'
+}[type] || '')
+
+const onTypeChange = (type) => {
+  if (type === 1) {
+    // 填空题
+    editForm.fillBlanks = editForm.fillBlanks.length ? editForm.fillBlanks : ['']
+    editForm.answer = ''
+  } else if (type === 2 || type === 3) {
+    // 选择题
+    editForm.choiceOptions = editForm.choiceOptions.length >= 2 ? editForm.choiceOptions : [
+      { key: 'A', content: '' },
+      { key: 'B', content: '' },
+      { key: 'C', content: '' },
+      { key: 'D', content: '' }
+    ]
+    editForm.answer = ''
+  } else if (type === 6) {
+    // 编程题
+    editForm.testCases = editForm.testCases.length ? editForm.testCases : [{ input: '', expectedOutput: '', scoreWeight: 1 }]
+    editForm.answer = ''
   } else {
-    formData.options = ''
-  }
-}
-
-const updateBlankPlaceholders = () => {
-  const count = formData.blankCount || 0
-  const currentBlanks = (formData.question.match(/________/g) || []).length
-  if (count > currentBlanks) {
-    // 需要增加横线
-    for (let i = currentBlanks; i < count; i++) {
-      formData.question = formData.question.trim() + ' ________'
-    }
-  } else if (count < currentBlanks) {
-    // 需要减少横线
-    for (let i = currentBlanks; i > count; i--) {
-      formData.question = formData.question.replace(/ ________$/, '')
-    }
-  }
-  // 同步答案数组
-  while (formData.answers.length < count) {
-    formData.answers.push('')
-  }
-  while (formData.answers.length > count) {
-    formData.answers.pop()
+    editForm.answer = ''
   }
 }
 
 const addChoiceOption = () => {
-  const charCode = 65 + choiceOptions.value.length
-  const key = String.fromCharCode(Math.min(charCode, 90))
-  choiceOptions.value.push({ key, content: '' })
+  const keys = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+  const nextKey = keys[editForm.choiceOptions.length] || String(editForm.choiceOptions.length)
+  editForm.choiceOptions.push({ key: nextKey, content: '' })
 }
 
 const removeChoiceOption = (index) => {
-  if (choiceOptions.value.length <= 2) return
-  const removed = choiceOptions.value[index]
-  choiceOptions.value.splice(index, 1)
-  if (removed.key === choiceAnswer.value) {
-    choiceAnswer.value = choiceOptions.value[0]?.key || 'A'
-  }
+  editForm.choiceOptions.splice(index, 1)
+  editForm.choiceOptions.forEach((opt, i) => {
+    opt.key = String.fromCharCode(65 + i)
+  })
 }
 
 const addTestCase = () => {
-  testCases.value.push({ input: '', expectedOutput: '', scoreWeight: 1 })
+  editForm.testCases.push({ input: '', expectedOutput: '', scoreWeight: 1 })
 }
 
 const removeTestCase = (index) => {
-  if (testCases.value.length <= 1) return
-  testCases.value.splice(index, 1)
+  if (editForm.testCases.length > 1) {
+    editForm.testCases.splice(index, 1)
+  }
+}
+
+const shortText = (text, len) => {
+  if (!text) return ''
+  return text.length > len ? text.substring(0, len) + '...' : text
 }
 
 const loadQuestionList = async () => {
   loading.value = true
   try {
-    const params = { page: pagination.page, pageSize: pagination.pageSize }
-    if (searchType.value) params.type = searchType.value
-    if (searchQuery.value) params.keyword = searchQuery.value
-    const response = await teacherApi.question.list(params)
-    questionList.value = response.data?.list || []
-    pagination.total = response.data?.total || 0
-  } catch {
-    ElMessage.error('加载题库失败')
+    const params = {
+      page: pagination.page,
+      pageSize: pagination.pageSize,
+      keyword: searchQuery.value || undefined,
+      type: searchType.value || undefined
+    }
+    const res = await questionApi.list(params)
+    questionList.value = res.data?.list || res.data || []
+    pagination.total = res.data?.total || questionList.value.length
+  } catch (error) {
+    console.error('加载题目列表失败:', error)
   } finally {
     loading.value = false
   }
@@ -367,373 +315,420 @@ const handleSearch = () => {
   loadQuestionList()
 }
 
+const resetForm = () => {
+  Object.assign(editForm, {
+    id: null,
+    type: 2,
+    question: '',
+    options: ['', '', '', ''],
+    answer: '',
+    analysis: '',
+    score: 10,
+    difficulty: 2,
+    state: 1,
+    choiceOptions: [
+      { key: 'A', content: '' },
+      { key: 'B', content: '' },
+      { key: 'C', content: '' },
+      { key: 'D', content: '' }
+    ],
+    testCases: [{ input: '', expectedOutput: '', scoreWeight: 1 }],
+    fillBlanks: ['']
+  })
+}
+
 const handleAdd = () => {
   resetForm()
   isEdit.value = false
-  dialogVisible.value = true
+  editDialogVisible.value = true
 }
 
-const loadQuestionForEdit = async (row) => {
-  Object.assign(formData, {
+const handleEdit = (row) => {
+  const parsedOptions = row.options ? JSON.parse(row.options) : []
+  let choiceOptions = [
+    { key: 'A', content: '' },
+    { key: 'B', content: '' },
+    { key: 'C', content: '' },
+    { key: 'D', content: '' }
+  ]
+  let testCases = [{ input: '', expectedOutput: '', scoreWeight: 1 }]
+  let fillBlanks = ['']
+  let options = ['', '', '', '']
+  let answer = row.answer || ''
+
+  if (row.type === 1) {
+    // 填空题：answer 可能是用 ||| 分隔的多个答案
+    fillBlanks = answer ? answer.split('|||') : ['']
+  } else if (row.type === 2 || row.type === 3) {
+    // 选择题：options 是 [{key, content}] 或字符串数组
+    if (parsedOptions.length && typeof parsedOptions[0] === 'object') {
+      choiceOptions = parsedOptions
+    } else {
+      choiceOptions = parsedOptions.map((opt, i) => ({
+        key: String.fromCharCode(65 + i),
+        content: opt
+      }))
+    }
+    options = parsedOptions
+  } else if (row.type === 6) {
+    // 编程题：testCases 从 answer 或 options 解析
+    try {
+      const parsed = row.answer ? JSON.parse(row.answer) : null
+      if (parsed && Array.isArray(parsed)) {
+        testCases = parsed
+      }
+    } catch (e) {
+      // ignore
+    }
+    answer = ''
+  }
+
+  Object.assign(editForm, {
     id: row.id,
     type: row.type,
     question: row.question || '',
-    answer: row.answer || '',
+    options: options,
+    answer: answer,
     analysis: row.analysis || '',
-    options: row.options || '',
     score: row.score || 10,
-    state: row.state ?? 1
+    difficulty: row.difficulty || 2,
+    state: row.state,
+    choiceOptions: choiceOptions,
+    testCases: testCases,
+    fillBlanks: fillBlanks
   })
-
-  if (formData.type === 2 && formData.options) {
-    try {
-      const parsed = JSON.parse(formData.options)
-      const keys = Object.keys(parsed)
-      if (keys.length) {
-        choiceOptions.value = keys.map((key) => ({ key, content: parsed[key] }))
-      }
-      choiceAnswer.value = formData.answer || keys[0] || 'A'
-    } catch {
-      choiceOptions.value = [
-        { key: 'A', content: '' },
-        { key: 'B', content: '' }
-      ]
-      choiceAnswer.value = 'A'
-    }
-  }
-
-  if (formData.type === 6) {
-    try {
-      const parsedOptions = formData.options ? JSON.parse(formData.options) : {}
-      programmingLanguage.value = parsedOptions.defaultLanguage === 'c' ? 'c' : 'java'
-    } catch {
-      programmingLanguage.value = 'java'
-    }
-    const res = await teacherApi.question.getTestCases(row.id)
-    const dbCases = res.data || []
-    testCases.value = dbCases.length
-      ? dbCases.map((tc) => ({
-          id: tc.id,
-          input: tc.input || '',
-          expectedOutput: tc.expectedOutput || '',
-          scoreWeight: tc.scoreWeight || 1
-        }))
-      : [{ input: '', expectedOutput: '', scoreWeight: 1 }]
-  } else {
-    testCases.value = [{ input: '', expectedOutput: '', scoreWeight: 1 }]
-  }
-}
-
-const handleEdit = async (row) => {
-  resetForm()
   isEdit.value = true
-  dialogVisible.value = true
+  editDialogVisible.value = true
+}
+
+const handleSave = async () => {
   try {
-    await loadQuestionForEdit(row)
-  } catch {
-    ElMessage.error('加载题目详情失败')
-  }
-}
+    await editFormRef.value.validate()
+    saving.value = true
+    let data = { ...editForm }
 
-const buildPayload = () => {
-  const payload = {
-    ...formData,
-    question: formData.question?.trim() || '',
-    answer: formData.answer || '',
-    analysis: formData.analysis || '',
-    options: '',
-    score: formData.score || 10,
-    state: formData.state ?? 1
-  }
-
-  if (formData.type === 1) {
-    // 填空题：答案用|||分隔
-    payload.answer = formData.answers?.filter(a => a).join('|||') || ''
-  } else if (formData.type === 2) {
-    const optionsObject = {}
-    validChoiceOptions.value.forEach((opt) => {
-      optionsObject[String(opt.key).trim()] = opt.content
-    })
-    payload.options = JSON.stringify(optionsObject)
-    payload.answer = choiceAnswer.value
-  } else if (formData.type === 6) {
-    payload.answer = ''
-    payload.options = JSON.stringify({ defaultLanguage: programmingLanguage.value })
-  } else {
-    payload.options = ''
-  }
-
-  return payload
-}
-
-const validateBeforeSubmit = () => {
-  if (!formData.question || !formData.question.trim()) {
-    ElMessage.warning('请先填写题目内容')
-    return false
-  }
-  if (formData.type === 1 && (!formData.answer || !formData.answer.trim())) {
-    ElMessage.warning('填空题必须填写标准答案')
-    return false
-  }
-  if (formData.type === 2) {
-    if (validChoiceOptions.value.length < 2) {
-      ElMessage.warning('选择题至少配置两个有效选项')
-      return false
-    }
-    const optionMap = {}
-    validChoiceOptions.value.forEach((it) => { optionMap[it.key] = true })
-    if (!optionMap[choiceAnswer.value]) {
-      ElMessage.warning('请选择正确答案')
-      return false
-    }
-  }
-  if (formData.type === 6) {
-    const validCaseCount = testCases.value.filter((tc) => (tc.expectedOutput || '').trim() !== '').length
-    if (!validCaseCount) {
-      ElMessage.warning('编程题至少需要一个测试点（包含期望输出）')
-      return false
-    }
-  }
-  return true
-}
-
-const saveProgrammingTestCases = async (questionId) => {
-  if (formData.type !== 6) return
-  const formatted = testCases.value
-    .map((tc, index) => ({
-      input: tc.input || '',
-      expectedOutput: tc.expectedOutput || '',
-      scoreWeight: tc.scoreWeight || 1,
-      sortIndex: index
-    }))
-    .filter((tc) => tc.expectedOutput.trim() !== '')
-  await teacherApi.question.saveTestCases(questionId, formatted)
-}
-
-const resolveCreatedQuestionId = async (addRes, payload) => {
-  const rawData = addRes?.data
-  if (typeof rawData === 'number') return rawData
-  if (rawData?.id) return rawData.id
-  if (rawData?.questionId) return rawData.questionId
-
-  const normalized = (s) => String(s || '').replace(/\s+/g, ' ').trim()
-  const keyword = normalized(payload.question).slice(0, 48)
-
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const listRes = await teacherApi.question.list({
-      page: 1,
-      pageSize: 100,
-      type: payload.type,
-      keyword
-    })
-    const list = listRes.data?.list || []
-    if (list.length === 0) {
-      await new Promise((r) => setTimeout(r, 200))
-      continue
+    if (editForm.type === 1) {
+      // 填空题：answer 用 ||| 分隔多个答案
+      data.answer = editForm.fillBlanks.join('|||')
+      data.options = ''
+    } else if (editForm.type === 2 || editForm.type === 3) {
+      // 选择题：options 存 [{key, content}]，answer 存选中的 key
+      data.options = JSON.stringify(editForm.choiceOptions)
+      data.answer = editForm.answer
+    } else if (editForm.type === 6) {
+      // 编程题：testCases 存在 answer 字段
+      data.answer = JSON.stringify(editForm.testCases)
+      data.options = ''
+    } else {
+      data.options = JSON.stringify(editForm.options)
     }
 
-    const target = normalized(payload.question)
-    const exact = list.find((item) => item?.type === payload.type && normalized(item?.question) === target)
-    if (exact?.id) return exact.id
-
-    if (list[0]?.id) return list[0].id
-    await new Promise((r) => setTimeout(r, 200))
-  }
-  return null
-}
-
-const handleSubmit = async () => {
-  try {
-    await formRef.value.validate()
-    if (!validateBeforeSubmit()) return
-
-    submitting.value = true
-    const payload = buildPayload()
-    let questionId = formData.id
+    // 删除前端专用字段
+    delete data.choiceOptions
+    delete data.testCases
+    delete data.fillBlanks
 
     if (isEdit.value) {
-      await teacherApi.question.update(formData.id, payload)
-      questionId = formData.id
+      await questionApi.update(editForm.id, data)
+      ElMessage.success('更新成功')
     } else {
-      const res = await teacherApi.question.add(payload)
-      questionId = await resolveCreatedQuestionId(res, payload)
+      await questionApi.add(data)
+      ElMessage.success('创建成功')
     }
-
-    if (!questionId) {
-      // The question is likely created successfully, but the backend didn't return its id.
-      // Avoid showing an error (users observe it did create), and refresh the list instead.
-      ElMessage.warning('题目已创建到题库，但未获取到ID；列表已刷新，可在列表中找到该题继续编辑。')
-      dialogVisible.value = false
-      loadQuestionList()
-      return
-    }
-
-    if (formData.type === 6) {
-      await saveProgrammingTestCases(questionId)
-    }
-
-    ElMessage.success(isEdit.value ? '题目更新成功' : '题目创建成功')
-    dialogVisible.value = false
+    editDialogVisible.value = false
     loadQuestionList()
   } catch (error) {
-    if (error !== false) {
-      ElMessage.error(error?.message || '保存失败')
-    }
+    console.error('保存失败:', error)
   } finally {
-    submitting.value = false
+    saving.value = false
   }
 }
 
-const handleDelete = (row) => {
-  ElMessageBox.confirm(`确认删除题目 #${row.id} 吗？`, '提示', { type: 'warning' })
-    .then(async () => {
-      try {
-        await teacherApi.question.delete(row.id)
-        ElMessage.success('删除成功')
-        loadQuestionList()
-      } catch {
-        ElMessage.error('删除失败')
-      }
-    })
-    .catch(() => {})
+const handleDelete = async (row) => {
+  await ElMessageBox.confirm('确定删除该题目?', '提示', { type: 'warning' })
+  await questionApi.delete(row.id)
+  ElMessage.success('已删除')
+  loadQuestionList()
 }
 
-onMounted(() => {
-  loadQuestionList()
-})
+onMounted(loadQuestionList)
 </script>
 
 <style scoped>
 .question-page {
-  padding: 20px;
+  min-height: 100vh;
+  background: var(--wabi-bg, #f8f6f3);
 }
 
-.breadcrumb {
-  margin-bottom: 20px;
+.wabi-body {
+  padding: 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+  height: calc(100vh - 48px);
+  display: flex;
+  flex-direction: column;
+  animation: wabi-fade-in 0.4s ease;
 }
 
+@keyframes wabi-fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* 页面头部 */
 .page-header {
+  flex-shrink: 0;
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 20px;
-  gap: 12px;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
 }
 
 .page-title {
-  font-size: 24px;
-  font-weight: 600;
-  color: #2d8a4e;
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--wabi-text, #2c2c2c);
   margin: 0;
 }
 
-.search-area {
+.filter-wrapper {
   display: flex;
-  gap: 10px;
-}
-
-.search-input {
-  width: 300px;
-}
-
-.action-bar {
-  margin-bottom: 20px;
-}
-
-.table-card {
-  border-radius: 10px;
-}
-
-.pagination {
-  margin-top: 20px;
-  justify-content: flex-end;
-}
-
-.action-buttons {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.question-form :deep(.el-form-item) {
-  margin-bottom: 16px;
-}
-
-.form-grid {
-  display: grid;
-  grid-template-columns: 1fr 200px;
-  gap: 14px;
-}
-
-.choice-editor {
-  width: 100%;
-  display: flex;
-  flex-direction: column;
   gap: 8px;
 }
 
-.choice-row {
+.type-select {
+  width: 120px;
+}
+
+.wabi-search {
+  width: 200px;
+}
+
+/* 列表容器 */
+.list-container {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--wabi-surface, #fff);
+  border: 1px solid var(--wabi-border, #e8e4df);
+  border-radius: var(--wabi-radius, 3px);
+  overflow: hidden;
+}
+
+.list-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0;
+}
+
+.list-empty {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  min-height: 200px;
+}
+
+/* 分页 */
+.list-pagination {
+  flex-shrink: 0;
+  display: flex;
+  justify-content: center;
+  padding: 16px 20px;
+  border-top: 1px solid var(--wabi-border, #e8e4df);
+  background: var(--wabi-surface-warm, #faf9f7);
+}
+
+/* 题目列表 */
+.question-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.question-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--wabi-border, #e8e4df);
+  transition: background 0.2s ease;
+}
+
+.question-item:hover {
+  background: var(--wabi-accent-light, #e8ede5);
+}
+
+.question-item:last-child {
+  border-bottom: none;
+}
+
+.question-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.question-header {
   display: flex;
   align-items: center;
   gap: 8px;
+  margin-bottom: 8px;
 }
 
-.answer-inputs {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+.question-id {
+  font-size: 12px;
+  color: var(--wabi-text-secondary, #8a8580);
+  font-family: monospace;
 }
 
-.answer-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-
-  .answer-label {
-    font-weight: 500;
-    min-width: 60px;
-    color: #606266;
-  }
-
-  .el-input {
-    flex: 1;
-  }
+.question-text {
+  font-size: 14px;
+  color: var(--wabi-text, #2c2c2c);
+  line-height: 1.6;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
-.test-cases {
-  width: 100%;
+.question-actions {
+  flex-shrink: 0;
   display: flex;
-  flex-direction: column;
-  gap: 10px;
+  gap: 4px;
+  margin-left: 16px;
+}
+
+/* 选项 */
+.option-item {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.add-option-btn {
+  margin-top: 8px;
+}
+
+.option-key {
+  font-weight: 600;
+  color: var(--wabi-accent, #7a8b6f);
+  min-width: 24px;
+  line-height: 32px;
 }
 
 .test-case-item {
-  border: 1px solid #e4e7ed;
-  border-radius: 8px;
-  padding: 10px;
+  border: 1px solid var(--wabi-border, #e8e4df);
+  border-radius: 4px;
+  padding: 12px;
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.test-case-head {
+.test-case-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 8px;
-  color: #606266;
-  font-size: 13px;
 }
 
-.test-case-foot {
-  margin-top: 8px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: #606266;
+.test-case-label {
   font-size: 13px;
+  font-weight: 500;
+  color: var(--wabi-text, #2c2c2c);
 }
 
-@media (max-width: 900px) {
-  .form-grid {
-    grid-template-columns: 1fr;
+/* 标签 */
+.wabi-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  background: var(--wabi-border-light, #f0ece8);
+  color: var(--wabi-text-secondary, #8a8580);
+  font-size: 12px;
+  border-radius: 2px;
+}
+
+.wabi-tag-accent {
+  background: var(--wabi-accent-light, #e8ede5);
+  color: var(--wabi-accent, #7a8b6f);
+}
+
+.wabi-tag-warning {
+  background: #f5efe4;
+  color: #a0937d;
+}
+
+.wabi-tag-info {
+  background: #e8f0f5;
+  color: #6b8a9a;
+}
+
+/* 按钮 */
+.wabi-btn-primary {
+  background: var(--wabi-accent, #7a8b6f);
+  border-color: var(--wabi-accent, #7a8b6f);
+  border-radius: 4px;
+}
+
+.wabi-btn-primary:hover {
+  background: #6b7d60;
+  border-color: #6b7d60;
+}
+
+.wabi-btn-ghost {
+  border-color: var(--wabi-border, #e8e4df);
+  color: var(--wabi-text-secondary, #8a8580);
+  border-radius: 4px;
+}
+
+.wabi-btn-ghost:hover {
+  border-color: var(--wabi-accent, #7a8b6f);
+  color: var(--wabi-accent, #7a8b6f);
+}
+
+.wabi-btn-text {
+  color: var(--wabi-text-secondary, #8a8580);
+}
+
+.wabi-btn-text:hover {
+  color: var(--wabi-accent, #7a8b6f);
+}
+
+.wabi-btn-danger:hover {
+  color: #c47c7c;
+}
+
+/* 响应式 */
+@media (max-width: 768px) {
+  .wabi-body {
+    padding: 16px;
+  }
+
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .header-left {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .question-item {
+    flex-direction: column;
+  }
+
+  .question-actions {
+    margin-left: 0;
+    margin-top: 12px;
   }
 }
 </style>

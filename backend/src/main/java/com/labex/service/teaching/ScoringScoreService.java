@@ -25,6 +25,9 @@ public interface ScoringScoreService extends IService<ScoringScore> {
     /** 查询学生×评分项矩阵 */
     ScoreMatrixVO getMatrix(Integer offeringId);
 
+    /** 查询学生×评分项矩阵（分页） */
+    ScoreMatrixVO getMatrix(Integer offeringId, int page, int pageSize);
+
     /** Excel 导入（按成绩明细表模板） */
     int importFromExcel(Integer offeringId, MultipartFile file, Integer teacherId);
 
@@ -33,4 +36,13 @@ public interface ScoringScoreService extends IService<ScoringScore> {
 
     /** 列出某评分项的全部得分 */
     List<ScoringScore> listByItem(Integer itemId);
+
+    /**
+     * 从源表（作业/考试/实验）同步成绩到评分项得分表
+     * 仅同步有 sourceTable + sourceId 的评分项，已有手动录入的成绩不覆盖
+     *
+     * @param offeringId 开课实例ID
+     * @return 同步的记录数
+     */
+    int syncFromSource(Integer offeringId);
 }

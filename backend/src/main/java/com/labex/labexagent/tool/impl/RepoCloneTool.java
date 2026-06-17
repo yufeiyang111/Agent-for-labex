@@ -8,7 +8,8 @@ import com.labex.labexagent.tool.ToolResult;
 import com.labex.labexagent.tool.ToolSupport;
 import org.springframework.stereotype.Component;
 
-@Component
+// 已禁用：始终返回失败，白白占用 token
+// @Component
 public class RepoCloneTool
 implements AgentTool {
     public ToolDefinition definition() {

@@ -1,0 +1,528 @@
+Labex - AI辅助实验教学管理平台修改记录
+
+================================================================================
+版本：V1.0
+日期：2026-06-17
+修改人：余飞杨、周志文、杨宇润、于峰
+================================================================================
+
+一、项目初始化
+--------------------------------------------------------------------------------
+1. 创建项目基础架构
+   - 后端：Spring Boot 3.2 + MyBatis-Plus 3.5.5
+   - 前端：Vue 3.4 + Vite 5 + Element Plus
+   - 数据库：MySQL 8 + Redis 7 + Neo4j
+
+2. 配置开发环境
+   - Maven依赖管理
+   - Vite构建配置
+   - 数据库连接配置
+
+二、认证模块（余飞杨）
+--------------------------------------------------------------------------------
+1. 实现用户登录功能
+   - 支持用户名/密码登录
+   - 支持BCrypt、MD5、明文密码（兼容旧系统）
+   - JWT token生成和验证
+
+2. 实现权限管理
+   - 基于角色的访问控制（RBAC）
+   - 三种角色：ADMIN、TEACHER、STUDENT
+   - JWT token刷新机制
+
+3. 实现认证过滤器
+   - JwtAuthenticationFilter
+   - 请求拦截和token验证
+   - 用户信息注入
+
+三、管理员模块（余飞杨）
+--------------------------------------------------------------------------------
+1. 实现管理员仪表板
+   - 系统统计数据展示
+   - 用户数量、课程数量、实验数量等
+
+2. 实现教师管理
+   - 教师列表查询
+   - 教师信息增删改查
+   - 教师账号状态管理
+
+3. 实现学生管理
+   - 学生列表查询
+   - 学生信息增删改查
+   - 学生批量导入
+
+4. 实现班级管理
+   - 班级列表查询
+   - 班级信息增删改查
+   - 班级学生分配
+
+四、教师模块 - 第一部分（周志文）
+--------------------------------------------------------------------------------
+1. 实现班级管理（ClazzController）
+   - 班级列表查询和分页
+   - 班级创建、编辑、删除
+   - 班级学生管理
+
+2. 实现考试管理（ExamController）
+   - 考试列表查询
+   - 考试创建、编辑、删除
+   - 考试状态管理（未开始、进行中、已结束）
+   - 考试监控事件
+
+3. 实现实验管理（ExperimentController）
+   - 实验列表查询
+   - 实验创建、编辑、删除
+   - 实验项目管理（ExperimentItemController）
+
+4. 实现题目管理（QuestionController）
+   - 题目列表查询
+   - 题目创建、编辑、删除
+   - 题目类型支持（填空、单选、多选、判断、简答、编程、综合）
+   - 编程题测试用例管理
+
+5. 实现试卷管理（PaperController）
+   - 试卷列表查询
+   - 试卷创建、编辑、删除
+   - 试卷题目关联
+
+五、教师模块 - 第二部分（杨宇润）
+--------------------------------------------------------------------------------
+1. 实现成绩管理（ScoreController）
+   - 成绩列表查询
+   - 成绩录入和修改
+   - 成绩统计分析
+
+2. 实现作业管理（HomeworkController）
+   - 作业列表查询
+   - 作业创建、编辑、删除
+   - 作业题目关联
+
+3. 实现训练集管理（TrainingSetController）
+   - 训练集列表查询
+   - 训练集创建、编辑、删除
+   - 训练集题目关联
+
+4. 实现讲义管理（LectureController）
+   - 讲义列表查询
+   - 讲义创建、编辑、删除
+
+5. 实现教师仪表板（TeacherDashboardController）
+   - 教学数据统计
+   - 学生成绩分析
+
+6. 实现学生管理（TeacherStudentController）
+   - 学生列表查询
+   - 学生信息管理
+
+7. 实现批改管理（TeacherGradingController）
+   - 作业批改
+   - 考试批改
+   - 批改状态管理
+
+六、学生模块（杨宇润）
+--------------------------------------------------------------------------------
+1. 实现学生控制器（StudentController）
+   - 学生个人信息管理
+   - 学生课程查看
+
+2. 实现学生考试（StudentExamController）
+   - 考试列表查看
+   - 考试答题
+   - 考试提交
+
+3. 实现学生作业（StudentHomeworkController）
+   - 作业列表查看
+   - 作业答题
+   - 作业提交
+
+4. 实现学生训练（StudentTrainingController）
+   - 训练列表查看
+   - 训练答题
+   - 训练结果查看
+
+5. 实现学生项目（StudentProjectController）
+   - 云项目管理
+   - 项目文件管理
+
+七、教学模块（CTL）（于峰）
+--------------------------------------------------------------------------------
+1. 实现课程管理（CourseController）
+   - 课程列表查询
+   - 课程创建、编辑、删除
+
+2. 实现课程开设（CourseOfferingController）
+   - 课程开设管理
+   - 课程学期管理
+
+3. 实现教学大纲（SyllabusController）
+   - 教学大纲编辑
+   - 教学大纲版本管理
+
+4. 实现课程目标（CourseObjectiveController）
+   - 课程目标管理
+   - 课程目标与毕业要求关联
+
+5. 实现毕业要求（GraduationRequirementController）
+   - 毕业要求管理
+   - 毕业要求指标点管理
+
+6. 实现评分项（ScoringItemController）
+   - 评分项配置
+   - 评分项权重管理
+
+7. 实现成绩录入（ScoringScoreController）
+   - 成绩批量录入
+   - 成绩导入导出
+
+8. 实现达成度计算（AchievementController）
+   - 课程目标达成度计算
+   - 毕业要求达成度计算
+
+9. 实现质量评价（QualityEvaluationController）
+   - 课程质量评价
+   - 评价指标管理
+
+10. 实现质量报告（QualityReportController）
+    - 质量报告生成
+    - 质量报告导出
+
+11. 实现学生教学（StudentTeachingController）
+    - 学生教学数据查看
+
+12. 实现AI辅助（AiAssistController）
+    - AI辅助教学建议
+
+13. 实现文档导出（DocumentExportController）
+    - 教学文档导出
+
+八、知识图谱模块（周志文）
+--------------------------------------------------------------------------------
+1. 实现知识图谱控制器（KnowledgeGraphController）
+   - 知识点管理
+   - 知识图谱构建
+   - 知识图谱查询
+
+2. 实现学生掌握度（StudentMasteryController）
+   - 学生知识点掌握度查询
+   - 掌握度统计分析
+
+3. 实现推荐控制器（RecommendationController）
+   - 练习题推荐
+   - 学习路径推荐
+
+4. 实现知识图谱服务
+   - KnowledgeGraphService - 知识图谱核心服务
+   - KnowledgeExtractionService - 知识点提取
+   - ProductionQuestionLinkingService - 题目知识点关联
+   - StudentMasteryService - 学生掌握度服务
+   - ExerciseRecommendationService - 练习推荐服务
+
+九、RAG模块（杨宇润）
+--------------------------------------------------------------------------------
+1. 实现RAG控制器（RagController）
+   - RAG问答接口
+   - 会话管理
+   - 文档上传和处理
+
+2. 实现模型切换（ModelSwitchController）
+   - LLM模型切换
+   - 模型配置管理
+
+3. 实现RAG服务
+   - RagService - RAG核心服务
+   - SummaryService - 摘要生成服务
+   - QuestionGenerationService - 题目生成服务
+   - ImageUnderstandingService - 图片理解服务
+   - WebSearchService - 网页搜索服务
+   - RagQueryMetricService - 查询指标服务
+   - RagCacheService - 缓存服务
+
+4. 实现文档处理
+   - DocumentParser - 文档解析器
+   - 支持格式：PDF、DOCX、PPT、HTML、MD
+   - HierarchicalChunker - 层次化分块
+
+5. 实现向量服务
+   - EmbeddingService - 嵌入服务
+   - NlpService - NLP服务
+   - Neo4jVectorStore - Neo4j向量存储
+   - HybridRetriever - 混合检索
+
+6. 实现LLM集成
+   - MiniMaxChat - MiniMax模型
+   - OllamaChat - Ollama模型
+   - LLMChat - LLM聊天接口
+
+十、智能代理模块（余飞杨）
+--------------------------------------------------------------------------------
+1. 实现学生代理控制器（StudentAgentController）
+   - 代理对话接口
+   - 代理任务管理
+
+2. 实现代理循环引擎（AgentLoopEngine）
+   - 代理执行循环
+   - 迭代次数限制（30次）
+   - SSE流式响应
+
+3. 实现代理工具（27种）
+   - read_file - 读取文件
+   - write_file - 写入文件
+   - edit_file - 编辑文件
+   - shell - 执行命令
+   - glob - 文件匹配
+   - grep - 内容搜索
+   - web_search - 网页搜索
+   - understand_image - 图片理解
+   - diagnostics - 诊断分析
+   - apply_patch - 应用补丁
+   - create_plan - 创建计划
+   - execute_code - 执行代码
+   - run_tests - 运行测试
+   - todo_write - 任务管理
+   - retrieve_context - 上下文检索
+   - list_files - 文件列表
+   - run_command - 运行命令
+
+4. 实现差异管理
+   - DiffService - 差异服务
+   - GitSnapshotService - Git快照服务
+   - AgentChangeSet - 变更集
+   - AgentFileChange - 文件变更
+
+5. 实现权限系统
+   - PermissionService - 权限服务
+   - DefaultPermissionRuleset - 默认权限规则
+
+6. 实现LSP诊断
+   - DiagnosticsService - 诊断服务
+
+7. 实现LLM提供商
+   - LlmProvider接口
+   - OpenAiCompatibleProvider - OpenAI兼容提供商
+
+十一、AI题目生成（于峰）
+--------------------------------------------------------------------------------
+1. 实现AI题目生成控制器（AiQuestionGenerationController）
+   - 基于AI的题目生成
+   - 题目难度控制
+   - 题目类型选择
+
+2. 实现题目生成服务
+   - QuestionGenerationService
+   - 支持多种题型生成
+   - 题目质量评估
+
+十二、智能推荐（于峰）
+--------------------------------------------------------------------------------
+1. 实现推荐控制器（RecommendationController）
+   - 练习题推荐
+   - 学习路径推荐
+
+2. 实现推荐服务
+   - ExerciseRecommendationService
+   - 基于知识图谱的推荐
+   - 基于学生掌握度的推荐
+
+十三、通用模块（于峰）
+--------------------------------------------------------------------------------
+1. 实现通用类
+   - Result<T> - 统一响应封装
+   - PageResult - 分页结果
+   - LoginRequest - 登录请求
+   - PasswordUpdateRequest - 密码更新请求
+   - BatchScoreRequest - 批量成绩请求
+   - StudentBatchImportRequest - 学生批量导入请求
+
+2. 实现配置类
+   - SecurityConfig - 安全配置
+   - CorsConfig - 跨域配置
+   - MybatisPlusConfig - MyBatis配置
+   - Neo4jConfig - Neo4j配置
+   - WebMvcConfig - Web配置
+   - SchemaCompatibilityInitializer - Schema兼容性初始化
+   - ExamAutoSubmitScheduler - 考试自动提交调度
+
+十四、前端模块（于峰）
+--------------------------------------------------------------------------------
+1. 实现登录页面
+   - Login.vue - 登录表单
+
+2. 实现管理员页面
+   - Layout.vue - 布局
+   - Dashboard.vue - 仪表板
+   - Teacher.vue - 教师管理
+   - Student.vue - 学生管理
+   - Clazz.vue - 班级管理
+   - Profile.vue - 个人信息
+
+3. 实现教师页面
+   - Layout.vue - 布局
+   - Dashboard.vue - 仪表板
+   - Clazz.vue - 班级管理
+   - Student.vue - 学生管理
+   - Experiment.vue - 实验管理
+   - ExperimentItem.vue - 实验项目
+   - Question.vue - 题目管理
+   - Paper.vue - 试卷管理
+   - Exam.vue - 考试管理
+   - ExamGrading.vue - 考试批改
+   - Score.vue - 成绩管理
+   - Homework.vue - 作业管理
+   - TrainingSet.vue - 训练集管理
+   - Lecture.vue - 讲义管理
+   - KnowledgeGraph.vue - 知识图谱
+   - AiQuestionGenerator.vue - AI题目生成
+   - Profile.vue - 个人信息
+
+4. 实现教师-教学页面
+   - CourseList.vue - 课程列表
+   - CourseEdit.vue - 课程编辑
+   - OfferingList.vue - 开课列表
+   - SyllabusEditor.vue - 教学大纲编辑
+   - GRManager.vue - 毕业要求管理
+   - ObjectiveEditor.vue - 课程目标编辑
+   - ScoringItemConfig.vue - 评分项配置
+   - GradeEntryV2.vue - 成绩录入
+   - AchievementDashboard.vue - 达成度仪表板
+   - EvaluationForm.vue - 评价表单
+   - ReportViewer.vue - 报告查看
+
+5. 实现学生页面
+   - Layout.vue - 布局
+   - Experiment.vue - 实验列表
+   - ExperimentDetail.vue - 实验详情
+   - Exam.vue - 考试列表
+   - Homework.vue - 作业列表
+   - Training.vue - 训练列表
+   - TrainingPractice.vue - 训练练习
+   - TrainingResult.vue - 训练结果
+   - Lecture.vue - 讲义列表
+   - CloudSpace.vue - 云空间
+   - CloudWorkspace.vue - 云工作区
+   - RagChat.vue - RAG对话
+   - ExerciseRecommendation.vue - 练习推荐
+   - Profile.vue - 个人信息
+   - MyAchievementDashboard.vue - 我的达成度
+
+================================================================================
+版本：V1.1
+日期：2026-06-17
+修改人：全体开发人员
+================================================================================
+
+一、BUG修复
+--------------------------------------------------------------------------------
+1. 修复登录页面密码输入框不显示问题
+   - 原因：Element Plus组件版本兼容性问题
+   - 修复：升级Element Plus到最新版本
+
+2. 修复考试自动提交失败问题
+   - 原因：定时任务配置错误
+   - 修复：修改ExamAutoSubmitScheduler配置
+
+3. 修复知识图谱查询性能问题
+   - 原因：Neo4j查询语句未优化
+   - 修复：添加索引优化查询语句
+
+4. 修复RAG文档上传失败问题
+   - 原因：文件大小限制配置错误
+   - 修复：修改application.yml配置
+
+5. 修复智能代理工具执行超时问题
+   - 原因：工具执行时间限制过短
+   - 修复：增加工具执行超时时间
+
+二、性能优化
+--------------------------------------------------------------------------------
+1. 优化数据库查询性能
+   - 添加常用查询字段索引
+   - 优化分页查询语句
+   - 减少N+1查询问题
+
+2. 优化前端加载性能
+   - 实现路由懒加载
+   - 图片懒加载
+   - 组件按需加载
+
+3. 优化缓存策略
+   - 增加Redis缓存使用
+   - 优化缓存过期策略
+   - 减少数据库查询次数
+
+三、功能增强
+--------------------------------------------------------------------------------
+1. 增加批量导入功能
+   - 支持Excel批量导入学生
+   - 支持Excel批量导入题目
+   - 支持Excel批量导入成绩
+
+2. 增加导出功能
+   - 支持成绩导出为Excel
+   - 支持达成度报告导出
+   - 支持质量评价报告导出
+
+3. 增加AI辅助功能
+   - AI智能出题
+   - AI智能推荐
+   - AI智能问答
+
+================================================================================
+版本：V1.2
+日期：2026-06-17
+修改人：全体开发人员
+================================================================================
+
+一、安全加固
+--------------------------------------------------------------------------------
+1. 加强密码安全
+   - 强制使用BCrypt加密
+   - 增加密码复杂度要求
+   - 限制登录失败次数
+
+2. 加强接口安全
+   - 增加参数验证
+   - 防止SQL注入
+   - 防止XSS攻击
+
+3. 加强数据安全
+   - 敏感数据加密存储
+   - 日志脱敏处理
+   - 数据库访问权限控制
+
+二、用户体验优化
+--------------------------------------------------------------------------------
+1. 优化界面设计
+   - 统一UI风格
+   - 优化交互体验
+   - 增加加载提示
+
+2. 优化错误提示
+   - 友好错误提示
+   - 详细错误日志
+   - 快速定位问题
+
+3. 优化操作流程
+   - 简化操作步骤
+   - 增加快捷操作
+   - 优化表单验证
+
+三、文档完善
+--------------------------------------------------------------------------------
+1. 完善API文档
+   - 接口说明
+   - 参数说明
+   - 返回值说明
+
+2. 完善用户手册
+   - 功能说明
+   - 操作指南
+   - 常见问题
+
+3. 完善开发文档
+   - 架构设计
+   - 模块说明
+   - 部署指南
+
+================================================================================
+结束
+================================================================================

@@ -14,6 +14,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -56,6 +58,7 @@ public class StudentServiceImpl extends ServiceImpl<StudentMapper, Student> impl
             existing.setStudentName(student.getStudentName());
             existing.setMemo(student.getMemo());
             existing.setState(student.getState() != null ? student.getState() : 1);
+            existing.setClazzNo(clazzNo);
             this.updateById(existing);
 
             // 检查是否已关联该班级，没有则添加关联
@@ -71,6 +74,7 @@ public class StudentServiceImpl extends ServiceImpl<StudentMapper, Student> impl
             return existing;
         } else {
             // 新增学生
+            student.setClazzNo(clazzNo);
             student.setState(student.getState() != null ? student.getState() : 1);
             student.setStudentPassword(student.getStudentPassword() != null ?
                     student.getStudentPassword() : student.getStudentNo());
@@ -86,5 +90,28 @@ public class StudentServiceImpl extends ServiceImpl<StudentMapper, Student> impl
             log.info("新增学生 {} 并关联到班级 {}", student.getStudentNo(), clazzNo);
             return student;
         }
+    }
+
+    @Override
+    public List<Student> listByTeachingClazz(String clazzNo) {
+        if (clazzNo == null || clazzNo.isBlank()) {
+            return List.of();
+        }
+
+        Set<Integer> relatedStudentIds = studentClazzService.findByClazzNo(clazzNo).stream()
+                .map(StudentClazz::getStudentId)
+                .filter(java.util.Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        LambdaQueryWrapper<Student> wrapper = new LambdaQueryWrapper<>();
+        if (relatedStudentIds.isEmpty()) {
+            wrapper.eq(Student::getClazzNo, clazzNo);
+        } else {
+            wrapper.and(w -> w.eq(Student::getClazzNo, clazzNo)
+                    .or()
+                    .in(Student::getStudentId, relatedStudentIds));
+        }
+        wrapper.orderByAsc(Student::getStudentNo);
+        return list(wrapper);
     }
 }

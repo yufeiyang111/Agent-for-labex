@@ -149,9 +149,8 @@ public class AchievementCalcEngineImpl implements AchievementCalcEngine {
         }
 
         // 1. 取该班级所有学生
-        List<Student> students = studentService.list(new LambdaQueryWrapper<Student>()
-                .eq(Student::getClazzNo, offering.getClazzNo()));
-        if (students.isEmpty()) {
+        List<Student> students = studentService.listByTeachingClazz(offering.getClazzNo());
+        if (students == null || students.isEmpty()) {
             vo.setByObjective(Collections.emptyMap());
             vo.setOverallReachedRatio(BigDecimal.ZERO);
             vo.setStudents(Collections.emptyList());

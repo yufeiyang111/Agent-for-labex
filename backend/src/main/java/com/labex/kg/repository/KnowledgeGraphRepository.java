@@ -108,6 +108,29 @@ public class KnowledgeGraphRepository {
         }
     }
 
+    public void updateKnowledgePoint(String id, String name, String description, String topicId) {
+        try (Session s = session()) {
+            s.executeWrite(tx -> {
+                // 更新知识点基本信息
+                tx.run("MATCH (kp:KnowledgePoint {id: $id}) " +
+                                "SET kp.name = $name, kp.description = $description",
+                        Values.value(Map.of("id", id, "name", name, "description", description)));
+
+                // 更新主题关联
+                if (topicId != null && !topicId.isBlank()) {
+                    // 删除旧的主题关联
+                    tx.run("MATCH (kp:KnowledgePoint {id: $id})-[r:BELONGS_TO]->(:Topic) DELETE r",
+                            Values.value(Map.of("id", id)));
+                    // 创建新的主题关联
+                    tx.run("MATCH (kp:KnowledgePoint {id: $id}), (t:Topic {id: $topicId}) " +
+                                    "CREATE (kp)-[:BELONGS_TO]->(t)",
+                            Values.value(Map.of("id", id, "topicId", topicId)));
+                }
+                return null;
+            });
+        }
+    }
+
     public void deleteKnowledgePoint(String id) {
         try (Session s = session()) {
             s.executeWrite(tx -> {
@@ -243,14 +266,23 @@ public class KnowledgeGraphRepository {
 
     /** Find exercises testing KPs that a student struggles with */
     public List<Map<String, Object>> recommendByWeakness(int studentId, int limit) {
+        return recommendByWeakness(studentId, limit, Collections.emptySet());
+    }
+
+    /** Find exercises testing KPs that a student struggles with, excluding already answered questions. */
+    public List<Map<String, Object>> recommendByWeakness(int studentId, int limit, Collection<Integer> excludedQuestionIds) {
         try (Session s = session()) {
             return s.executeRead(tx -> {
                 Result r = tx.run(
                         "MATCH (st:Student {studentId: $sid})-[sw:STRUGGLES_WITH]->(kp:KnowledgePoint)<-[t:TESTS]-(q:QuestionRef) " +
+                        "WHERE NOT q.questionId IN $excluded " +
+                        "WITH q, kp, sw, t, " +
+                        "     (coalesce(sw.errorRate, 0.0) * 0.65 + coalesce(t.weight, 1.0) * 0.25 + CASE WHEN coalesce(t.isPrimary, false) THEN 0.10 ELSE 0.0 END) AS priority " +
                         "RETURN q {.questionId, .questionText, .type, .isProgramming} AS question, " +
-                        "kp {.id, .name} AS knowledgePoint, sw.errorRate AS errorRate " +
-                        "ORDER BY sw.errorRate DESC, t.weight DESC LIMIT $limit",
-                        Values.value(Map.of("sid", studentId, "limit", limit)));
+                        "kp {.id, .name} AS knowledgePoint, sw.errorRate AS errorRate, sw.attemptCount AS attemptCount, " +
+                        "coalesce(t.weight, 1.0) AS weight, priority AS priority " +
+                        "ORDER BY priority DESC LIMIT $limit",
+                        Values.value(Map.of("sid", studentId, "limit", limit, "excluded", new ArrayList<>(excludedQuestionIds))));
                 List<Map<String, Object>> list = new ArrayList<>();
                 while (r.hasNext()) {
                     org.neo4j.driver.Record rec = r.next();
@@ -258,11 +290,66 @@ public class KnowledgeGraphRepository {
                     item.put("question", rec.get("question").asMap());
                     item.put("knowledgePoint", rec.get("knowledgePoint").asMap());
                     item.put("errorRate", rec.get("errorRate").asDouble());
+                    item.put("attemptCount", rec.get("attemptCount").isNull() ? 0 : rec.get("attemptCount").asInt());
+                    item.put("weight", rec.get("weight").asDouble());
+                    item.put("priority", rec.get("priority").asDouble());
                     list.add(item);
                 }
                 return list;
             });
         }
+    }
+
+    /** Recommend exercises for low-mastery KPs even if they are not below the struggle threshold. */
+    public List<Map<String, Object>> recommendByLowMastery(int studentId, int limit, Collection<Integer> excludedQuestionIds) {
+        try (Session s = session()) {
+            return s.executeRead(tx -> {
+                Result r = tx.run(
+                        "MATCH (st:Student {studentId: $sid})-[m:MASTERED]->(kp:KnowledgePoint)<-[t:TESTS]-(q:QuestionRef) " +
+                        "WHERE coalesce(m.score, 0.0) < 0.80 AND NOT q.questionId IN $excluded " +
+                        "WITH q, kp, m, t, " +
+                        "     ((1.0 - coalesce(m.score, 0.0)) * 0.65 + coalesce(t.weight, 1.0) * 0.25 + CASE WHEN coalesce(t.isPrimary, false) THEN 0.10 ELSE 0.0 END) AS priority " +
+                        "RETURN q {.questionId, .questionText, .type, .isProgramming} AS question, " +
+                        "kp {.id, .name} AS knowledgePoint, (1.0 - coalesce(m.score, 0.0)) AS errorRate, " +
+                        "m.attemptCount AS attemptCount, coalesce(t.weight, 1.0) AS weight, priority AS priority " +
+                        "ORDER BY priority DESC LIMIT $limit",
+                        Values.value(Map.of("sid", studentId, "limit", limit, "excluded", new ArrayList<>(excludedQuestionIds))));
+                return recommendationRows(r);
+            });
+        }
+    }
+
+    /** Fallback KG recommendations when the student has no mastery profile yet. */
+    public List<Map<String, Object>> recommendGeneral(int limit, Collection<Integer> excludedQuestionIds) {
+        try (Session s = session()) {
+            return s.executeRead(tx -> {
+                Result r = tx.run(
+                        "MATCH (kp:KnowledgePoint)<-[t:TESTS]-(q:QuestionRef) " +
+                        "WHERE NOT q.questionId IN $excluded " +
+                        "WITH q, kp, t, (coalesce(kp.confidence, 0.5) * 0.35 + coalesce(t.weight, 1.0) * 0.55 + CASE WHEN coalesce(t.isPrimary, false) THEN 0.10 ELSE 0.0 END) AS priority " +
+                        "RETURN q {.questionId, .questionText, .type, .isProgramming} AS question, " +
+                        "kp {.id, .name} AS knowledgePoint, 0.50 AS errorRate, 0 AS attemptCount, coalesce(t.weight, 1.0) AS weight, priority AS priority " +
+                        "ORDER BY priority DESC LIMIT $limit",
+                        Values.value(Map.of("limit", limit, "excluded", new ArrayList<>(excludedQuestionIds))));
+                return recommendationRows(r);
+            });
+        }
+    }
+
+    private List<Map<String, Object>> recommendationRows(Result r) {
+        List<Map<String, Object>> list = new ArrayList<>();
+        while (r.hasNext()) {
+            org.neo4j.driver.Record rec = r.next();
+            Map<String, Object> item = new HashMap<>();
+            item.put("question", rec.get("question").asMap());
+            item.put("knowledgePoint", rec.get("knowledgePoint").asMap());
+            item.put("errorRate", rec.get("errorRate").isNull() ? 0.0 : rec.get("errorRate").asDouble());
+            item.put("attemptCount", rec.get("attemptCount").isNull() ? 0 : rec.get("attemptCount").asInt());
+            item.put("weight", rec.get("weight").isNull() ? 1.0 : rec.get("weight").asDouble());
+            item.put("priority", rec.get("priority").isNull() ? 0.0 : rec.get("priority").asDouble());
+            list.add(item);
+        }
+        return list;
     }
 
     /** Find exercises testing a specific knowledge point */
@@ -299,6 +386,30 @@ public class KnowledgeGraphRepository {
         }
     }
 
+    /** Reverse map question IDs to tested knowledge points. */
+    public Map<Integer, List<Map<String, Object>>> findKnowledgePointsByQuestionIds(Collection<Integer> questionIds) {
+        if (questionIds == null || questionIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        try (Session s = session()) {
+            return s.executeRead(tx -> {
+                Result r = tx.run(
+                        "MATCH (q:QuestionRef)-[t:TESTS]->(kp:KnowledgePoint) " +
+                        "WHERE q.questionId IN $questionIds " +
+                        "RETURN q.questionId AS questionId, " +
+                        "collect({kp: kp {.id, .name}, weight: coalesce(t.weight, 1.0), isPrimary: coalesce(t.isPrimary, false)}) AS kps",
+                        Values.value(Map.of("questionIds", new ArrayList<>(questionIds))));
+                Map<Integer, List<Map<String, Object>>> result = new HashMap<>();
+                while (r.hasNext()) {
+                    org.neo4j.driver.Record rec = r.next();
+                    int questionId = rec.get("questionId").asInt();
+                    result.put(questionId, rec.get("kps").asList(v -> v.asMap()));
+                }
+                return result;
+            });
+        }
+    }
+
     // ==================== Student Mastery ====================
 
     public void upsertStudent(int studentId, String studentName) {
@@ -312,13 +423,17 @@ public class KnowledgeGraphRepository {
     }
 
     public void setMastery(int studentId, String kpId, double score) {
+        setMastery(studentId, kpId, score, 0);
+    }
+
+    public void setMastery(int studentId, String kpId, double score, int attemptCount) {
         try (Session s = session()) {
             s.executeWrite(tx -> {
                 tx.run("MATCH (st:Student {studentId: $sid}) " +
                         "MATCH (kp:KnowledgePoint {id: $kpId}) " +
                         "MERGE (st)-[r:MASTERED]->(kp) " +
-                        "SET r.score = $score, r.lastUpdated = timestamp()",
-                        Values.value(Map.of("sid", studentId, "kpId", kpId, "score", score)));
+                        "SET r.score = $score, r.attemptCount = $attemptCount, r.lastUpdated = timestamp()",
+                        Values.value(Map.of("sid", studentId, "kpId", kpId, "score", score, "attemptCount", attemptCount)));
                 return null;
             });
         }
@@ -354,8 +469,8 @@ public class KnowledgeGraphRepository {
                         "OPTIONAL MATCH (st)-[m:MASTERED]->(kp:KnowledgePoint) " +
                         "OPTIONAL MATCH (st)-[sw:STRUGGLES_WITH]->(wkp:KnowledgePoint) " +
                         "RETURN st {.studentId, .studentName} AS student, " +
-                        "collect(DISTINCT {kp: kp {.id, .name}, score: m.score}) AS mastered, " +
-                        "collect(DISTINCT {kp: wkp {.id, .name}, errorRate: sw.errorRate, attemptCount: sw.attemptCount}) AS weak",
+                        "collect(DISTINCT {kp: kp {.id, .name}, score: m.score, attemptCount: m.attemptCount, lastUpdated: m.lastUpdated}) AS mastered, " +
+                        "collect(DISTINCT {kp: wkp {.id, .name}, errorRate: sw.errorRate, attemptCount: sw.attemptCount, lastUpdated: sw.lastUpdated}) AS weak",
                         Values.value(Map.of("sid", studentId)));
                 if (!r.hasNext()) return null;
                 org.neo4j.driver.Record rec = r.single();

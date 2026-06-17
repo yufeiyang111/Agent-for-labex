@@ -47,6 +47,15 @@ public class KnowledgeGraphService {
         return node != null ? toKPDTO(node) : null;
     }
 
+    public KnowledgePointDTO updateKnowledgePoint(String id, String name, String description, String topicId) {
+        repository.updateKnowledgePoint(id, name, description, topicId);
+        Map<String, Object> node = new HashMap<>();
+        node.put("id", id);
+        node.put("name", name);
+        node.put("description", description);
+        return toKPDTO(node);
+    }
+
     public void deleteKnowledgePoint(String id) {
         repository.deleteKnowledgePoint(id);
     }

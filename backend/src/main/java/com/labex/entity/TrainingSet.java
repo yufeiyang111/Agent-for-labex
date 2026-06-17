@@ -20,6 +20,12 @@ public class TrainingSet {
     @TableField("teacher_id")
     private Integer teacherId;
 
+    @TableField("owner_student_id")
+    private Integer ownerStudentId;
+
+    @TableField("source")
+    private String source;
+
     @TableField("state")
     private Integer state;
 

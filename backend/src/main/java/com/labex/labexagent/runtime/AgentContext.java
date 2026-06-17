@@ -4,7 +4,9 @@ import com.labex.entity.StudentProject;
 import com.labex.labexagent.runtime.AgentContext;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 public class AgentContext {
     private String sessionId;
@@ -17,6 +19,11 @@ public class AgentContext {
     private List<PlanItem> plan;
     private int currentPlanIndex;
     private String mode = "agent";
+    private String stage = "intake";
+    private boolean unverifiedChanges;
+    private int writeCount;
+    private int verificationCount;
+    private Set<String> unverifiedChangeTargets = new LinkedHashSet<>();
 
     public boolean isPlanMode() {
         return "plan".equals(mode);
@@ -144,6 +151,37 @@ public class AgentContext {
 
     public String getMode() { return mode; }
     public void setMode(String mode) { this.mode = mode; }
+    public String getStage() { return stage == null || stage.isBlank() ? "intake" : stage; }
+    public void setStage(String stage) { this.stage = stage == null || stage.isBlank() ? "intake" : stage; }
+    public boolean hasUnverifiedChanges() { return unverifiedChanges; }
+    public void setUnverifiedChanges(boolean unverifiedChanges) { this.unverifiedChanges = unverifiedChanges; }
+    public int getWriteCount() { return writeCount; }
+    public void incrementWriteCount() { this.writeCount++; }
+    public int getVerificationCount() { return verificationCount; }
+    public void incrementVerificationCount() { this.verificationCount++; }
+    public Set<String> getUnverifiedChangeTargets() { return unverifiedChangeTargets; }
+    public void markUnverifiedChangeTarget(String target) {
+        this.unverifiedChanges = true;
+        if (target != null && !target.isBlank()) {
+            this.unverifiedChangeTargets.add(target.trim().replace('\\', '/'));
+        }
+    }
+    public boolean matchesUnverifiedChangeTarget(String target) {
+        if (this.unverifiedChangeTargets == null || this.unverifiedChangeTargets.isEmpty()) {
+            return true;
+        }
+        if (target == null || target.isBlank()) {
+            return false;
+        }
+        String normalized = target.trim().replace('\\', '/');
+        return this.unverifiedChangeTargets.contains(normalized);
+    }
+    public void markChangesVerified() {
+        this.unverifiedChanges = false;
+        if (this.unverifiedChangeTargets != null) {
+            this.unverifiedChangeTargets.clear();
+        }
+    }
 
     public boolean equals(Object o) {
         if (o == this) {

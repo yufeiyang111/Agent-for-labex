@@ -136,8 +136,10 @@ const handleCommand = async (command) => {
 </script>
 
 <style scoped>
+/* Biophilic 亲自然风格 Layout - 管理员视角的绿植空间 */
 .admin-layout {
   height: 100vh;
+  background: #f8faf6;
 }
 
 .el-container {
@@ -145,9 +147,10 @@ const handleCommand = async (command) => {
 }
 
 .sidebar {
-  background: #ffffff;
-  transition: width 0.35s cubic-bezier(0.25, 0.1, 0.25, 1);
+  background: linear-gradient(180deg, #ffffff 0%, #fafcf8 100%);
+  transition: width 0.22s ease;
   overflow: hidden;
+  box-shadow: 2px 0 12px rgba(90, 143, 92, 0.04);
 }
 
 .logo {
@@ -156,28 +159,28 @@ const handleCommand = async (command) => {
   align-items: center;
   justify-content: center;
   padding: 0 20px;
-  border-bottom: 1px solid #f0f0f0;
-  background: #ffffff;
+  border-bottom: 1px solid #e4ebe0;
+  background: linear-gradient(135deg, #f4f8f0 0%, #ffffff 100%);
 }
 
 .logo-text {
-  color: #1d1d1f;
+  color: #2c3e2c;
   font-size: 18px;
-  font-weight: 700;
-  letter-spacing: -0.5px;
+  font-weight: 600;
+  letter-spacing: -0.3px;
   margin-left: 10px;
 }
 
 .logo-collapse {
-  color: #4caf50;
-  font-size: 22px;
-  font-weight: 700;
+  color: #2c3e2c;
+  font-size: 20px;
+  font-weight: 600;
 }
 
 .sidebar-menu {
   border-right: none;
   background: transparent;
-  padding: 12px;
+  padding: 12px 8px;
 }
 
 .sidebar-menu:not(.el-menu--collapse) {
@@ -185,30 +188,43 @@ const handleCommand = async (command) => {
 }
 
 .sidebar-menu .el-menu-item {
-  color: #6e6e73;
-  height: 48px;
-  line-height: 48px;
-  border-radius: 12px;
-  margin-bottom: 4px;
+  color: #5a6b5a;
+  height: 42px;
+  line-height: 42px;
+  border-radius: 8px;
+  margin-bottom: 2px;
   font-size: 14px;
-  font-weight: 500;
-  transition: all 0.25s cubic-bezier(0.25, 0.1, 0.25, 1);
+  font-weight: 400;
+  transition: all 0.18s ease;
 }
 
 .sidebar-menu .el-menu-item:hover {
-  background: #f5f5f7;
-  color: #1d1d1f;
+  background: #f4f8f0;
+  color: #2c3e2c;
+  filter: brightness(1.02);
 }
 
 .sidebar-menu .el-menu-item.is-active {
-  background: #e6f4ea;
-  color: #4caf50;
+  background: linear-gradient(90deg, #e8f0e4 0%, transparent 100%);
+  color: #3d6b3f;
+  font-weight: 500;
+  border-left: 3px solid #5a8f5c;
+  border-radius: 0 8px 8px 0;
 }
 
 .sidebar-menu .el-menu-item .el-icon {
   color: inherit;
-  font-size: 18px;
-  margin-right: 12px;
+  font-size: 16px;
+  margin-right: 10px;
+  transition: color 0.18s ease;
+}
+
+.sidebar-menu .el-menu-item:hover .el-icon {
+  color: #5a8f5c;
+}
+
+.sidebar-menu .el-menu-item.is-active .el-icon {
+  color: #5a8f5c;
 }
 
 .sidebar-menu.el-menu--collapse .el-menu-item {
@@ -216,7 +232,7 @@ const handleCommand = async (command) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-width: 64px;
+  min-width: 48px;
 }
 
 .sidebar-menu.el-menu--collapse .el-menu-item .el-icon {
@@ -225,13 +241,21 @@ const handleCommand = async (command) => {
   text-align: center;
 }
 
+.sidebar-menu.el-menu--collapse .el-menu-item.is-active {
+  border-left: none;
+  border-bottom: 3px solid #5a8f5c;
+  border-radius: 8px 8px 0 0;
+}
+
 .header {
-  background: #ffffff;
+  background: linear-gradient(90deg, #ffffff 0%, #fafcf8 100%);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 28px;
-  border-bottom: 1px solid #f0f0f0;
+  padding: 0 24px;
+  border-bottom: 1px solid #d4ddd0;
+  height: 56px;
+  box-shadow: 0 2px 8px rgba(90, 143, 92, 0.04);
 }
 
 .header-left {
@@ -240,15 +264,15 @@ const handleCommand = async (command) => {
 }
 
 .collapse-btn {
-  color: #6e6e73;
-  padding: 10px;
-  border-radius: 10px;
-  transition: all 0.25s cubic-bezier(0.25, 0.1, 0.25, 1);
+  color: #5a6b5a;
+  padding: 8px;
+  border-radius: 6px;
+  transition: all 0.18s ease;
 }
 
 .collapse-btn:hover {
-  background: #f5f5f7;
-  color: #4caf50;
+  background: #f4f8f0;
+  color: #3d6b3f;
 }
 
 .header-right {
@@ -259,29 +283,42 @@ const handleCommand = async (command) => {
 .user-info {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 16px;
-  border-radius: 12px;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 8px;
   cursor: pointer;
-  transition: all 0.25s cubic-bezier(0.25, 0.1, 0.25, 1);
-  color: #6e6e73;
+  transition: all 0.18s ease;
+  color: #5a6b5a;
 }
 
 .user-info:hover {
-  background: #f5f5f7;
-  color: #4caf50;
+  background: #f4f8f0;
+  color: #3d6b3f;
+  box-shadow: 0 1px 3px rgba(90, 143, 92, 0.06);
 }
 
 .username {
-  color: #1d1d1f;
+  color: #2c3e2c;
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 400;
 }
 
 .main-content {
-  background: #f5f5f7;
-  padding: 28px;
+  background: linear-gradient(180deg, #f8faf6 0%, #f4f8f0 100%);
+  padding: 32px;
   overflow-y: auto;
-  min-height: calc(100vh - 64px);
+  min-height: calc(100vh - 56px);
+  position: relative;
+}
+
+/* 微噪点纸纤维质感 */
+.main-content::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  opacity: 0.015;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.5'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 0;
 }
 </style>

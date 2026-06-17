@@ -80,7 +80,10 @@ public class RagService {
             }
 
             // 解析文档
-            String content = parser.parse(new FileInputStream(file), lecture.getFilePath());
+            String content;
+            try (FileInputStream fis = new FileInputStream(file)) {
+                content = parser.parse(fis, lecture.getFilePath());
+            }
             if (content == null || content.isBlank()) {
                 log.warn("讲义内容为空: lectureId={}", lecture.getLectureId());
                 lectureService.updateVectorizedStatus(lecture.getLectureId(), 2, null);

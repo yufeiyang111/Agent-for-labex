@@ -1,527 +1,899 @@
 <template>
-  <div class="kg-page">
-    <!-- Header -->
-    <div class="page-header">
-      <div class="header-left">
-        <h2 class="page-title">知识图谱管理</h2>
-        <p class="page-subtitle">管理讲义知识点、题目关联，构建课程知识体系</p>
+  <div class="kg-page wabi-page">
+    <div class="wabi-body">
+      <!-- 页面头部 -->
+      <div class="page-hero wabi-card">
+        <div class="wabi-card-content">
+          <div class="hero-content">
+            <h2 class="hero-title">知识图谱管理</h2>
+            <p class="hero-desc">管理讲义知识点、题目关联，构建课程知识体系</p>
+          </div>
+          <div class="hero-actions">
+            <el-button @click="showExtractDialog = true" type="primary" :icon="MagicStick" class="wabi-btn-primary">
+              从讲义提取
+            </el-button>
+            <el-button @click="linkQuestionsFast" :icon="Connection" :loading="linkingQuestionsFast" class="wabi-btn-ghost">
+              快速关联
+            </el-button>
+            <el-button @click="linkQuestions" :icon="Connection" :loading="linkingQuestions" class="wabi-btn-ghost">
+              精确关联
+            </el-button>
+          </div>
+        </div>
       </div>
-      <div class="header-actions">
-        <el-button @click="showExtractDialog = true" type="primary" :icon="MagicStick">
-          从讲义提取知识点
-        </el-button>
-        <el-button @click="linkQuestionsFast" type="warning" :icon="Connection" :loading="linkingQuestionsFast">
-          快速关联 (Embedding)
-        </el-button>
-        <el-button @click="linkQuestions" type="success" :icon="Connection" :loading="linkingQuestions">
-          精确关联 (LLM)
-        </el-button>
-      </div>
-    </div>
 
-    <!-- Stats -->
-    <el-row :gutter="16" class="stats-row">
-      <el-col :span="6">
+      <!-- 统计卡片 -->
+      <div class="stats-grid">
         <div class="stat-card">
           <div class="stat-value">{{ stats.totalKPs }}</div>
           <div class="stat-label">知识节点</div>
         </div>
-      </el-col>
-      <el-col :span="6">
         <div class="stat-card">
           <div class="stat-value">{{ stats.linkedQuestions }}</div>
           <div class="stat-label">已关联题目</div>
         </div>
-      </el-col>
-      <el-col :span="6">
         <div class="stat-card">
           <div class="stat-value">{{ topics.length }}</div>
           <div class="stat-label">知识主题</div>
         </div>
-      </el-col>
-      <el-col :span="6">
         <div class="stat-card">
           <div class="stat-value">{{ stats.totalQuestions || 0 }}</div>
           <div class="stat-label">题库总量</div>
         </div>
-      </el-col>
-    </el-row>
+      </div>
 
-    <!-- Tabs: Knowledge Points | Topics | Graph Visualization -->
-    <el-tabs v-model="activeTab" class="kg-tabs">
-      <el-tab-pane label="知识点" name="points">
-        <div class="tab-toolbar">
-          <el-input v-model="searchKeyword" placeholder="搜索知识点..."
-            clearable style="width: 240px" @clear="loadPoints" @keyup.enter="loadPoints">
-            <template #prefix><el-icon><Search /></el-icon></template>
-          </el-input>
-          <el-select v-model="filterTopicId" placeholder="按主题筛选" clearable
-            style="width: 180px; margin-left: 10px" @change="loadPoints">
+      <!-- 标签页 -->
+      <div class="wabi-card">
+        <div class="wabi-card-header">
+          <div class="tab-nav">
+            <span
+              v-for="tab in tabs"
+              :key="tab.key"
+              class="tab-item"
+              :class="{ active: activeTab === tab.key }"
+              @click="activeTab = tab.key"
+            >
+              {{ tab.label }}
+            </span>
+          </div>
+        </div>
+        <div class="wabi-card-content">
+          <!-- 知识点列表 -->
+          <div v-if="activeTab === 'points'">
+            <div class="toolbar">
+              <el-input
+                v-model="searchKeyword"
+                placeholder="搜索知识点..."
+                clearable
+                @clear="loadPoints"
+                @keyup.enter="loadPoints"
+                size="small"
+                class="wabi-search"
+              >
+                <template #prefix><el-icon><Search /></el-icon></template>
+              </el-input>
+              <el-select
+                v-model="filterTopicId"
+                placeholder="按主题筛选"
+                clearable
+                @change="loadPoints"
+                size="small"
+                class="topic-select"
+              >
+                <el-option v-for="t in topics" :key="t.id" :label="t.name" :value="t.id" />
+              </el-select>
+              <el-button type="primary" size="small" @click="showAddPointDialog" class="wabi-btn-primary">
+                新增知识点
+              </el-button>
+            </div>
+            <div v-loading="loadingPoints">
+              <div v-if="!points.length" class="wabi-empty">
+                <p class="wabi-empty-text">暂无知识点</p>
+              </div>
+              <div v-else class="point-list">
+                <div v-for="p in points" :key="p.id" class="point-item">
+                  <div class="point-info">
+                    <span class="point-name">{{ p.name }}</span>
+                    <span v-if="p.topicName" class="wabi-tag">{{ p.topicName }}</span>
+                    <span v-if="p.description" class="point-desc">{{ p.description }}</span>
+                  </div>
+                  <div class="point-actions">
+                    <el-button size="small" text @click="showEditPointDialog(p)" class="wabi-btn-text">编辑</el-button>
+                    <el-button size="small" text type="danger" @click="handleDeletePoint(p)" class="wabi-btn-text wabi-btn-danger">删除</el-button>
+                  </div>
+                </div>
+              </div>
+              <!-- 分页 -->
+              <div v-if="pointsTotal > pointsPageSize" class="pagination-wrapper">
+                <el-pagination
+                  v-model:current-page="pointsPage"
+                  v-model:page-size="pointsPageSize"
+                  :page-sizes="[10, 20, 50, 100]"
+                  :total="pointsTotal"
+                  layout="total, sizes, prev, pager, next"
+                  @size-change="loadPoints"
+                  @current-change="loadPoints"
+                  small
+                />
+              </div>
+            </div>
+          </div>
+
+          <!-- 主题列表 -->
+          <div v-if="activeTab === 'topics'">
+            <div class="toolbar">
+              <el-button type="primary" size="small" @click="showAddTopicDialog" class="wabi-btn-primary">
+                新增主题
+              </el-button>
+            </div>
+            <div v-loading="loadingTopics">
+              <div v-if="!topics.length" class="wabi-empty">
+                <p class="wabi-empty-text">暂无主题</p>
+              </div>
+              <div v-else class="topic-list">
+                <div v-for="t in topics" :key="t.id" class="topic-item">
+                  <div class="topic-info">
+                    <span class="topic-name">{{ t.name }}</span>
+                    <span class="topic-desc">{{ t.description || '暂无描述' }}</span>
+                    <span class="topic-count">{{ t.pointCount || 0 }} 个知识点</span>
+                  </div>
+                  <div class="topic-actions">
+                    <el-button size="small" text @click="showEditTopicDialog(t)" class="wabi-btn-text">编辑</el-button>
+                    <el-button size="small" text type="danger" @click="handleDeleteTopic(t)" class="wabi-btn-text wabi-btn-danger">删除</el-button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 图谱可视化 -->
+          <div v-if="activeTab === 'graph'" class="graph-tab">
+            <KnowledgeGraphVisualization :topic-id="graphTopicId" @node-click="handleNodeClick" />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 知识点编辑弹窗 -->
+    <el-dialog v-model="pointDialogVisible" :title="pointDialogTitle" width="500" class="wabi-dialog">
+      <el-form ref="pointFormRef" :model="pointForm" :rules="pointRules" label-width="80" class="wabi-form">
+        <el-form-item label="名称" prop="name">
+          <el-input v-model="pointForm.name" placeholder="知识点名称" />
+        </el-form-item>
+        <el-form-item label="描述">
+          <el-input v-model="pointForm.description" type="textarea" :rows="3" placeholder="知识点描述" />
+        </el-form-item>
+        <el-form-item label="主题">
+          <el-select v-model="pointForm.topicId" placeholder="选择主题" clearable style="width: 100%">
             <el-option v-for="t in topics" :key="t.id" :label="t.name" :value="t.id" />
           </el-select>
-          <el-button type="primary" plain @click="loadPoints" style="margin-left: 10px">查询</el-button>
-          <el-button @click="showCreateKpDialog = true" style="margin-left: auto">手动添加</el-button>
-        </div>
-
-        <el-table :data="points" v-loading="loadingPoints" stripe class="points-table">
-          <el-table-column prop="name" label="知识点名称" min-width="180">
-            <template #default="{ row }">
-              <span class="kp-name">{{ row.name }}</span>
-              <el-tag v-if="row.source === 'LLM_EXTRACTED'" size="small" type="info" effect="plain">AI提取</el-tag>
-              <el-tag v-else size="small" type="success" effect="plain">手动</el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column prop="description" label="描述" min-width="220" show-overflow-tooltip />
-          <el-table-column prop="topic" label="所属主题" width="120">
-            <template #default="{ row }">{{ row.topic?.name || '-' }}</template>
-          </el-table-column>
-          <el-table-column prop="confidence" label="置信度" width="100" align="center">
-            <template #default="{ row }">
-              <el-progress v-if="row.confidence" :percentage="Math.round(row.confidence * 100)"
-                :stroke-width="6" :show-text="false"
-                :color="row.confidence >= 0.8 ? '#67c23a' : '#e6a23c'" />
-              <span v-else>-</span>
-            </template>
-          </el-table-column>
-          <el-table-column label="操作" width="120" fixed="right">
-            <template #default="{ row }">
-              <el-button type="danger" link size="small" @click="deletePoint(row)">删除</el-button>
-            </template>
-          </el-table-column>
-        </el-table>
-
-        <el-pagination v-if="pointsTotal > pageSize" class="pagination"
-          :current-page="currentPage" :page-size="pageSize" :total="pointsTotal"
-          layout="total, prev, pager, next" @current-change="loadPoints" />
-      </el-tab-pane>
-
-      <el-tab-pane label="主题管理" name="topics">
-        <div class="tab-toolbar">
-          <el-button type="primary" @click="showCreateTopicDialog = true">新建主题</el-button>
-        </div>
-        <el-table :data="topics" v-loading="loadingTopics" stripe>
-          <el-table-column prop="name" label="主题名称" min-width="160" />
-          <el-table-column prop="description" label="描述" min-width="200" show-overflow-tooltip />
-          <el-table-column prop="kpCount" label="知识点数" width="100" align="center" />
-          <el-table-column label="操作" width="140" fixed="right">
-            <template #default="{ row }">
-              <el-button type="primary" link size="small" @click="openEditTopic(row)">编辑</el-button>
-              <el-button type="danger" link size="small" @click="deleteTopic(row)">删除</el-button>
-            </template>
-          </el-table-column>
-        </el-table>
-      </el-tab-pane>
-
-      <el-tab-pane label="知识图谱" name="graph">
-        <KnowledgeGraphVisualization :topic-id="filterTopicId" />
-      </el-tab-pane>
-    </el-tabs>
-
-    <!-- Extract Dialog -->
-    <el-dialog v-model="showExtractDialog" title="从讲义提取知识点" width="600px">
-      <p class="dialog-hint">选择要提取知识点的讲义，AI 将自动分析内容并构建知识图谱。</p>
-      <el-select v-model="selectedLectureIds" multiple placeholder="选择讲义..."
-        style="width: 100%" filterable>
-        <el-option v-for="l in lectures" :key="l.lectureId"
-          :label="l.lectureName" :value="l.lectureId" />
-      </el-select>
-      <el-select v-model="extractTopicId" placeholder="归属主题（可选）" clearable
-        style="width: 100%; margin-top: 12px">
-        <el-option v-for="t in topics" :key="t.id" :label="t.name" :value="t.id" />
-      </el-select>
+        </el-form-item>
+      </el-form>
       <template #footer>
-        <el-button @click="showExtractDialog = false">取消</el-button>
-        <el-button type="primary" :loading="extracting" @click="extractPoints">
+        <el-button @click="pointDialogVisible = false" class="wabi-btn-ghost">取消</el-button>
+        <el-button type="primary" @click="handleSavePoint" class="wabi-btn-primary">保存</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 主题编辑弹窗 -->
+    <el-dialog v-model="topicDialogVisible" :title="topicDialogTitle" width="400" class="wabi-dialog">
+      <el-form ref="topicFormRef" :model="topicForm" :rules="topicRules" label-width="80" class="wabi-form">
+        <el-form-item label="名称" prop="name">
+          <el-input v-model="topicForm.name" placeholder="主题名称" />
+        </el-form-item>
+        <el-form-item label="描述">
+          <el-input v-model="topicForm.description" type="textarea" :rows="3" placeholder="主题描述" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="topicDialogVisible = false" class="wabi-btn-ghost">取消</el-button>
+        <el-button type="primary" @click="handleSaveTopic" class="wabi-btn-primary">保存</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 从讲义提取弹窗 -->
+    <el-dialog v-model="showExtractDialog" title="从讲义提取知识点" width="500" class="wabi-dialog">
+      <el-form :model="extractForm" label-width="80" class="wabi-form">
+        <el-form-item label="选择讲义">
+          <div class="lecture-select-wrapper">
+            <el-select
+              v-model="extractForm.lectureIds"
+              multiple
+              placeholder="选择讲义"
+              style="width: 100%"
+              collapse-tags
+              collapse-tags-tooltip
+            >
+              <el-option
+                v-for="l in lectures"
+                :key="l.lectureId || l.id"
+                :label="l.lectureName || l.name"
+                :value="l.lectureId || l.id"
+              />
+            </el-select>
+            <div class="lecture-select-actions">
+              <el-button size="small" text @click="selectAllLectures" class="wabi-btn-text">
+                全选
+              </el-button>
+              <el-button size="small" text @click="extractForm.lectureIds = []" class="wabi-btn-text">
+                清空
+              </el-button>
+              <span class="lecture-count">共 {{ lectures.length }} 个讲义</span>
+            </div>
+          </div>
+        </el-form-item>
+        <el-form-item label="主题">
+          <el-select v-model="extractForm.topicId" placeholder="选择主题（可选）" clearable style="width: 100%">
+            <el-option v-for="t in topics" :key="t.id" :label="t.name" :value="t.id" />
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showExtractDialog = false" class="wabi-btn-ghost">取消</el-button>
+        <el-button type="primary" @click="handleExtract" :loading="extracting" class="wabi-btn-primary">
           开始提取
         </el-button>
-      </template>
-    </el-dialog>
-
-    <!-- Create Knowledge Point Dialog -->
-    <el-dialog v-model="showCreateKpDialog" title="手动添加知识点" width="500px">
-      <el-form :model="createKpForm" label-width="80px">
-        <el-form-item label="名称">
-          <el-input v-model="createKpForm.name" placeholder="知识点名称" />
-        </el-form-item>
-        <el-form-item label="描述">
-          <el-input v-model="createKpForm.description" type="textarea" :rows="3" placeholder="简要描述" />
-        </el-form-item>
-        <el-form-item label="所属主题">
-          <el-select v-model="createKpForm.topicId" placeholder="选择主题" clearable style="width: 100%">
-            <el-option v-for="t in topics" :key="t.id" :label="t.name" :value="t.id" />
-          </el-select>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="showCreateKpDialog = false">取消</el-button>
-        <el-button type="primary" :loading="creatingKp" @click="createPoint">确定</el-button>
-      </template>
-    </el-dialog>
-
-    <!-- Create Topic Dialog -->
-    <el-dialog v-model="showCreateTopicDialog" title="新建主题" width="450px">
-      <el-form :model="createTopicForm" label-width="80px">
-        <el-form-item label="名称">
-          <el-input v-model="createTopicForm.name" placeholder="主题名称，如：数据结构" />
-        </el-form-item>
-        <el-form-item label="描述">
-          <el-input v-model="createTopicForm.description" type="textarea" :rows="2" placeholder="简要描述" />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="showCreateTopicDialog = false">取消</el-button>
-        <el-button type="primary" :loading="creatingTopic" @click="createTopic">确定</el-button>
-      </template>
-    </el-dialog>
-
-    <!-- Edit Topic Dialog -->
-    <el-dialog v-model="showEditTopicDialog" title="编辑主题" width="450px">
-      <el-form :model="editTopicForm" label-width="80px">
-        <el-form-item label="名称">
-          <el-input v-model="editTopicForm.name" placeholder="主题名称，如：数据结构" />
-        </el-form-item>
-        <el-form-item label="描述">
-          <el-input v-model="editTopicForm.description" type="textarea" :rows="2" placeholder="简要描述" />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="showEditTopicDialog = false">取消</el-button>
-        <el-button type="primary" :loading="updatingTopic" @click="updateTopic">确定</el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, onBeforeUnmount, watch, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, MagicStick, Connection } from '@element-plus/icons-vue'
-import { kgApi, studentApi, teacherApi } from '@/api'
+import { kgApi, teacherApi } from '@/api'
 import KnowledgeGraphVisualization from '@/components/kg/KnowledgeGraphVisualization.vue'
 
-const activeTab = ref('points')
-
-// Knowledge points
-const points = ref([])
-const pointsTotal = ref(0)
+const loading = ref(false)
 const loadingPoints = ref(false)
-const currentPage = ref(1)
-const pageSize = ref(15)
-const searchKeyword = ref('')
-const filterTopicId = ref('')
-
-// Topics
-const topics = ref([])
 const loadingTopics = ref(false)
-
-// Lectures (for extraction)
-const lectures = ref([])
-
-// Stats
-const stats = reactive({ totalKPs: 0, linkedQuestions: 0, totalQuestions: 0 })
-
-// Dialogs
-const showExtractDialog = ref(false)
-const extracting = ref(false)
-const selectedLectureIds = ref([])
-const extractTopicId = ref('')
-
-const showCreateKpDialog = ref(false)
-const creatingKp = ref(false)
-const createKpForm = reactive({ name: '', description: '', topicId: '' })
-
-const showCreateTopicDialog = ref(false)
-const creatingTopic = ref(false)
-const createTopicForm = reactive({ name: '', description: '' })
-
-const showEditTopicDialog = ref(false)
-const updatingTopic = ref(false)
-const editTopicForm = reactive({ id: '', name: '', description: '' })
-
-// Question linking
 const linkingQuestions = ref(false)
 const linkingQuestionsFast = ref(false)
+const extracting = ref(false)
+const showExtractDialog = ref(false)
+const activeTab = ref('points')
+const searchKeyword = ref('')
+const filterTopicId = ref('')
+const points = ref([])
+const topics = ref([])
+const lectures = ref([])
 
-// Load
-const loadPoints = async (page = 1) => {
-  currentPage.value = page
+// 分页
+const pointsPage = ref(1)
+const pointsPageSize = ref(20)
+const pointsTotal = ref(0)
+
+// 图谱
+const graphTopicId = ref('')
+
+// 知识点编辑
+const pointDialogVisible = ref(false)
+const pointDialogTitle = ref('新增知识点')
+const pointFormRef = ref()
+const pointForm = ref({ id: null, name: '', description: '', topicId: '' })
+const pointRules = {
+  name: [{ required: true, message: '请输入名称', trigger: 'blur' }]
+}
+
+// 主题编辑
+const topicDialogVisible = ref(false)
+const topicDialogTitle = ref('新增主题')
+const topicFormRef = ref()
+const topicForm = ref({ id: null, name: '', description: '' })
+const topicRules = {
+  name: [{ required: true, message: '请输入名称', trigger: 'blur' }]
+}
+
+// 讲义提取
+const extractForm = ref({ lectureIds: [], topicId: '' })
+
+const stats = reactive({
+  totalKPs: 0,
+  linkedQuestions: 0,
+  totalQuestions: 0
+})
+
+const tabs = [
+  { key: 'points', label: '知识点' },
+  { key: 'topics', label: '主题' },
+  { key: 'graph', label: '图谱' }
+]
+
+// 加载知识点
+const loadPoints = async () => {
   loadingPoints.value = true
   try {
-    const res = await kgApi.getPoints({
-      topicId: filterTopicId.value || undefined,
+    const params = {
       keyword: searchKeyword.value || undefined,
-      page,
-      size: pageSize.value
-    })
-    if (res.code === 0) {
-      points.value = res.data?.list || []
-      pointsTotal.value = res.data?.total || 0
-      stats.totalKPs = res.data?.total || 0
+      topicId: filterTopicId.value || undefined,
+      page: pointsPage.value,
+      size: pointsPageSize.value
     }
-  } catch (e) {
-    ElMessage.error('加载知识点失败')
+    const res = await kgApi.getPoints(params)
+    points.value = res.data?.list || []
+    pointsTotal.value = res.data?.total || 0
+  } catch (error) {
+    console.error('加载知识点失败:', error)
   } finally {
     loadingPoints.value = false
   }
 }
 
+// 加载主题
 const loadTopics = async () => {
   loadingTopics.value = true
   try {
     const res = await kgApi.getTopics()
-    if (res.code === 0) {
-      topics.value = res.data || []
-    }
-  } catch (e) {
-    ElMessage.error('加载主题失败')
+    topics.value = res.data || []
+  } catch (error) {
+    console.error('加载主题失败:', error)
   } finally {
     loadingTopics.value = false
   }
 }
 
+// 加载统计
+const loadStats = async () => {
+  try {
+    const res = await kgApi.getStats()
+    Object.assign(stats, res.data || {})
+  } catch (error) {
+    console.error('加载统计失败:', error)
+  }
+}
+
+// 加载讲义列表
 const loadLectures = async () => {
   try {
     const res = await teacherApi.lecture.getAll()
-    if (res.code === 0) {
-      lectures.value = res.data || []
-    }
-  } catch (e) {
-    console.error('Failed to load lectures:', e)
+    lectures.value = res.data || []
+  } catch (error) {
+    console.error('加载讲义失败:', error)
   }
 }
 
-// Extract knowledge points
-const extractPoints = async () => {
-  if (selectedLectureIds.value.length === 0) {
-    ElMessage.warning('请至少选择一份讲义')
-    return
-  }
-  extracting.value = true
+// 知识点操作
+const showAddPointDialog = () => {
+  pointForm.value = { id: null, name: '', description: '', topicId: '' }
+  pointDialogTitle.value = '新增知识点'
+  pointDialogVisible.value = true
+}
+
+const showEditPointDialog = (point) => {
+  pointForm.value = { ...point }
+  pointDialogTitle.value = '编辑知识点'
+  pointDialogVisible.value = true
+}
+
+const handleSavePoint = async () => {
+  await pointFormRef.value.validate()
   try {
-    const res = await kgApi.extract({
-      lectureIds: selectedLectureIds.value,
-      topicId: extractTopicId.value || undefined
-    })
-    if (res.code === 0) {
-      ElMessage.success(`知识提取已启动，正在处理 ${selectedLectureIds.value.length} 份讲义`)
-      showExtractDialog.value = false
-      selectedLectureIds.value = []
-      extractTopicId.value = ''
+    if (pointForm.value.id) {
+      await kgApi.updatePoint(pointForm.value.id, pointForm.value)
+      ElMessage.success('更新成功')
     } else {
-      ElMessage.error(res.message || '提取失败')
+      await kgApi.createPoint(pointForm.value)
+      ElMessage.success('创建成功')
     }
-  } catch (e) {
-    ElMessage.error('提取请求失败')
-  } finally {
-    extracting.value = false
+    pointDialogVisible.value = false
+    loadPoints()
+    loadStats()
+  } catch (error) {
+    ElMessage.error('操作失败')
   }
 }
 
-// Link questions (LLM - slow)
+const handleDeletePoint = async (point) => {
+  await ElMessageBox.confirm('确定删除该知识点?', '提示', { type: 'warning' })
+  try {
+    await kgApi.deletePoint(point.id)
+    ElMessage.success('已删除')
+    loadPoints()
+    loadStats()
+  } catch (error) {
+    ElMessage.error('删除失败')
+  }
+}
+
+// 主题操作
+const showAddTopicDialog = () => {
+  topicForm.value = { id: null, name: '', description: '' }
+  topicDialogTitle.value = '新增主题'
+  topicDialogVisible.value = true
+}
+
+const showEditTopicDialog = (topic) => {
+  topicForm.value = { ...topic }
+  topicDialogTitle.value = '编辑主题'
+  topicDialogVisible.value = true
+}
+
+const handleSaveTopic = async () => {
+  await topicFormRef.value.validate()
+  try {
+    if (topicForm.value.id) {
+      await kgApi.updateTopic(topicForm.value.id, topicForm.value)
+      ElMessage.success('更新成功')
+    } else {
+      await kgApi.createTopic(topicForm.value)
+      ElMessage.success('创建成功')
+    }
+    topicDialogVisible.value = false
+    loadTopics()
+  } catch (error) {
+    ElMessage.error('操作失败')
+  }
+}
+
+const handleDeleteTopic = async (topic) => {
+  await ElMessageBox.confirm('确定删除该主题?', '提示', { type: 'warning' })
+  try {
+    await kgApi.deleteTopic(topic.id)
+    ElMessage.success('已删除')
+    loadTopics()
+  } catch (error) {
+    ElMessage.error('删除失败')
+  }
+}
+
+// 图谱节点点击
+const handleNodeClick = (data) => {
+  console.log('节点点击:', data)
+}
+
+// 全选讲义
+const selectAllLectures = () => {
+  extractForm.value.lectureIds = lectures.value.map(l => l.lectureId || l.id)
+}
+
+// 关联题目
 const linkQuestions = async () => {
+  try {
+    await ElMessageBox.confirm(
+      '精确关联将使用 LLM 分析每道题目与知识点的关系，耗时较长。是否继续？',
+      '确认关联',
+      { confirmButtonText: '开始关联', cancelButtonText: '取消', type: 'info' }
+    )
+  } catch {
+    return // 用户取消
+  }
+
   linkingQuestions.value = true
   try {
-    const res = await kgApi.linkQuestions({ forceReprocess: false })
-    if (res.code === 0) {
-      ElMessage.success('LLM关联已启动，正在后台处理（速度较慢）')
-    } else {
-      ElMessage.error(res.message || '关联失败')
-    }
-  } catch (e) {
-    ElMessage.error('关联请求失败')
+    const res = await kgApi.linkQuestions({})
+    ElMessage.success(res.data?.message || '精确关联完成')
+    loadStats()
+  } catch (error) {
+    ElMessage.error('关联失败')
   } finally {
     linkingQuestions.value = false
   }
 }
 
-// Link questions fast (Embedding - fast)
 const linkQuestionsFast = async () => {
+  try {
+    await ElMessageBox.confirm(
+      '快速关联将使用 Embedding 相似度匹配题目与知识点，速度较快。是否继续？',
+      '确认关联',
+      { confirmButtonText: '开始关联', cancelButtonText: '取消', type: 'info' }
+    )
+  } catch {
+    return // 用户取消
+  }
+
   linkingQuestionsFast.value = true
   try {
-    const res = await kgApi.linkQuestionsFast({ forceReprocess: false })
-    if (res.code === 0) {
-      ElMessage.success('快速关联已启动，基于向量相似度匹配（速度快）')
-    } else {
-      ElMessage.error(res.message || '关联失败')
-    }
-  } catch (e) {
-    ElMessage.error('关联请求失败')
+    const res = await kgApi.linkQuestionsFast({})
+    ElMessage.success(res.data?.message || '快速关联完成')
+    loadStats()
+  } catch (error) {
+    ElMessage.error('关联失败')
   } finally {
     linkingQuestionsFast.value = false
   }
 }
 
-// Create knowledge point
-const createPoint = async () => {
-  if (!createKpForm.name.trim()) {
-    ElMessage.warning('请输入知识点名称')
+// 提取知识点定时器引用
+let extractTimer = null
+
+const handleExtract = async () => {
+  if (!extractForm.value.lectureIds?.length) {
+    ElMessage.warning('请选择讲义')
     return
   }
-  creatingKp.value = true
+  extracting.value = true
   try {
-    const res = await kgApi.createPoint({
-      name: createKpForm.name,
-      description: createKpForm.description,
-      topicId: createKpForm.topicId || undefined
-    })
-    if (res.code === 0) {
-      ElMessage.success('知识点创建成功')
-      showCreateKpDialog.value = false
-      Object.assign(createKpForm, { name: '', description: '', topicId: '' })
+    await kgApi.extract(extractForm.value)
+    ElMessage.success('提取任务已启动')
+    showExtractDialog.value = false
+    // 保存定时器引用以便清理
+    extractTimer = setTimeout(() => {
       loadPoints()
-    } else {
-      ElMessage.error(res.message || '创建失败')
-    }
-  } catch (e) {
-    ElMessage.error('创建请求失败')
+      loadStats()
+      extractTimer = null
+    }, 2000)
+  } catch (error) {
+    ElMessage.error('提取失败')
   } finally {
-    creatingKp.value = false
+    extracting.value = false
   }
 }
 
-// Create topic
-const createTopic = async () => {
-  if (!createTopicForm.name.trim()) {
-    ElMessage.warning('请输入主题名称')
-    return
-  }
-  creatingTopic.value = true
-  try {
-    const res = await kgApi.createTopic({
-      name: createTopicForm.name,
-      description: createTopicForm.description
-    })
-    if (res.code === 0) {
-      ElMessage.success('主题创建成功')
-      showCreateTopicDialog.value = false
-      Object.assign(createTopicForm, { name: '', description: '' })
-      loadTopics()
-    } else {
-      ElMessage.error(res.message || '创建失败')
-    }
-  } catch (e) {
-    ElMessage.error('创建请求失败')
-  } finally {
-    creatingTopic.value = false
-  }
-}
-
-// Edit topic
-const openEditTopic = (row) => {
-  editTopicForm.id = row.id
-  editTopicForm.name = row.name
-  editTopicForm.description = row.description || ''
-  showEditTopicDialog.value = true
-}
-
-const updateTopic = async () => {
-  if (!editTopicForm.name.trim()) {
-    ElMessage.warning('请输入主题名称')
-    return
-  }
-  updatingTopic.value = true
-  try {
-    const res = await kgApi.updateTopic(editTopicForm.id, {
-      name: editTopicForm.name,
-      description: editTopicForm.description
-    })
-    if (res.code === 0) {
-      ElMessage.success('主题更新成功')
-      showEditTopicDialog.value = false
-      loadTopics()
-    } else {
-      ElMessage.error(res.message || '更新失败')
-    }
-  } catch (e) {
-    ElMessage.error('更新请求失败')
-  } finally {
-    updatingTopic.value = false
-  }
-}
-
-// Delete topic
-const deleteTopic = (row) => {
-  ElMessageBox.confirm(`确定要删除主题 "${row.name}" 吗？其下的知识点将解除关联。`, '确认删除', {
-    confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning'
-  }).then(async () => {
-    try {
-      const res = await kgApi.deleteTopic(row.id)
-      if (res.code === 0) {
-        ElMessage.success('已删除')
-        loadTopics()
-        loadPoints()
-      } else {
-        ElMessage.error(res.message || '删除失败')
-      }
-    } catch (e) {
-      ElMessage.error('删除请求失败')
-    }
-  }).catch(() => {})
-}
-
-// Delete knowledge point
-const deletePoint = (row) => {
-  ElMessageBox.confirm(`确定要删除知识点 "${row.name}" 吗？`, '确认删除', {
-    confirmButtonText: '确定', cancelButtonText: '取消', type: 'warning'
-  }).then(async () => {
-    try {
-      const res = await kgApi.deletePoint(row.id)
-      if (res.code === 0) {
-        ElMessage.success('已删除')
-        loadPoints()
-      } else {
-        ElMessage.error(res.message || '删除失败')
-      }
-    } catch (e) {
-      ElMessage.error('删除请求失败')
-    }
-  }).catch(() => {})
-}
+// 切换标签时加载数据
+watch(activeTab, (tab) => {
+  if (tab === 'points') loadPoints()
+  else if (tab === 'topics') loadTopics()
+})
 
 onMounted(() => {
   loadPoints()
   loadTopics()
+  loadStats()
   loadLectures()
+})
+
+// 清理定时器，防止内存泄漏
+onBeforeUnmount(() => {
+  if (extractTimer) {
+    clearTimeout(extractTimer)
+    extractTimer = null
+  }
 })
 </script>
 
 <style scoped>
 .kg-page {
+  min-height: 100vh;
+  background: var(--wabi-bg, #f8f6f3);
+}
+
+.wabi-body {
+  padding: 24px;
   max-width: 1400px;
   margin: 0 auto;
-  padding: 24px;
+  animation: wabi-fade-in 0.4s ease;
 }
-.page-header {
+
+@keyframes wabi-fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* 页面头部 */
+.page-hero .wabi-card-content {
   display: flex;
-  align-items: flex-start;
   justify-content: space-between;
-  margin-bottom: 20px;
-  flex-wrap: wrap;
-  gap: 12px;
+  align-items: center;
 }
-.page-title { font-size: 22px; font-weight: 600; color: #1f2328; margin: 0 0 4px; }
-.page-subtitle { font-size: 13px; color: #8b949e; margin: 0; }
-.header-actions { display: flex; gap: 10px; flex-shrink: 0; }
-.stats-row { margin-bottom: 20px; }
+
+.hero-title {
+  font-size: 20px;
+  font-weight: 500;
+  color: var(--wabi-text, #2c2c2c);
+  margin: 0 0 4px 0;
+}
+
+.hero-desc {
+  font-size: 14px;
+  color: var(--wabi-text-secondary, #8a8580);
+  margin: 0;
+}
+
+.hero-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* 统计卡片 */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin: 16px 0;
+}
+
 .stat-card {
-  background: #fff; border-radius: 10px; padding: 18px 20px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.04); text-align: center;
-}
-.stat-value { font-size: 28px; font-weight: 700; color: #409eff; }
-.stat-label { font-size: 13px; color: #909399; margin-top: 4px; }
-.kg-tabs {
-  background: #fff;
-  border-radius: 10px;
+  background: var(--wabi-surface, #fff);
+  border: 1px solid var(--wabi-border, #e8e4df);
+  border-radius: 6px;
   padding: 16px 20px;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
-  min-height: 650px;
+  text-align: center;
 }
-:deep(.el-tab-pane) {
+
+.stat-value {
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--wabi-text, #2c2c2c);
+  font-family: 'Georgia', serif;
+}
+
+.stat-label {
+  font-size: 13px;
+  color: var(--wabi-text-secondary, #8a8580);
+  margin-top: 4px;
+}
+
+/* 标签导航 */
+.tab-nav {
+  display: flex;
+  gap: 4px;
+}
+
+.tab-item {
+  padding: 8px 16px;
+  font-size: 14px;
+  color: var(--wabi-text-secondary, #8a8580);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s ease;
+}
+
+.tab-item:hover {
+  color: var(--wabi-text, #2c2c2c);
+}
+
+.tab-item.active {
+  color: var(--wabi-accent, #7a8b6f);
+  border-bottom-color: var(--wabi-accent, #7a8b6f);
+}
+
+/* 工具栏 */
+.toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.graph-toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  align-items: center;
+}
+
+.graph-hint {
+  font-size: 12px;
+  color: var(--wabi-text-secondary, #8a8580);
+}
+
+.wabi-search {
+  width: 240px;
+}
+
+.topic-select {
+  width: 180px;
+}
+
+/* 知识点列表 */
+.point-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.point-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: var(--wabi-surface, #fff);
+  border: 1px solid var(--wabi-border, #e8e4df);
+  border-radius: 4px;
+}
+
+.point-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.point-name {
+  font-size: 14px;
+  color: var(--wabi-text, #2c2c2c);
+  font-weight: 500;
+}
+
+.point-desc {
+  font-size: 12px;
+  color: var(--wabi-text-secondary, #8a8580);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 300px;
+}
+
+.point-actions {
+  display: flex;
+  gap: 4px;
+}
+
+/* 主题列表 */
+.topic-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.topic-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: var(--wabi-surface, #fff);
+  border: 1px solid var(--wabi-border, #e8e4df);
+  border-radius: 4px;
+}
+
+.topic-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+}
+
+.topic-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--wabi-text, #2c2c2c);
+}
+
+.topic-desc {
+  font-size: 12px;
+  color: var(--wabi-text-secondary, #8a8580);
+}
+
+.topic-count {
+  font-size: 12px;
+  color: var(--wabi-text-secondary, #8a8580);
+  padding: 2px 8px;
+  background: var(--wabi-border-light, #f0ece8);
+  border-radius: 2px;
+}
+
+.topic-actions {
+  display: flex;
+  gap: 4px;
+}
+
+/* 图谱标签页 */
+.graph-tab {
   min-height: 600px;
 }
-.tab-toolbar { display: flex; align-items: center; margin-bottom: 14px; }
-.points-table { margin-top: 8px; }
-.kp-name { margin-right: 8px; font-weight: 500; }
-.pagination { margin-top: 16px; justify-content: flex-end; }
-.dialog-hint { font-size: 13px; color: #909399; margin: 0 0 16px; }
+
+/* 分页 */
+.pagination-wrapper {
+  margin-top: 16px;
+  display: flex;
+  justify-content: center;
+}
+
+/* 标签 */
+.wabi-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  background: var(--wabi-border-light, #f0ece8);
+  color: var(--wabi-text-secondary, #8a8580);
+  font-size: 12px;
+  border-radius: 2px;
+}
+
+/* 空状态 */
+.wabi-empty {
+  padding: 40px 0;
+  text-align: center;
+}
+
+.wabi-empty-text {
+  color: var(--wabi-text-secondary, #8a8580);
+  font-size: 14px;
+  margin: 0;
+}
+
+/* 按钮 */
+.wabi-btn-primary {
+  background: var(--wabi-accent, #7a8b6f);
+  border-color: var(--wabi-accent, #7a8b6f);
+  border-radius: 4px;
+}
+
+.wabi-btn-primary:hover {
+  background: #6b7d60;
+  border-color: #6b7d60;
+}
+
+.wabi-btn-ghost {
+  border-color: var(--wabi-border, #e8e4df);
+  color: var(--wabi-text-secondary, #8a8580);
+  border-radius: 4px;
+}
+
+.wabi-btn-ghost:hover {
+  border-color: var(--wabi-accent, #7a8b6f);
+  color: var(--wabi-accent, #7a8b6f);
+}
+
+.wabi-btn-text {
+  color: var(--wabi-text-secondary, #8a8580);
+}
+
+.wabi-btn-text:hover {
+  color: var(--wabi-accent, #7a8b6f);
+}
+
+.wabi-btn-danger:hover {
+  color: #c47c7c;
+}
+
+/* 讲义选择 */
+.lecture-select-wrapper {
+  width: 100%;
+}
+
+.lecture-select-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.lecture-count {
+  font-size: 12px;
+  color: var(--wabi-text-secondary, #8a8580);
+  margin-left: auto;
+}
+
+/* 响应式 */
+@media (max-width: 768px) {
+  .wabi-body {
+    padding: 16px;
+  }
+
+  .page-hero .wabi-card-content {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .hero-actions {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .toolbar {
+    flex-direction: column;
+  }
+
+  .wabi-search,
+  .topic-select {
+    width: 100%;
+  }
+
+  .point-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .point-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .topic-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .topic-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
 </style>

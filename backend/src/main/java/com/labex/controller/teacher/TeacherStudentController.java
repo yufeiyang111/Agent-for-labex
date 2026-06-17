@@ -16,6 +16,8 @@ import com.labex.service.TeacherService;
 import com.labex.util.CurrentUser;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -23,8 +25,10 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 
 /**
@@ -330,7 +334,7 @@ public class TeacherStudentController {
     }
 
     /**
-     * 批量导入学生（CSV文件，只能导入到属于自己的班级）
+     * 批量导入学生（支持 Excel 和 CSV 文件，只能导入到属于自己的班级）
      * 如果学号已存在，则将其关联到当前班级（多对多关系）
      */
     @PostMapping("/import")
@@ -352,21 +356,31 @@ public class TeacherStudentController {
             return Result.error("文件为空");
         }
 
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(file.getInputStream()))) {
-            String line;
-            int lineNum = 0;
+        String filename = file.getOriginalFilename();
+        if (filename == null) {
+            return Result.error("文件名为空");
+        }
+
+        try {
+            List<String[]> rows = new ArrayList<>();
+
+            // 根据文件类型解析
+            if (filename.endsWith(".xlsx") || filename.endsWith(".xls")) {
+                rows = parseExcelFile(file.getInputStream());
+            } else if (filename.endsWith(".csv")) {
+                rows = parseCsvFile(file.getInputStream());
+            } else {
+                return Result.error("不支持的文件格式，请使用 .xlsx 或 .csv 文件");
+            }
+
             int addedCount = 0;
             int linkedCount = 0;
             int skippedCount = 0;
 
-            while ((line = reader.readLine()) != null) {
-                lineNum++;
-                if (lineNum == 1) {
-                    continue; // 跳过表头
-                }
-
-                String[] parts = line.split(",");
+            for (int i = 0; i < rows.size(); i++) {
+                String[] parts = rows.get(i);
                 if (parts.length < 2) {
+                    skippedCount++;
                     continue;
                 }
 
@@ -375,10 +389,13 @@ public class TeacherStudentController {
 
                 // 验证学号格式（8位数字）
                 if (!studentNo.matches("\\d{8}")) {
-                    log.warn("第{}行学号格式错误: {}", lineNum, studentNo);
+                    log.warn("第{}行学号格式错误: {}", i + 2, studentNo);
                     skippedCount++;
                     continue;
                 }
+
+                // 检查学生是否已存在
+                Student existingStudent = studentService.findByStudentNo(studentNo);
 
                 Student student = new Student();
                 student.setStudentNo(studentNo);
@@ -388,15 +405,10 @@ public class TeacherStudentController {
                 // 使用新的关联方法：保存或更新学生并创建关联
                 studentService.saveOrUpdateStudent(student, teacherId, clazzNo);
 
-                Student existing = studentService.findByStudentNo(studentNo);
-                if (existing != null && existing.getStudentId() != null) {
-                    // 检查是新增还是关联
-                    boolean wasNew = existing.getCreateTime() == null;
-                    if (wasNew) {
-                        addedCount++;
-                    } else {
-                        linkedCount++;
-                    }
+                if (existingStudent == null) {
+                    addedCount++;
+                } else {
+                    linkedCount++;
                 }
             }
 
@@ -404,9 +416,98 @@ public class TeacherStudentController {
             log.info(message);
             return Result.success(message, null);
 
-        } catch (IOException e) {
+        } catch (Exception e) {
             log.error("文件读取失败", e);
-            return Result.error("文件读取失败");
+            return Result.error("文件读取失败：" + e.getMessage());
         }
+    }
+
+    /**
+     * 解析 Excel 文件
+     */
+    private List<String[]> parseExcelFile(InputStream inputStream) throws IOException {
+        List<String[]> rows = new ArrayList<>();
+
+        try (Workbook workbook = WorkbookFactory.create(inputStream)) {
+            Sheet sheet = workbook.getSheetAt(0);
+            Iterator<Row> rowIterator = sheet.iterator();
+
+            // 跳过表头
+            if (rowIterator.hasNext()) {
+                rowIterator.next();
+            }
+
+            while (rowIterator.hasNext()) {
+                Row row = rowIterator.next();
+                Cell cell0 = row.getCell(0);
+                Cell cell1 = row.getCell(1);
+
+                String studentNo = getCellValueAsString(cell0);
+                String studentName = getCellValueAsString(cell1);
+
+                if (!studentNo.isEmpty() && !studentName.isEmpty()) {
+                    rows.add(new String[]{studentNo, studentName});
+                }
+            }
+        }
+
+        return rows;
+    }
+
+    /**
+     * 获取单元格值为字符串
+     */
+    private String getCellValueAsString(Cell cell) {
+        if (cell == null) {
+            return "";
+        }
+
+        switch (cell.getCellType()) {
+            case STRING:
+                return cell.getStringCellValue().trim();
+            case NUMERIC:
+                // 处理数字格式的学号
+                double numVal = cell.getNumericCellValue();
+                if (numVal == Math.floor(numVal) && !Double.isInfinite(numVal)) {
+                    return String.valueOf((long) numVal);
+                }
+                return String.valueOf(numVal);
+            case BOOLEAN:
+                return String.valueOf(cell.getBooleanCellValue());
+            case FORMULA:
+                try {
+                    return cell.getStringCellValue().trim();
+                } catch (Exception e) {
+                    return String.valueOf(cell.getNumericCellValue());
+                }
+            default:
+                return "";
+        }
+    }
+
+    /**
+     * 解析 CSV 文件
+     */
+    private List<String[]> parseCsvFile(InputStream inputStream) throws IOException {
+        List<String[]> rows = new ArrayList<>();
+
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
+            String line;
+            boolean isFirstLine = true;
+
+            while ((line = reader.readLine()) != null) {
+                if (isFirstLine) {
+                    isFirstLine = false;
+                    continue; // 跳过表头
+                }
+
+                String[] parts = line.split(",");
+                if (parts.length >= 2) {
+                    rows.add(new String[]{parts[0].trim(), parts[1].trim()});
+                }
+            }
+        }
+
+        return rows;
     }
 }

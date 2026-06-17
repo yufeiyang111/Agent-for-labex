@@ -1,6 +1,7 @@
 @use './variables.scss' as *;
 
-// 全局样式重置与基础样式 - Soft UI Evolution 风格
+// 全局样式重置与基础样式 - Biophilic 亲自然风格
+// 纸纤维质感、叶脉纹理、柔和光影
 
 * {
   margin: 0;
@@ -11,12 +12,13 @@
 html, body {
   width: 100%;
   height: 100%;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   font-size: $font-size-base;
   color: $color-text-primary;
   background-color: $color-bg-page;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  line-height: 1.6;
 }
 
 #app {
@@ -24,6 +26,7 @@ html, body {
   height: 100%;
 }
 
+// 滚动条 - 自然木质调
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -34,100 +37,126 @@ html, body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #d1d1d6;
+  background: #c4d4bc;
   border-radius: 3px;
 
   &:hover {
-    background: #aeaeb2;
+    background: #a8c0a0;
   }
 }
 
+// 链接 - 自然下划线
 a {
-  color: $color-primary;
+  color: $color-primary-dark;
   text-decoration: none;
-  transition: color $transition-fast;
+  border-bottom: 1px solid transparent;
+  transition: border-color $transition-fast, color $transition-fast;
 
   &:hover {
-    color: $color-primary-dark;
+    color: $color-primary;
+    border-bottom-color: $color-primary;
   }
 }
 
+// 卡片 - 柔和阴影 + 微噪点质感
 .van-card,
 .el-card {
-  border-radius: $border-radius-xl !important;
-  box-shadow: $shadow-md !important;
-  border: none !important;
-  transition: box-shadow $transition-base, transform $transition-base !important;
+  border-radius: $border-radius-lg !important;
+  box-shadow: $shadow-sm !important;
+  border: 1px solid $color-border-light !important;
+  transition: box-shadow $transition-base, transform $transition-base, border-color $transition-base !important;
+  background: $color-bg-card;
+  position: relative;
+
+  // 微噪点纸纤维质感
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    opacity: 0.03;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.5'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+  }
 
   &:hover {
-    box-shadow: $shadow-lg !important;
-    transform: translateY(-2px);
+    box-shadow: $shadow-md !important;
+    transform: translateY(-1px);
+    border-color: $color-border !important;
   }
 }
 
+// 主按钮 - 自然触感
 .btn-primary {
-  background: $color-primary;
+  background: linear-gradient(135deg, $color-primary 0%, $color-primary-dark 100%);
   border: none;
-  border-radius: $border-radius-lg;
-  padding: 12px 28px;
-  font-weight: 600;
-  font-size: 14px;
-  color: white;
+  border-radius: $border-radius-base;
+  padding: 10px 24px;
+  font-weight: 500;
+  font-size: $font-size-base;
+  color: #ffffff;
   transition: all $transition-base;
+  letter-spacing: 0.02em;
+  box-shadow: $shadow-xs;
 
   &:hover {
-    background: #3d8b40;
-    transform: translateY(-2px);
-    box-shadow: $shadow-primary;
+    transform: translateY(-1px);
+    box-shadow: $shadow-sm;
+    filter: brightness(1.05);
   }
 
   &:active {
-    transform: translateY(0) scale(0.98);
+    transform: translateY(1px);
+    box-shadow: none;
+    filter: brightness(0.95);
   }
 }
 
+// 输入框 - 柔和聚焦
 .el-input__wrapper,
 .el-textarea__inner {
-  border-radius: $border-radius-lg !important;
+  border-radius: $border-radius-base !important;
   transition: all $transition-base;
   box-shadow: 0 0 0 1px $color-border !important;
   background: #ffffff;
 
   &:hover {
-    box-shadow: 0 0 0 1px #c7c7cc !important;
+    box-shadow: 0 0 0 1px $color-primary-extra-light !important;
   }
 
   &.is-focus {
-    box-shadow: 0 0 0 2px $color-primary !important;
+    box-shadow: 0 0 0 2px rgba($color-primary, 0.3), $shadow-xs !important;
   }
 }
 
+// 表格 - 清晰自然
 .el-table {
-  border-radius: $border-radius-xl !important;
+  border-radius: $border-radius-lg !important;
   overflow: hidden !important;
-  font-size: 13px;
-  border: none !important;
+  font-size: $font-size-base;
+  border: 1px solid $color-border-light !important;
   background: #ffffff;
 
   .el-table__header {
     th {
-      background-color: #fafafa !important;
+      background-color: $color-primary-lighter !important;
       color: $color-text-secondary;
       font-weight: 600;
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 0.8px;
-      padding: 14px 16px !important;
+      font-size: $font-size-sm;
+      text-transform: none;
+      letter-spacing: 0;
+      padding: 12px 16px !important;
       border-bottom: 1px solid $color-border-light !important;
     }
   }
 
   .el-table__body {
     td {
-      padding: 16px !important;
+      padding: 14px 16px !important;
       color: $color-text-primary;
-      border-bottom: 1px solid $color-border-light !important;
-      font-size: 13px;
+      border-bottom: 1px solid $color-border-lighter !important;
+      font-size: $font-size-base;
     }
   }
 
@@ -140,55 +169,60 @@ a {
   }
 }
 
+// 弹窗 - 柔和光影
 .el-dialog {
-  border-radius: $border-radius-2xl !important;
-  box-shadow: $shadow-2xl !important;
-  border: none !important;
+  border-radius: $border-radius-xl !important;
+  box-shadow: $shadow-xl !important;
+  border: 1px solid $color-border-light !important;
   overflow: hidden;
 
   .el-dialog__header {
     margin-bottom: 0;
-    padding: 24px 28px;
-    border-bottom: 1px solid $color-border-light;
-    background: #ffffff;
+    padding: 20px 24px;
+    border-bottom: 1px solid $color-border-lighter;
+    background: linear-gradient(180deg, $color-primary-lighter 0%, #ffffff 100%);
   }
 
   .el-dialog__body {
-    padding: 28px;
+    padding: 24px;
   }
 
   .el-dialog__footer {
-    padding: 20px 28px;
-    border-top: 1px solid $color-border-light;
-    background: #ffffff;
+    padding: 16px 24px;
+    border-top: 1px solid $color-border-lighter;
+    background: $color-primary-lighter;
   }
 }
 
+// 分页器 - 自然风格
 .el-pagination {
   .el-pager li {
-    border-radius: $border-radius-lg !important;
+    border-radius: $border-radius-sm !important;
     background: #ffffff;
-    border: none;
-    margin: 0 3px;
-    min-width: 36px;
-    height: 36px;
-    line-height: 36px;
-    font-size: 13px;
-    transition: all $transition-fast;
-    box-shadow: $shadow-xs;
+    border: 1px solid $color-border-light;
+    margin: 0 2px;
+    min-width: 32px;
+    height: 32px;
+    line-height: 32px;
+    font-size: $font-size-base;
+    transition: all $transition-base;
+    box-shadow: none;
   }
 
   .el-pager li:hover {
-    background: #f5f5f5;
-    transform: translateY(-1px);
-    box-shadow: $shadow-sm;
+    border-color: $color-primary;
+    color: $color-primary;
+    transform: none;
+    box-shadow: none;
+    filter: brightness(1.02);
   }
 
   .el-pager li.is-active {
     background-color: $color-primary !important;
     color: #fff !important;
     font-weight: 600;
-    box-shadow: 0 4px 12px rgba(76, 175, 80, 0.35);
+    border-color: $color-primary;
+    box-shadow: $shadow-xs;
   }
 
   .el-pager li.btn-quicknext,
@@ -198,14 +232,17 @@ a {
   }
 }
 
+// 标签 - 叶片质感
 .el-tag {
-  border-radius: $border-radius-full !important;
+  border-radius: $border-radius-sm !important;
   font-weight: 500;
-  font-size: 11px;
-  padding: 4px 12px;
-  border: none;
+  font-size: $font-size-sm;
+  padding: 2px 10px;
+  border: 1px solid currentColor;
+  background: rgba($color-primary, 0.06);
 }
 
+// 页面容器
 .page-container {
   padding: $spacing-lg;
   min-height: calc(100vh - 60px);
@@ -258,4 +295,19 @@ a {
 
 .flex-wrap {
   flex-wrap: wrap;
+}
+
+// 叶脉纹理背景类（可选使用）
+.leaf-texture {
+  position: relative;
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    opacity: 0.02;
+    background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M30 0 C30 30 60 30 60 60' stroke='%235a8f5c' fill='none' stroke-width='0.5'/%3E%3Cpath d='M0 30 C30 30 30 60 60 60' stroke='%235a8f5c' fill='none' stroke-width='0.5'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+  }
 }

@@ -13,7 +13,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
+import java.util.*;
 
 /**
  * 课程质量评价控制器（CTL-S6）
@@ -70,6 +70,36 @@ public class QualityEvaluationController {
     @DeleteMapping("/{id}")
     public Result<Boolean> delete(@PathVariable Integer id) {
         return Result.success(evaluationService.removeById(id));
+    }
+
+    /**
+     * 获取学生评价统计
+     */
+    @GetMapping("/stats")
+    public Result<Map<String, Object>> getStats(@RequestParam Integer offeringId) {
+        // 从数据库获取学生评价统计数据
+        Map<String, Object> stats = evaluationService.getEvaluationStats(offeringId);
+        return Result.success(stats);
+    }
+
+    /**
+     * 获取评价维度数据
+     */
+    @GetMapping("/dimensions")
+    public Result<List<Map<String, Object>>> getDimensions(@RequestParam Integer offeringId) {
+        // 从数据库获取各维度评分数据
+        List<Map<String, Object>> dimensions = evaluationService.getEvaluationDimensions(offeringId);
+        return Result.success(dimensions);
+    }
+
+    /**
+     * 获取学生文字评价
+     */
+    @GetMapping("/comments")
+    public Result<List<Map<String, Object>>> getComments(@RequestParam Integer offeringId) {
+        // 从数据库获取学生文字评价
+        List<Map<String, Object>> comments = evaluationService.getStudentComments(offeringId);
+        return Result.success(comments);
     }
 
     @Data

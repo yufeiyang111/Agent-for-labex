@@ -394,7 +394,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, nextTick, computed } from 'vue'
+import { ref, onMounted, onBeforeUnmount, nextTick, computed } from 'vue'
 import { marked } from 'marked'
 import hljs from 'highlight.js'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -946,28 +946,10 @@ const sendMessage = async () => {
   }
   messages.value.push(assistantMessage)
 
-  // 收集完整文本，流式结束后用打字机效果逐字显示
-  let fullThinking = ''
-  let fullAnswer = ''
+  // 通过 reactive proxy 实时更新 UI（直接修改 raw 对象不会触发 Vue 重渲染）
+  const msgRef = messages.value[messages.value.length - 1]
   let donePayload = null
-  let cancelled = false
-
-  // 打字机效果：用 requestAnimationFrame 逐字写入，不受 Vue 批量更新影响
-  const typewriterReveal = (target, field, text, charsPerFrame = 3) => {
-    if (!text) return Promise.resolve()
-    return new Promise(resolve => {
-      let i = 0
-      const step = () => {
-        if (cancelled || i >= text.length) { resolve(); return }
-        const end = Math.min(i + charsPerFrame, text.length)
-        target[field] += text.slice(i, end)
-        i = end
-        scheduleScrollToBottom(false)
-        requestAnimationFrame(step)
-      }
-      requestAnimationFrame(step)
-    })
-  }
+  let hasError = false
 
   try {
     await streamRagQuery({
@@ -981,48 +963,52 @@ const sendMessage = async () => {
         currentSessionId.value = data.sessionId
       } else if (event === 'status') {
         return
+      } else if (event === 'source_found') {
+        // 边搜边显示：每搜到一个来源就实时追加
+        if (!msgRef.sources) msgRef.sources = []
+        msgRef.sources.push(data)
+        scheduleScrollToBottom(false)
       } else if (event === 'metadata') {
-        assistantMessage.sources = data.sources || []
-        assistantMessage.retrievalMode = data.retrievalMode || modeAtSend
-        assistantMessage.searchKeywords = data.searchKeywords || []
-        assistantMessage.fromKnowledgeBase = data.fromKnowledgeBase !== false
+        // 搜索完成，用最终数据覆盖（包含完整的 sources 和 searchKeywords）
+        msgRef.sources = data.sources || msgRef.sources
+        msgRef.retrievalMode = data.retrievalMode || modeAtSend
+        msgRef.searchKeywords = data.searchKeywords || []
+        msgRef.fromKnowledgeBase = data.fromKnowledgeBase !== false
         if (data.sessionId && data.sessionId !== currentSessionId.value) currentSessionId.value = data.sessionId
       } else if (event === 'thinking_delta' && deepThinkingAtSend) {
-        // 只收集，不立即显示
-        fullThinking += data.text || ''
+        // 实时更新思考过程，通过 reactive proxy 触发 Vue 重渲染
+        msgRef.thinkingTrace += data.text || ''
+        scheduleScrollToBottom(false)
       } else if (event === 'answer_delta') {
-        // 只收集，不立即显示
-        fullAnswer += data.text || ''
+        // 实时更新回答内容，通过 reactive proxy 触发 Vue 重渲染
+        msgRef.content += data.text || ''
+        scheduleScrollToBottom(false)
       } else if (event === 'done') {
         donePayload = data
-        assistantMessage.sources = data.sources || assistantMessage.sources
-        assistantMessage.retrievalMode = data.retrievalMode || modeAtSend
-        assistantMessage.searchKeywords = data.searchKeywords || []
-        assistantMessage.fromKnowledgeBase = data.fromKnowledgeBase !== false
-        if (data.answer) fullAnswer += data.answer
-        if (deepThinkingAtSend && data.thinkingTrace && !fullThinking) fullThinking = data.thinkingTrace
+        msgRef.sources = data.sources || msgRef.sources
+        msgRef.retrievalMode = data.retrievalMode || modeAtSend
+        msgRef.searchKeywords = data.searchKeywords || []
+        msgRef.fromKnowledgeBase = data.fromKnowledgeBase !== false
+        if (data.answer) msgRef.content += data.answer
+        if (deepThinkingAtSend && data.thinkingTrace && !msgRef.thinkingTrace) msgRef.thinkingTrace = data.thinkingTrace
         if (data.sessionId && data.sessionId !== currentSessionId.value) currentSessionId.value = data.sessionId
       } else if (event === 'error') {
-        fullAnswer = fullAnswer || ('抱歉，发生了错误：' + (data.message || '未知错误'))
+        hasError = true
+        msgRef.content = msgRef.content || ('抱歉，发生了错误：' + (data.message || '未知错误'))
       }
     })
 
-    // 流式接收完成，开始打字机效果逐字显示
-    // 先显示思考过程，再显示回答
-    await typewriterReveal(assistantMessage, 'thinkingTrace', fullThinking, 4)
-    await typewriterReveal(assistantMessage, 'content', fullAnswer, 3)
-
-    assistantMessage.streaming = false
-    assistantMessage.status = ''
+    // 流式接收完成，切换到最终 markdown 渲染
+    msgRef.streaming = false
+    msgRef.status = ''
     if (donePayload) {
       await refreshSessionsOnly()
     }
   } catch (error) {
-    cancelled = true
-    assistantMessage.content = fullAnswer || '抱歉，无法连接到服务器或流式接口中断，请检查后端服务是否运行。'
-    assistantMessage.thinkingTrace = fullThinking
-    assistantMessage.streaming = false
-    assistantMessage.status = ''
+    hasError = true
+    msgRef.content = msgRef.content || '抱歉，无法连接到服务器或流式接口中断，请检查后端服务是否运行。'
+    msgRef.streaming = false
+    msgRef.status = ''
   }
 
   loading.value = false
@@ -1236,6 +1222,18 @@ onMounted(() => {
       messagesContainer.value.addEventListener('click', handleCodeCopy)
     }
   })
+})
+
+onBeforeUnmount(() => {
+  // 清理 handleCodeCopy 事件监听器，防止内存泄漏
+  if (messagesContainer.value) {
+    messagesContainer.value.removeEventListener('click', handleCodeCopy)
+  }
+  // 清理 requestAnimationFrame
+  if (scrollFrame) {
+    cancelAnimationFrame(scrollFrame)
+    scrollFrame = 0
+  }
 })
 </script>
 

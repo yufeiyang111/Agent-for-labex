@@ -1,257 +1,193 @@
 <template>
-  <div class="paper-page">
-    <el-breadcrumb separator="/" class="breadcrumb">
-      <el-breadcrumb-item :to="{ path: '/teacher' }">教师首页</el-breadcrumb-item>
-      <el-breadcrumb-item>试卷管理</el-breadcrumb-item>
-    </el-breadcrumb>
-
-    <section class="hero">
-      <div>
-        <h2>试卷工作台</h2>
-        <p>先建试卷，再复用到多个考试；题目维护和分值总览都在这里。</p>
-      </div>
-      <div class="hero-actions">
-        <el-input v-model="searchQuery" placeholder="搜索试卷名称" clearable class="search-input" @clear="handleSearch" @keyup.enter="handleSearch">
-          <template #prefix><el-icon><Search /></el-icon></template>
-        </el-input>
-        <el-button type="primary" @click="handleSearch">搜索</el-button>
-        <el-button type="success" @click="handleAdd">
-          <el-icon><Plus /></el-icon> 新增试卷
+  <div class="paper-page wabi-page">
+    <div class="wabi-body">
+      <!-- 页面头部 -->
+      <div class="page-header">
+        <div class="header-left">
+          <h2 class="page-title">试卷管理</h2>
+          <el-input
+            v-model="searchQuery"
+            placeholder="搜索试卷名称"
+            clearable
+            @clear="handleSearch"
+            @keyup.enter="handleSearch"
+            size="small"
+            class="wabi-search"
+          >
+            <template #prefix><el-icon><Search /></el-icon></template>
+          </el-input>
+        </div>
+        <el-button type="primary" :icon="Plus" @click="handleAdd" class="wabi-btn-primary">
+          新增试卷
         </el-button>
       </div>
-    </section>
 
-    <section class="stats-grid">
-      <el-card shadow="never" class="stat-card">
-        <div class="stat-title">试卷总数</div>
-        <div class="stat-value">{{ pagination.total }}</div>
-      </el-card>
-      <el-card shadow="never" class="stat-card">
-        <div class="stat-title">已启用</div>
-        <div class="stat-value">{{ enabledCount }}</div>
-      </el-card>
-      <el-card shadow="never" class="stat-card">
-        <div class="stat-title">题量总计</div>
-        <div class="stat-value">{{ totalQuestions }}</div>
-      </el-card>
-      <el-card shadow="never" class="stat-card">
-        <div class="stat-title">总分平均值</div>
-        <div class="stat-value">{{ avgScore }}</div>
-      </el-card>
-    </section>
-
-    <section v-loading="loading">
-      <div class="list-header" v-if="displayedPapers.length">
-        <span class="list-count">共 {{ displayedPapers.length }} / {{ pagination.total }} 个试卷</span>
-      </div>
-      <el-empty v-if="displayedPapers.length === 0" description="暂无试卷" />
-      <div v-else class="paper-grid" ref="paperGridRef" @scroll="handlePaperScroll">
-        <el-card v-for="row in displayedPapers" :key="row.id" class="paper-card" shadow="hover">
-          <div class="paper-top">
-            <div class="paper-name">{{ row.name || '-' }}</div>
-            <el-tag :type="row.state === 1 ? 'success' : 'info'" effect="plain">{{ row.state === 1 ? '启用' : '禁用' }}</el-tag>
-          </div>
-          <div class="paper-desc">{{ row.description || '暂无描述' }}</div>
-          <div class="paper-kpis">
-            <div class="kpi"><span>题目数</span><strong>{{ row.questionCount || 0 }}</strong></div>
-            <div class="kpi"><span>总分</span><strong>{{ row.totalScore || 0 }}</strong></div>
-            <div class="kpi"><span>ID</span><strong>#{{ row.id }}</strong></div>
-          </div>
-          <div class="paper-actions">
-            <el-button type="primary" plain size="small" @click="handleEdit(row)">编辑</el-button>
-            <el-button type="warning" plain size="small" @click="handleQuestions(row)">配置题目</el-button>
-            <el-button type="danger" plain size="small" @click="handleDelete(row)">删除</el-button>
-          </div>
-        </el-card>
-        <div v-if="loadingMore" class="loading-more">
-          <el-icon class="is-loading"><Loading /></el-icon>
-          <span>加载中...</span>
+      <!-- 统计卡片 -->
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-value">{{ pagination.total }}</div>
+          <div class="stat-label">试卷总数</div>
         </div>
-        <div v-if="!pagination.hasMore && displayedPapers.length > 0" class="no-more-data">
-          已加载全部 {{ displayedPapers.length }} 个试卷
+        <div class="stat-card">
+          <div class="stat-value">{{ enabledCount }}</div>
+          <div class="stat-label">已启用</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">{{ totalQuestions }}</div>
+          <div class="stat-label">题量总计</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">{{ avgScore }}</div>
+          <div class="stat-label">总分平均值</div>
         </div>
       </div>
-    </section>
 
-    <el-dialog v-model="dialogVisible" :title="dialogTitle" width="560px">
-      <el-form ref="formRef" :model="formData" :rules="formRules" label-width="90px">
+      <!-- 列表容器 -->
+      <div class="list-container">
+        <div class="list-content" v-loading="loading">
+          <div v-if="!loading && !paperList.length" class="list-empty">
+            <el-empty description="暂无试卷" />
+          </div>
+          <div v-else class="paper-list">
+            <div v-for="paper in paperList" :key="paper.id" class="paper-item">
+              <div class="paper-info">
+                <div class="paper-header">
+                  <h3 class="paper-name">{{ paper.name || '-' }}</h3>
+                  <span class="wabi-tag" :class="paper.state === 1 ? 'wabi-tag-accent' : ''">
+                    {{ paper.state === 1 ? '启用' : '禁用' }}
+                  </span>
+                </div>
+                <div class="paper-desc">{{ paper.description || '暂无描述' }}</div>
+                <div class="paper-meta">
+                  <span>题目数：{{ paper.questionCount || 0 }}</span>
+                  <span>总分：{{ paper.totalScore || 0 }}</span>
+                  <span>ID：#{{ paper.id }}</span>
+                </div>
+              </div>
+              <div class="paper-actions">
+                <el-button size="small" text @click="handleEdit(paper)" class="wabi-btn-text">编辑</el-button>
+                <el-button size="small" text @click="handleQuestions(paper)" class="wabi-btn-text">题目</el-button>
+                <el-button size="small" text type="danger" @click="handleDelete(paper)" class="wabi-btn-text wabi-btn-danger">删除</el-button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 分页 -->
+        <div class="list-pagination" v-if="pagination.total > 0">
+          <el-pagination
+            v-model:current-page="pagination.page"
+            v-model:page-size="pagination.pageSize"
+            :page-sizes="[20, 40, 60, 100]"
+            :total="pagination.total"
+            layout="total, sizes, prev, pager, next, jumper"
+            @size-change="loadPaperList"
+            @current-change="loadPaperList"
+          />
+        </div>
+      </div>
+    </div>
+
+    <!-- 编辑试卷对话框 -->
+    <el-dialog v-model="editDialogVisible" :title="isEdit ? '编辑试卷' : '新增试卷'" width="600" class="wabi-dialog">
+      <el-form ref="editFormRef" :model="editForm" :rules="editRules" label-width="100" class="wabi-form">
         <el-form-item label="试卷名称" prop="name">
-          <el-input v-model="formData.name" placeholder="请输入试卷名称" />
+          <el-input v-model="editForm.name" placeholder="请输入试卷名称" />
         </el-form-item>
-        <el-form-item label="试卷描述">
-          <el-input v-model="formData.description" type="textarea" :rows="4" placeholder="请输入试卷描述" />
+        <el-form-item label="描述">
+          <el-input v-model="editForm.description" type="textarea" :rows="3" placeholder="请输入试卷描述" />
         </el-form-item>
         <el-form-item label="状态">
-          <el-radio-group v-model="formData.state">
-            <el-radio :value="1">启用</el-radio>
-            <el-radio :value="0">禁用</el-radio>
-          </el-radio-group>
+          <el-switch v-model="editForm.state" :active-value="1" :inactive-value="0" active-text="启用" inactive-text="禁用" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitting" @click="handleSubmit">保存</el-button>
+        <el-button @click="editDialogVisible = false" class="wabi-btn-ghost">取消</el-button>
+        <el-button type="primary" @click="handleSave" :loading="saving" class="wabi-btn-primary">保存</el-button>
       </template>
     </el-dialog>
 
-    <el-dialog v-model="questionDialogVisible" title="试卷题目配置" width="1080px">
-      <div class="question-filter">
-        <el-select v-model="questionType" placeholder="题目类型" clearable style="width: 140px">
-          <el-option label="填空" :value="1" />
-          <el-option label="单选" :value="2" />
-          <el-option label="多选" :value="3" />
-          <el-option label="判断" :value="4" />
-          <el-option label="解答" :value="5" />
-          <el-option label="编程" :value="6" />
-        </el-select>
-        <el-button type="primary" @click="loadQuestions">筛选</el-button>
-        <el-button type="success" :disabled="selectedQuestions.length === 0" @click="confirmQuestions">
-          保存选中（{{ selectedQuestions.length }}）
-        </el-button>
+    <!-- 题目管理对话框 -->
+    <el-dialog v-model="questionsDialogVisible" :title="`题目管理 - ${currentPaper?.name || ''}`" width="1000" class="wabi-dialog">
+      <div class="questions-header">
+        <el-button type="primary" size="small" @click="showAddQuestions = true">添加题目</el-button>
       </div>
-
-      <div class="question-layout">
-        <div class="question-pool">
-          <h4>题库题目</h4>
-          <el-table ref="questionTableRef" :data="allQuestions" @selection-change="handleSelectionChange" height="460" stripe>
-            <el-table-column type="selection" width="50" />
-            <el-table-column prop="id" label="ID" min-width="70" />
-            <el-table-column label="类型" width="92">
-              <template #default="{ row }">
-                <el-tag size="small">{{ getTypeName(row.type) }}</el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column label="题目内容" min-width="240">
-              <template #default="{ row }">
-                <div class="q-cell">{{ shortText(row.question, 96) }}</div>
-              </template>
-            </el-table-column>
-            <el-table-column label="分值" width="80">
-              <template #default="{ row }">{{ row.score || 10 }}</template>
-            </el-table-column>
-          </el-table>
-          <div class="pagination-wrapper">
-            <el-pagination
-              v-model:current-page="questionPagination.page"
-              v-model:page-size="questionPagination.pageSize"
-              :page-sizes="[10, 20, 50, 100]"
-              :total="questionPagination.total"
-              layout="total, sizes, prev, pager, next, jumper"
-              @current-change="handleQuestionPageChange"
-              @size-change="handleQuestionSizeChange"
-            />
-          </div>
-        </div>
-        <div class="question-selected">
-          <h4>已选择（预览）</h4>
-          <el-scrollbar height="460">
-            <div v-if="selectedQuestions.length === 0" class="empty-hint">请从左侧选择题目</div>
-            <div v-for="item in selectedQuestions" :key="item.id" class="selected-item">
-              <div class="selected-line">
-                <el-tag size="small" type="info">{{ getTypeName(item.type) }}</el-tag>
-                <span>#{{ item.id }}</span>
-                <strong>{{ item.score || 10 }}分</strong>
-              </div>
-              <div class="selected-content">{{ shortText(item.question, 80) }}</div>
-            </div>
-          </el-scrollbar>
-        </div>
-      </div>
+      <el-table :data="paperQuestions" v-loading="loadingQuestions" class="wabi-table">
+        <el-table-column prop="id" label="ID" width="80" />
+        <el-table-column prop="typeName" label="题型" width="100" />
+        <el-table-column prop="question" label="题目内容" min-width="300" show-overflow-tooltip />
+        <el-table-column prop="score" label="分值" width="80" align="center" />
+        <el-table-column label="操作" width="100" align="center">
+          <template #default="{ row }">
+            <el-button size="small" text type="danger" @click="removeQuestion(row)">移除</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
     </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Search, Loading } from '@element-plus/icons-vue'
-import { teacherApi } from '@/api/index.js'
+import { Plus, Search } from '@element-plus/icons-vue'
+import { teacherApi } from '@/api'
+
+const paperApi = teacherApi.paper
+const questionApi = teacherApi.question
 
 const loading = ref(false)
-const loadingMore = ref(false)
-const submitting = ref(false)
-const isEdit = ref(false)
+const saving = ref(false)
 const paperList = ref([])
-const displayedPapers = ref([])
-const dialogVisible = ref(false)
-const questionDialogVisible = ref(false)
-const formRef = ref(null)
 const searchQuery = ref('')
-const currentPaperId = ref(null)
-const questionType = ref(null)
-const allQuestions = ref([])
-const selectedQuestions = ref([])
-const questionTableRef = ref(null)
-const paperGridRef = ref(null)
+const editDialogVisible = ref(false)
+const questionsDialogVisible = ref(false)
+const editFormRef = ref()
+const isEdit = ref(false)
+const currentPaper = ref(null)
+const paperQuestions = ref([])
+const loadingQuestions = ref(false)
 
-// 分页相关
-const questionPagination = reactive({
+const pagination = reactive({
   page: 1,
   pageSize: 20,
   total: 0
 })
 
-const INITIAL_PAGE_SIZE = 12
-const LOAD_MORE_SIZE = 8
-const pagination = reactive({ page: 1, pageSize: INITIAL_PAGE_SIZE, total: 0, hasMore: true })
-const formData = reactive({ id: null, name: '', description: '', state: 1 })
+const editForm = reactive({
+  id: null,
+  name: '',
+  description: '',
+  state: 1
+})
 
-const dialogTitle = computed(() => (isEdit.value ? '编辑试卷' : '新增试卷'))
-const formRules = { name: [{ required: true, message: '请输入试卷名称', trigger: 'blur' }] }
+const editRules = {
+  name: [{ required: true, message: '请输入试卷名称', trigger: 'blur' }]
+}
 
-const enabledCount = computed(() => paperList.value.filter((p) => p.state === 1).length)
+const enabledCount = computed(() => paperList.value.filter(p => p.state === 1).length)
 const totalQuestions = computed(() => paperList.value.reduce((sum, p) => sum + (p.questionCount || 0), 0))
 const avgScore = computed(() => {
   if (!paperList.value.length) return 0
-  const total = paperList.value.reduce((sum, p) => sum + (p.totalScore || 0), 0)
-  return Math.round(total / paperList.value.length)
+  const sum = paperList.value.reduce((acc, p) => acc + (p.totalScore || 0), 0)
+  return Math.round(sum / paperList.value.length)
 })
-
-const getTypeName = (type) => {
-  const map = { 1: '填空', 2: '单选', 3: '多选', 4: '判断', 5: '解答', 6: '编程', 7: '综合' }
-  return map[type] || '未知'
-}
-
-const shortText = (text, len = 80) => {
-  if (!text) return '-'
-  return text.length > len ? `${text.slice(0, len)}...` : text
-}
 
 const loadPaperList = async () => {
   loading.value = true
   try {
-    const params = { page: pagination.page, pageSize: pagination.pageSize }
-    if (searchQuery.value) params.name = searchQuery.value
-    const res = await teacherApi.paper.list(params)
-    paperList.value = res.data?.list || []
-    pagination.total = res.data?.total || 0
-    // 动态加载模式下，每次搜索重置为第一页，初始显示 INITIAL_PAGE_SIZE 条
-    displayedPapers.value = paperList.value.slice(0, INITIAL_PAGE_SIZE)
-    pagination.hasMore = displayedPapers.value.length < paperList.value.length
-  } catch {
-    ElMessage.error('加载试卷列表失败')
+    const params = {
+      page: pagination.page,
+      pageSize: pagination.pageSize,
+      keyword: searchQuery.value || undefined
+    }
+    const res = await paperApi.list(params)
+    paperList.value = res.data?.list || res.data || []
+    pagination.total = res.data?.total || paperList.value.length
+  } catch (error) {
+    console.error('加载试卷列表失败:', error)
   } finally {
     loading.value = false
-  }
-}
-
-const loadMorePapers = () => {
-  if (loadingMore.value || !pagination.hasMore) return
-  loadingMore.value = true
-  setTimeout(() => {
-    const start = displayedPapers.value.length
-    const end = start + LOAD_MORE_SIZE
-    const newPapers = paperList.value.slice(start, end)
-    displayedPapers.value.push(...newPapers)
-    pagination.hasMore = displayedPapers.value.length < paperList.value.length
-    loadingMore.value = false
-  }, 300)
-}
-
-const handlePaperScroll = (e) => {
-  const { scrollTop, scrollHeight, clientHeight } = e.target
-  if (scrollHeight - scrollTop - clientHeight < 80) {
-    loadMorePapers()
   }
 }
 
@@ -260,232 +196,336 @@ const handleSearch = () => {
   loadPaperList()
 }
 
-const resetForm = () => Object.assign(formData, { id: null, name: '', description: '', state: 1 })
+const resetForm = () => {
+  Object.assign(editForm, {
+    id: null,
+    name: '',
+    description: '',
+    state: 1
+  })
+}
 
 const handleAdd = () => {
   resetForm()
   isEdit.value = false
-  dialogVisible.value = true
+  editDialogVisible.value = true
 }
 
 const handleEdit = (row) => {
-  Object.assign(formData, { id: row.id, name: row.name, description: row.description, state: row.state })
+  Object.assign(editForm, {
+    id: row.id,
+    name: row.name || '',
+    description: row.description || '',
+    state: row.state
+  })
   isEdit.value = true
-  dialogVisible.value = true
+  editDialogVisible.value = true
 }
 
-const handleSubmit = async () => {
+const handleSave = async () => {
   try {
-    await formRef.value.validate()
-    submitting.value = true
+    await editFormRef.value.validate()
+    saving.value = true
     if (isEdit.value) {
-      await teacherApi.paper.update(formData.id, formData)
+      await paperApi.update(editForm.id, editForm)
       ElMessage.success('更新成功')
     } else {
-      await teacherApi.paper.add(formData)
-      ElMessage.success('新增成功')
+      await paperApi.add(editForm)
+      ElMessage.success('创建成功')
     }
-    dialogVisible.value = false
+    editDialogVisible.value = false
     loadPaperList()
   } catch (error) {
-    if (error !== false) {
-      ElMessage.error('保存失败')
-    }
+    console.error('保存失败:', error)
   } finally {
-    submitting.value = false
+    saving.value = false
   }
 }
 
 const handleQuestions = async (row) => {
-  currentPaperId.value = row.id
-  selectedQuestions.value = []
-  questionPagination.page = 1
-  questionDialogVisible.value = true
-  await loadQuestions()
+  currentPaper.value = row
+  questionsDialogVisible.value = true
+  loadingQuestions.value = true
   try {
-    const res = await teacherApi.paper.getQuestions(row.id)
-    if (res.data) {
-      const ids = res.data.map((q) => q.id)
-      allQuestions.value.forEach((q) => {
-        if (ids.includes(q.id)) {
-          questionTableRef.value.toggleRowSelection(q, true)
-        }
-      })
-    }
-  } catch {}
-}
-
-const loadQuestions = async () => {
-  try {
-    const params = {
-      page: questionPagination.page,
-      pageSize: questionPagination.pageSize
-    }
-    if (questionType.value) {
-      params.type = questionType.value
-    }
-    const res = await teacherApi.question.list(params)
-    const data = res.data
-    if (data && data.list) {
-      allQuestions.value = data.list || []
-      questionPagination.total = data.total || 0
-    } else {
-      allQuestions.value = res.data || []
-      questionPagination.total = allQuestions.value.length
-    }
-  } catch {
-    ElMessage.error('加载题目失败')
+    const res = await paperApi.getQuestions(row.id)
+    paperQuestions.value = res.data || []
+  } catch (error) {
+    console.error('加载题目失败:', error)
+  } finally {
+    loadingQuestions.value = false
   }
 }
 
-const handleQuestionPageChange = (page) => {
-  questionPagination.page = page
-  loadQuestions()
+const removeQuestion = async (question) => {
+  await ElMessageBox.confirm('确定从试卷中移除该题目?', '提示', { type: 'warning' })
+  await paperApi.removeQuestion(currentPaper.value.id, question.id)
+  ElMessage.success('已移除')
+  handleQuestions(currentPaper.value)
 }
 
-const handleQuestionSizeChange = (size) => {
-  questionPagination.pageSize = size
-  questionPagination.page = 1
-  loadQuestions()
+const handleDelete = async (row) => {
+  await ElMessageBox.confirm('确定删除该试卷?', '提示', { type: 'warning' })
+  await paperApi.delete(row.id)
+  ElMessage.success('已删除')
+  loadPaperList()
 }
 
-const handleSelectionChange = (selection) => {
-  selectedQuestions.value = selection
-}
-
-const confirmQuestions = async () => {
-  try {
-    const ids = selectedQuestions.value.map((q) => q.id)
-    await teacherApi.paper.addQuestions(currentPaperId.value, ids)
-    ElMessage.success('试卷题目已更新')
-    questionDialogVisible.value = false
-    loadPaperList()
-  } catch {
-    ElMessage.error('保存题目失败')
-  }
-}
-
-const handleDelete = (row) => {
-  ElMessageBox.confirm(`确认删除试卷 "${row.name}" 吗？`, '提示', { type: 'warning' })
-    .then(async () => {
-      try {
-        await teacherApi.paper.delete(row.id)
-        ElMessage.success('删除成功')
-        loadPaperList()
-      } catch {
-        ElMessage.error('删除失败')
-      }
-    })
-    .catch(() => {})
-}
-
-onMounted(loadPaperList)
+onMounted(() => loadPaperList())
 </script>
 
 <style scoped>
-.paper-page { padding: 20px; }
-.breadcrumb { margin-bottom: 16px; }
-.hero {
+.paper-page {
+  min-height: 100vh;
+  background: var(--wabi-bg, #f8f6f3);
+}
+
+.wabi-body {
+  padding: 24px;
+  max-width: 1400px;
+  margin: 0 auto;
+  height: calc(100vh - 48px);
+  display: flex;
+  flex-direction: column;
+  animation: wabi-fade-in 0.4s ease;
+}
+
+@keyframes wabi-fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* 页面头部 */
+.page-header {
+  flex-shrink: 0;
   display: flex;
   justify-content: space-between;
-  align-items: flex-end;
-  gap: 12px;
-  margin-bottom: 14px;
-}
-.hero h2 { margin: 0; font-size: 26px; color: #1f2937; }
-.hero p { margin: 6px 0 0; color: #6b7280; font-size: 13px; }
-.hero-actions { display: flex; gap: 8px; align-items: center; }
-.search-input { width: 240px; }
-
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
-  margin-bottom: 14px;
-}
-.stat-card { border-radius: 10px; border: 1px solid #e5e7eb; }
-.stat-title { font-size: 12px; color: #6b7280; }
-.stat-value { font-size: 26px; font-weight: 700; color: #111827; margin-top: 6px; }
-
-.paper-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 14px;
-  max-height: calc(100vh - 380px);
-  overflow-y: auto;
-  scrollbar-width: thin;
-}
-.paper-card { border-radius: 14px; border: 1px solid #e5e7eb; transition: all 0.25s cubic-bezier(0.25, 0.1, 0.25, 1); }
-.paper-card:hover { transform: translateY(-3px); box-shadow: 0 12px 28px rgba(0, 0, 0, 0.1); }
-.paper-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-.paper-name { font-size: 15px; font-weight: 700; color: #111827; }
-.paper-desc { min-height: 40px; color: #4b5563; font-size: 13px; margin-bottom: 10px; line-height: 1.5; }
-.paper-kpis { display: flex; gap: 16px; margin-bottom: 10px; }
-.kpi { display: flex; flex-direction: column; }
-.kpi span { font-size: 12px; color: #6b7280; }
-.kpi strong { color: #111827; }
-.paper-actions { display: flex; gap: 8px; }
-
-.list-header {
-  display: flex;
-  justify-content: flex-end;
-  margin-bottom: 12px;
-}
-.list-count {
-  font-size: 13px;
-  color: #9ca3af;
+  align-items: center;
+  margin-bottom: 20px;
 }
 
-.loading-more,
-.no-more-data {
-  grid-column: 1 / -1;
-  padding: 16px;
-  text-align: center;
-  color: #9ca3af;
-  font-size: 13px;
+.header-left {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 8px;
+  gap: 16px;
 }
-.loading-more .el-icon { font-size: 18px; }
 
-.question-filter { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
-.question-layout {
+.page-title {
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--wabi-text, #2c2c2c);
+  margin: 0;
+}
+
+.wabi-search {
+  width: 200px;
+}
+
+/* 统计卡片 */
+.stats-grid {
+  flex-shrink: 0;
   display: grid;
-  grid-template-columns: 2.1fr 1fr;
-  gap: 12px;
-}
-.question-pool, .question-selected {
-  border: 1px solid #e5e7eb;
-  border-radius: 10px;
-  padding: 10px;
-}
-.question-pool h4, .question-selected h4 { margin: 0 0 8px; color: #111827; }
-.q-cell { color: #374151; line-height: 1.5; }
-.pagination-wrapper { display: flex; justify-content: flex-end; margin-top: 12px; }
-.empty-hint { color: #9ca3af; padding: 14px 8px; }
-.selected-item {
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  padding: 8px;
-  margin-bottom: 8px;
-  background: #f9fafb;
-}
-.selected-line { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
-.selected-content { color: #374151; font-size: 13px; line-height: 1.4; }
-
-@media (max-width: 1100px) {
-  .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .paper-grid { grid-template-columns: repeat(3, 1fr); }
-  .question-layout { grid-template-columns: 1fr; }
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 20px;
 }
 
-@media (max-width: 900px) {
-  .paper-grid { grid-template-columns: repeat(2, 1fr); }
+.stat-card {
+  background: var(--wabi-surface, #fff);
+  border: 1px solid var(--wabi-border, #e8e4df);
+  border-radius: var(--wabi-radius, 3px);
+  padding: 16px;
+  text-align: center;
 }
 
-@media (max-width: 600px) {
-  .paper-grid { grid-template-columns: 1fr; }
+.stat-value {
+  font-size: 24px;
+  font-weight: 500;
+  color: var(--wabi-accent, #7a8b6f);
+}
+
+.stat-label {
+  font-size: 13px;
+  color: var(--wabi-text-secondary, #8a8580);
+  margin-top: 4px;
+}
+
+/* 列表容器 */
+.list-container {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--wabi-surface, #fff);
+  border: 1px solid var(--wabi-border, #e8e4df);
+  border-radius: var(--wabi-radius, 3px);
+  overflow: hidden;
+}
+
+.list-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0;
+}
+
+.list-empty {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  min-height: 200px;
+}
+
+/* 分页 */
+.list-pagination {
+  flex-shrink: 0;
+  display: flex;
+  justify-content: center;
+  padding: 16px 20px;
+  border-top: 1px solid var(--wabi-border, #e8e4df);
+  background: var(--wabi-surface-warm, #faf9f7);
+}
+
+/* 试卷列表 */
+.paper-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.paper-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--wabi-border, #e8e4df);
+  transition: background 0.2s ease;
+}
+
+.paper-item:hover {
+  background: var(--wabi-accent-light, #e8ede5);
+}
+
+.paper-item:last-child {
+  border-bottom: none;
+}
+
+.paper-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.paper-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.paper-name {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--wabi-text, #2c2c2c);
+  margin: 0;
+}
+
+.paper-desc {
+  font-size: 13px;
+  color: var(--wabi-text-secondary, #8a8580);
+  margin-bottom: 4px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.paper-meta {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+  color: var(--wabi-text-secondary, #8a8580);
+}
+
+.paper-actions {
+  flex-shrink: 0;
+  display: flex;
+  gap: 4px;
+  margin-left: 16px;
+}
+
+/* 题目管理 */
+.questions-header {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 16px;
+}
+
+/* 标签 */
+.wabi-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  background: var(--wabi-border-light, #f0ece8);
+  color: var(--wabi-text-secondary, #8a8580);
+  font-size: 12px;
+  border-radius: 2px;
+}
+
+.wabi-tag-accent {
+  background: var(--wabi-accent-light, #e8ede5);
+  color: var(--wabi-accent, #7a8b6f);
+}
+
+/* 按钮 */
+.wabi-btn-primary {
+  background: var(--wabi-accent, #7a8b6f);
+  border-color: var(--wabi-accent, #7a8b6f);
+  border-radius: 4px;
+}
+
+.wabi-btn-primary:hover {
+  background: #6b7d60;
+  border-color: #6b7d60;
+}
+
+.wabi-btn-ghost {
+  border-color: var(--wabi-border, #e8e4df);
+  color: var(--wabi-text-secondary, #8a8580);
+  border-radius: 4px;
+}
+
+.wabi-btn-ghost:hover {
+  border-color: var(--wabi-accent, #7a8b6f);
+  color: var(--wabi-accent, #7a8b6f);
+}
+
+.wabi-btn-text {
+  color: var(--wabi-text-secondary, #8a8580);
+}
+
+.wabi-btn-text:hover {
+  color: var(--wabi-accent, #7a8b6f);
+}
+
+.wabi-btn-danger:hover {
+  color: #c47c7c;
+}
+
+/* 响应式 */
+@media (max-width: 768px) {
+  .wabi-body {
+    padding: 16px;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .paper-item {
+    flex-direction: column;
+  }
+
+  .paper-actions {
+    margin-left: 0;
+    margin-top: 12px;
+  }
 }
 </style>

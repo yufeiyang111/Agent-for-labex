@@ -91,6 +91,22 @@ public class KnowledgeGraphController {
         return Result.success(dto);
     }
 
+    /** Update knowledge point */
+    @PutMapping("/points/{id}")
+    public Result<KnowledgePointDTO> updatePoint(@PathVariable String id, @RequestBody Map<String, Object> body) {
+        String name = (String) body.get("name");
+        String description = (String) body.get("description");
+        String topicId = (String) body.get("topicId");
+
+        if (name == null || name.isBlank()) {
+            return Result.error("Name is required");
+        }
+
+        KnowledgePointDTO dto = kgService.updateKnowledgePoint(id, name,
+                description != null ? description : "", topicId);
+        return Result.success(dto);
+    }
+
     /** Delete knowledge point */
     @DeleteMapping("/points/{id}")
     public Result<Void> deletePoint(@PathVariable String id) {

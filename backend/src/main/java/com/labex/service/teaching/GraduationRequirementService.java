@@ -26,6 +26,9 @@ public interface GraduationRequirementService extends IService<GraduationRequire
     /** 新增指标点 */
     GraduationIndicator addIndicator(Integer requirementId, GraduationIndicator indicator);
 
+    /** 更新指标点 */
+    GraduationIndicator updateIndicator(Integer indicatorId, GraduationIndicator indicator);
+
     /** 删除毕业要求（含级联指标点） */
     void deleteRequirement(Integer requirementId);
 

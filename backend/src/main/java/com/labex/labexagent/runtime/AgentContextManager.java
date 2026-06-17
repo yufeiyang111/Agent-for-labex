@@ -27,7 +27,7 @@ public class AgentContextManager {
         int projectIndexLimit = smallModel ? 6000 : 16000;
         StringBuilder context = new StringBuilder();
         context.append("\u9879\u76ee\u540d\u79f0: ").append(project.getProjectName()).append('\n');
-        context.append("\u9879\u76ee\u7ed3\u6784 JSON:\n").append(this.limit(project.getStructureJson(), structureLimit)).append("\n\n");
+        // \u9879\u76ee\u7ed3\u6784\u5df2\u5728\u7cfb\u7edf\u63d0\u793a\u8bcd\u7684 <environment> \u4e2d\u5305\u542b\uff0c\u6b64\u5904\u4e0d\u518d\u91cd\u590d
         if (projectIndexContent != null && !projectIndexContent.isBlank()) {
             context.append("\u6301\u4e45\u9879\u76ee\u7d22\u5f15 `.labex/project-index.md`\uff08\u4f18\u5148\u7528\u4e8e\u5b9a\u4f4d\u6587\u4ef6\uff0c\u5fc5\u8981\u65f6\u518d\u8bfb\u53d6\u5b8c\u6574\u6e90\u7801\uff09:\n").append(this.limit(projectIndexContent, projectIndexLimit)).append("\n\n");
         } else if (!smallModel) {

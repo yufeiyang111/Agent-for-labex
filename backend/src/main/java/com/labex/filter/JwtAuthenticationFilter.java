@@ -69,7 +69,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     /**
-     * 从请求头解析Token
+     * 从请求头或URL参数解析Token
      */
     private String resolveToken(HttpServletRequest request) {
         // 从请求头获取 Authorization 字段
@@ -78,6 +78,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             // 提取 token（去掉 "Bearer " 前缀）
             return authHeader.substring(7);
+        }
+        // 支持从URL参数中获取token（用于预览等场景）
+        String tokenParam = request.getParameter("token");
+        if (tokenParam != null && !tokenParam.isEmpty()) {
+            return tokenParam;
         }
         return null;
     }

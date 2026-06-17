@@ -342,7 +342,9 @@ const parseProgrammingAnswer = (raw) => {
         code: obj.code
       }
     }
-  } catch {}
+  } catch {
+    // 非JSON格式视为纯代码，回退到默认语言
+  }
   return { language: 'java', code: raw }
 }
 
@@ -393,7 +395,9 @@ const reportMonitorEvent = async (eventType, detail = '') => {
       detail,
       pageUrl: window.location.pathname
     })
-  } catch {}
+  } catch (e) {
+    console.warn('Failed to report monitor event:', e)
+  }
 }
 
 const handleVisibilityChange = () => {
@@ -515,7 +519,10 @@ const saveAnswer = async (questionId, value) => {
   if (!currentExam.value || examLocked.value) return
   try {
     await studentApi.exam.saveAnswer(currentExam.value.id, questionId, value ?? '')
-  } catch {}
+  } catch (e) {
+    console.warn('Failed to save exam answer:', e)
+    ElMessage.warning('答案保存失败，请检查网络连接')
+  }
 }
 
 const onAnswerInput = (questionId) => {

@@ -184,7 +184,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
@@ -489,6 +489,14 @@ const handleSubmitExperiment = async () => {
 
 onMounted(() => {
   fetchExperimentData()
+})
+
+onBeforeUnmount(() => {
+  // 清理保存防抖定时器，防止内存泄漏
+  if (saveDebounceTimer) {
+    clearTimeout(saveDebounceTimer)
+    saveDebounceTimer = null
+  }
 })
 </script>
 

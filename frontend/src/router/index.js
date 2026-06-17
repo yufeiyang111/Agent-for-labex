@@ -35,6 +35,7 @@ const TeacherAchievement = () => import('@/views/teacher/achievement/Achievement
 const TeacherQuality = () => import('@/views/teacher/quality/EvaluationForm.vue')
 const TeacherReports = () => import('@/views/teacher/quality/ReportViewer.vue')
 const StudentAchievement = () => import('@/views/student/achievement/MyAchievementDashboard.vue')
+const StudentCourseEvaluation = () => import('@/views/student/CourseEvaluation.vue')
 
 const AdminLayout = () => import('@/views/admin/Layout.vue')
 const AdminDashboard = () => import('@/views/admin/Dashboard.vue')
@@ -90,7 +91,7 @@ const routes = [
       { path: 'course/:id/edit', name: 'TeacherCourseEdit', component: TeacherCourseEdit, meta: { title: '编辑课程', icon: 'Edit' } },
       { path: 'course/:id/syllabus', name: 'TeacherSyllabus', component: TeacherSyllabus, meta: { title: '课程大纲', icon: 'Document' } },
       { path: 'offering', name: 'TeacherOffering', component: TeacherOffering, meta: { title: '开课管理', icon: 'School' } },
-      { path: 'graduation-requirement', name: 'TeacherGR', component: TeacherGR, meta: { title: '毕业要求', icon: 'Medal' } },
+      { path: 'graduation-requirement', name: 'TeacherGR', component: TeacherGR, meta: { title: '结课要求', icon: 'Medal' } },
       { path: 'objective/:courseId', name: 'TeacherObjective', component: TeacherObjective, meta: { title: '课程目标', icon: 'Aim' } },
       { path: 'scoring/:offeringId', name: 'TeacherScoring', component: TeacherScoring, meta: { title: '评分项配置', icon: 'Promotion' } },
       { path: 'grade-v2/:offeringId', name: 'TeacherGradeV2', component: TeacherGradeV2, meta: { title: '成绩录入V2', icon: 'EditPen' } },
@@ -131,7 +132,9 @@ const routes = [
       { path: 'training/:id/result/:attemptId', name: 'StudentTrainingResult', component: StudentTrainingResult, meta: { title: 'Results', icon: 'View' } },
       { path: 'cloud-space', name: 'StudentCloudSpace', component: StudentCloudSpace, meta: { title: 'Cloud Code Space', icon: 'Cloudy' } },
       // === CTL 学生达成度 ===
-      { path: 'achievement', name: 'StudentAchievement', component: StudentAchievement, meta: { title: '我的达成度', icon: 'DataAnalysis' } }
+      { path: 'achievement', name: 'StudentAchievement', component: StudentAchievement, meta: { title: '我的达成度', icon: 'DataAnalysis' } },
+      // === CTL 学生课程评价 ===
+      { path: 'course-evaluation', name: 'StudentCourseEvaluation', component: StudentCourseEvaluation, meta: { title: '课程评价', icon: 'ChatDotRound' } }
     ]
   },
   // CloudWorkspace as standalone full-page route (no sidebar)
@@ -154,7 +157,14 @@ router.beforeEach((to, from, next) => {
   if (!userStore.isLoggedIn) { next('/login'); return }
   if (to.meta.role && userStore.role !== to.meta.role) {
     ElMessage.error('Access denied')
-    next('/')
+    // 根据用户角色重定向到对应首页，避免已登录用户被重定向到 /login 形成循环闪烁
+    const roleHomeMap = {
+      ADMIN: '/admin/dashboard',
+      TEACHER: '/teacher/dashboard',
+      STUDENT: '/student/experiment'
+    }
+    const homePath = roleHomeMap[userStore.role] || '/'
+    next(homePath)
     return
   }
   next()

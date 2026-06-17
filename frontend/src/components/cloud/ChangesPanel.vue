@@ -257,7 +257,13 @@ async function undoChange(change) {
   color: #555;
   font-size: 12px;
 }
-.cp-file-list { flex-shrink: 0; border-bottom: 1px solid #333; }
+.cp-file-list {
+  flex-shrink: 1;
+  min-height: 0;
+  max-height: 40%;
+  overflow-y: auto;
+  border-bottom: 1px solid #333;
+}
 .cp-file-row {
   display: flex; align-items: center; gap: 6px;
   padding: 4px 10px; cursor: pointer;
@@ -298,7 +304,13 @@ async function undoChange(change) {
 }
 .cp-file-row:hover .cp-undo-btn { display: flex; }
 .cp-undo-btn:hover { background: #4d2020; color: #f48771; }
-.cp-detail { flex: 1; display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.cp-detail {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 120px;
+  overflow: hidden;
+}
 .cp-detail-header {
   display: flex; align-items: center; justify-content: space-between;
   padding: 4px 12px; border-bottom: 1px solid #333;
@@ -318,7 +330,11 @@ async function undoChange(change) {
 }
 .cp-detail-btn:hover { color: #ccc; background: #37373d; }
 .cp-detail-btn.active { color: #fff; background: #094771; border-color: #007acc; }
-.cp-code-wrap { flex: 1; overflow: auto; }
+.cp-code-wrap {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
 .cp-code-block { margin: 0; padding: 4px 0; font-family: 'JetBrains Mono', monospace; font-size: 11px; line-height: 1.6; }
 .cp-code-line { display: flex; min-height: 18px; }
 .cp-type-hunk { background: #264f78; }

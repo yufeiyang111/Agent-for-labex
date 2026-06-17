@@ -7,7 +7,8 @@ import com.labex.labexagent.tool.ToolDefinition;
 import com.labex.labexagent.tool.ToolResult;
 import org.springframework.stereotype.Component;
 
-@Component
+// 已禁用：始终返回失败，白白占用 token
+// @Component
 public class ExternalDirectoryTool
 implements AgentTool {
     public ToolDefinition definition() {

@@ -27,26 +27,27 @@ const currentPath = computed(() => route.path)
 </script>
 
 <style lang="scss" scoped>
+// Biophilic 亲自然风格面包屑 - 自然色调
 .breadcrumb {
   display: flex;
   align-items: center;
 
   :deep(.el-breadcrumb__inner) {
     font-weight: 400;
-    color: #606266;
+    color: #5a6b5a;
 
     &.is-link {
-      color: #606266;
-      transition: color 0.2s;
+      color: #5a6b5a;
+      transition: color 0.18s ease;
 
       &:hover {
-        color: #4caf50;
+        color: #3d6b3f;
       }
     }
   }
 
   :deep(.el-breadcrumb__separator) {
-    color: #c0c4cc;
+    color: #b8c4b8;
   }
 }
 </style>

@@ -21,8 +21,17 @@ public class TokenTracker {
     public void record(String conversationId, String sessionId, Integer studentId, Integer projectId,
                        String provider, String model, int promptTokens, int completionTokens,
                        int totalTokens, int iteration, String toolName) {
+        record(conversationId, sessionId, studentId, projectId, provider, model,
+                promptTokens, completionTokens, totalTokens, 0, 0, iteration, toolName);
+    }
+
+    public void record(String conversationId, String sessionId, Integer studentId, Integer projectId,
+                       String provider, String model, int promptTokens, int completionTokens,
+                       int totalTokens, int cachedTokens, int cacheWriteTokens, int iteration, String toolName) {
         AgentTokenUsage usage = new AgentTokenUsage(conversationId, sessionId, studentId, projectId,
                 provider, model, promptTokens, completionTokens, totalTokens, iteration, toolName);
+        usage.setCachedTokens(cachedTokens);
+        usage.setCacheWriteTokens(cacheWriteTokens);
         mapper.insert(usage);
     }
 
@@ -33,10 +42,12 @@ public class TokenTracker {
         int prompt = getInt(usageMap, "prompt_tokens");
         int completion = getInt(usageMap, "completion_tokens");
         int total = getInt(usageMap, "total_tokens");
+        int cached = getInt(usageMap, "cached_tokens");
+        int cacheWrite = getInt(usageMap, "cache_write_tokens");
         if (total == 0) total = prompt + completion;
         if (total > 0) {
             record(conversationId, sessionId, studentId, projectId, provider, model,
-                    prompt, completion, total, iteration, toolName);
+                    prompt, completion, total, cached, cacheWrite, iteration, toolName);
         }
     }
 
@@ -62,6 +73,8 @@ public class TokenTracker {
         int totalPrompt = list.stream().mapToInt(AgentTokenUsage::getPromptTokens).sum();
         int totalCompletion = list.stream().mapToInt(AgentTokenUsage::getCompletionTokens).sum();
         int totalTokens = list.stream().mapToInt(AgentTokenUsage::getTotalTokens).sum();
+        int totalCached = list.stream().mapToInt(u -> u.getCachedTokens() == null ? 0 : u.getCachedTokens()).sum();
+        int totalCacheWrite = list.stream().mapToInt(u -> u.getCacheWriteTokens() == null ? 0 : u.getCacheWriteTokens()).sum();
         int callCount = list.size();
 
         Map<String, Integer> byTool = list.stream()
@@ -76,6 +89,8 @@ public class TokenTracker {
                     m.put("promptTokens", u.getPromptTokens());
                     m.put("completionTokens", u.getCompletionTokens());
                     m.put("totalTokens", u.getTotalTokens());
+                    m.put("cachedTokens", u.getCachedTokens() == null ? 0 : u.getCachedTokens());
+                    m.put("cacheWriteTokens", u.getCacheWriteTokens() == null ? 0 : u.getCacheWriteTokens());
                     m.put("toolName", u.getToolName());
                     m.put("time", u.getCreateTime() != null ? u.getCreateTime().toString() : null);
                     return m;
@@ -87,6 +102,9 @@ public class TokenTracker {
         stats.put("totalPromptTokens", totalPrompt);
         stats.put("totalCompletionTokens", totalCompletion);
         stats.put("totalTokens", totalTokens);
+        stats.put("totalCachedTokens", totalCached);
+        stats.put("totalCacheWriteTokens", totalCacheWrite);
+        stats.put("cacheHitRate", totalPrompt <= 0 ? 0.0 : Math.round(totalCached * 10000.0 / totalPrompt) / 100.0);
         stats.put("callCount", callCount);
         stats.put("byTool", byTool);
         stats.put("perIteration", perIteration);
@@ -99,6 +117,8 @@ public class TokenTracker {
         List<AgentTokenUsage> list = mapper.selectList(qw);
 
         int totalTokens = list.stream().mapToInt(AgentTokenUsage::getTotalTokens).sum();
+        int totalPrompt = list.stream().mapToInt(AgentTokenUsage::getPromptTokens).sum();
+        int totalCached = list.stream().mapToInt(u -> u.getCachedTokens() == null ? 0 : u.getCachedTokens()).sum();
         Map<String, Integer> byModel = list.stream()
                 .filter(u -> u.getModel() != null)
                 .collect(Collectors.groupingBy(AgentTokenUsage::getModel,
@@ -113,6 +133,8 @@ public class TokenTracker {
         Map<String, Object> stats = new LinkedHashMap<>();
         stats.put("studentId", studentId);
         stats.put("totalTokens", totalTokens);
+        stats.put("totalCachedTokens", totalCached);
+        stats.put("cacheHitRate", totalPrompt <= 0 ? 0.0 : Math.round(totalCached * 10000.0 / totalPrompt) / 100.0);
         stats.put("callCount", list.size());
         stats.put("byModel", byModel);
         stats.put("byDay", byDay);

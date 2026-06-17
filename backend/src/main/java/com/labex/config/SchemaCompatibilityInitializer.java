@@ -25,10 +25,14 @@ public class SchemaCompatibilityInitializer implements ApplicationRunner {
         ensureExamMonitorSchema();
         ensureRagSessionSchema();
         ensureRagMessageSchema();
+        ensureRagQueryMetricSchema();
+        ensureTeacherClassLinkSchema();
         ensureTrainingQuestionJudgeResult();
+        ensureTrainingSetRecommendationSchema();
         ensurePermissionSchema();
         ensureAgentConversationSchema();
         ensureAgentFileChangeSchema();
+        ensureAgentTokenUsageSchema();
         // ===== 课程教学闭环（CTL）模块 =====
         ensureCourseTeachingLoopSchema();
     }
@@ -88,6 +92,14 @@ public class SchemaCompatibilityInitializer implements ApplicationRunner {
                 """);
             log.info("Created t_course_offering table");
         }
+        addColumnIfMissing("t_course_offering", "clazz_no",
+                "ALTER TABLE t_course_offering ADD COLUMN `clazz_no` VARCHAR(64) NOT NULL COMMENT 'class number' AFTER `course_id`");
+        addColumnIfMissing("t_course_offering", "teacher_id",
+                "ALTER TABLE t_course_offering ADD COLUMN `teacher_id` INT NOT NULL DEFAULT 0 COMMENT 'teacher id' AFTER `clazz_no`");
+        addColumnIfMissing("t_course_offering", "student_count",
+                "ALTER TABLE t_course_offering ADD COLUMN `student_count` INT DEFAULT 0 COMMENT 'student count' AFTER `semester`");
+        addColumnIfMissing("t_course_offering", "status",
+                "ALTER TABLE t_course_offering ADD COLUMN `status` VARCHAR(16) DEFAULT 'active' COMMENT 'draft/active/finished/archived' AFTER `student_count`");
 
         if (!tableExists("t_syllabus")) {
             executeIgnore("""
@@ -330,7 +342,33 @@ public class SchemaCompatibilityInitializer implements ApplicationRunner {
             log.info("Created t_quality_evaluation table");
         }
 
-        log.info("CTL schema initialization completed - 12 tables ready");
+        // ---------- 学生课程评价表 ----------
+        if (!tableExists("t_student_course_evaluation")) {
+            executeIgnore("""
+                CREATE TABLE t_student_course_evaluation (
+                    id INT NOT NULL AUTO_INCREMENT COMMENT '评价ID',
+                    offering_id INT NOT NULL COMMENT '开课ID',
+                    student_id INT NOT NULL COMMENT '学生ID',
+                    teaching_quality TINYINT DEFAULT NULL COMMENT '教学质量(1-5)',
+                    course_content TINYINT DEFAULT NULL COMMENT '课程内容(1-5)',
+                    learning_resources TINYINT DEFAULT NULL COMMENT '学习资源(1-5)',
+                    assessment_method TINYINT DEFAULT NULL COMMENT '考核方式(1-5)',
+                    learning_effect TINYINT DEFAULT NULL COMMENT '学习效果(1-5)',
+                    overall_satisfaction TINYINT DEFAULT NULL COMMENT '总体满意度(1-5)',
+                    comment TEXT COMMENT '文字评价',
+                    suggestion TEXT COMMENT '改进建议',
+                    create_time DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+                    deleted TINYINT DEFAULT 0 COMMENT '逻辑删除',
+                    PRIMARY KEY (id),
+                    UNIQUE KEY uq_eval_offering_student (offering_id, student_id),
+                    INDEX idx_eval_offering (offering_id),
+                    INDEX idx_eval_student (student_id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='学生课程评价'
+                """);
+            log.info("Created t_student_course_evaluation table");
+        }
+
+        log.info("CTL schema initialization completed - 13 tables ready");
     }
 
     private void ensurePaperSchema() {
@@ -465,6 +503,36 @@ public class SchemaCompatibilityInitializer implements ApplicationRunner {
         executeIgnore("ALTER TABLE rag_message MODIFY COLUMN `sources` MEDIUMTEXT DEFAULT NULL COMMENT 'reference sources json'");
     }
 
+    private void ensureRagQueryMetricSchema() {
+        if (!tableExists("rag_query_metric")) {
+            executeIgnore("""
+                    CREATE TABLE rag_query_metric (
+                        id BIGINT NOT NULL AUTO_INCREMENT COMMENT 'metric id',
+                        session_id VARCHAR(64) DEFAULT NULL COMMENT 'RAG session id',
+                        user_id VARCHAR(100) DEFAULT NULL COMMENT 'request user id',
+                        retrieval_mode VARCHAR(32) DEFAULT NULL COMMENT 'knowledge/web/hybrid',
+                        deep_thinking TINYINT DEFAULT 0 COMMENT 'deep thinking enabled',
+                        question_preview VARCHAR(500) DEFAULT NULL COMMENT 'truncated user question',
+                        search_query VARCHAR(500) DEFAULT NULL COMMENT 'planned retrieval query',
+                        source_count INT DEFAULT 0 COMMENT 'total source count',
+                        knowledge_source_count INT DEFAULT 0 COMMENT 'knowledge source count',
+                        web_source_count INT DEFAULT 0 COMMENT 'web source count',
+                        image_source_count INT DEFAULT 0 COMMENT 'image source count',
+                        web_fetched_count INT DEFAULT 0 COMMENT 'fetched web page bodies',
+                        exact_web_count INT DEFAULT 0 COMMENT 'exact entity web matches',
+                        no_sources TINYINT DEFAULT 0 COMMENT 'no source returned',
+                        latency_ms BIGINT DEFAULT 0 COMMENT 'end-to-end request latency',
+                        created_at BIGINT NOT NULL COMMENT 'epoch millis',
+                        PRIMARY KEY (id),
+                        KEY idx_rag_metric_session (session_id),
+                        KEY idx_rag_metric_user_time (user_id, created_at),
+                        KEY idx_rag_metric_mode_time (retrieval_mode, created_at)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='RAG retrieval quality metrics'
+                    """);
+            log.info("Created rag_query_metric table");
+        }
+    }
+
     private boolean tableExists(String tableName) {
         String sql = """
                 SELECT COUNT(*)
@@ -506,6 +574,46 @@ public class SchemaCompatibilityInitializer implements ApplicationRunner {
         }
     }
 
+    private void ensureTeacherClassLinkSchema() {
+        if (!tableExists("t_clazz")) {
+            executeIgnore("""
+                    CREATE TABLE t_clazz (
+                        no VARCHAR(64) NOT NULL COMMENT 'class number',
+                        memo VARCHAR(255) DEFAULT NULL COMMENT 'class description',
+                        state INT DEFAULT 1 COMMENT 'state: 1 enabled, 0 disabled',
+                        teacher_id INT DEFAULT NULL COMMENT 'owner teacher id',
+                        PRIMARY KEY (no),
+                        KEY idx_clazz_teacher (teacher_id)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='teaching class'
+                    """);
+            log.info("Created t_clazz table");
+        } else {
+            addColumnIfMissing("t_clazz", "teacher_id",
+                    "ALTER TABLE t_clazz ADD COLUMN `teacher_id` INT DEFAULT NULL COMMENT 'owner teacher id'");
+            addColumnIfMissing("t_clazz", "state",
+                    "ALTER TABLE t_clazz ADD COLUMN `state` INT DEFAULT 1 COMMENT 'state'");
+        }
+
+        if (!tableExists("t_student_clazz")) {
+            executeIgnore("""
+                    CREATE TABLE t_student_clazz (
+                        id INT NOT NULL AUTO_INCREMENT,
+                        student_id INT NOT NULL COMMENT 'student id',
+                        clazz_no VARCHAR(64) NOT NULL COMMENT 'class number',
+                        teacher_id INT DEFAULT NULL COMMENT 'owner teacher id',
+                        PRIMARY KEY (id),
+                        UNIQUE KEY uq_student_clazz (student_id, clazz_no),
+                        KEY idx_student_clazz_no (clazz_no),
+                        KEY idx_student_clazz_teacher (teacher_id)
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='student class relation'
+                    """);
+            log.info("Created t_student_clazz table");
+        } else {
+            addColumnIfMissing("t_student_clazz", "teacher_id",
+                    "ALTER TABLE t_student_clazz ADD COLUMN `teacher_id` INT DEFAULT NULL COMMENT 'owner teacher id'");
+        }
+    }
+
     /**
      * Ensure t_student_training_question has judge_result column
      */
@@ -515,6 +623,19 @@ public class SchemaCompatibilityInitializer implements ApplicationRunner {
         }
         addColumnIfMissing("t_student_training_question", "judge_result",
                 "ALTER TABLE t_student_training_question ADD COLUMN `judge_result` TEXT DEFAULT NULL COMMENT '判题结果JSON' AFTER `submit_time`");
+    }
+
+    private void ensureTrainingSetRecommendationSchema() {
+        if (!tableExists("t_training_set")) {
+            return;
+        }
+        addColumnIfMissing("t_training_set", "owner_student_id",
+                "ALTER TABLE t_training_set ADD COLUMN `owner_student_id` INT DEFAULT NULL COMMENT 'personal owner student id' AFTER `teacher_id`");
+        addColumnIfMissing("t_training_set", "source",
+                "ALTER TABLE t_training_set ADD COLUMN `source` VARCHAR(32) DEFAULT 'teacher' COMMENT 'teacher/kg_recommendation' AFTER `owner_student_id`");
+        if (!indexExists("t_training_set", "idx_training_owner_source")) {
+            executeIgnore("CREATE INDEX idx_training_owner_source ON t_training_set(owner_student_id, source)");
+        }
     }
 
     private void ensurePermissionSchema() {
@@ -577,6 +698,16 @@ public class SchemaCompatibilityInitializer implements ApplicationRunner {
                 "ALTER TABLE t_agent_file_change ADD COLUMN `snapshot_paths` MEDIUMTEXT DEFAULT NULL COMMENT 'snapshot restore paths' AFTER `snapshot_after_ref`");
         addColumnIfMissing("t_agent_file_change", "snapshot_status",
                 "ALTER TABLE t_agent_file_change ADD COLUMN `snapshot_status` VARCHAR(32) DEFAULT NULL COMMENT 'snapshot status' AFTER `snapshot_paths`");
+    }
+
+    private void ensureAgentTokenUsageSchema() {
+        if (!tableExists("t_agent_token_usage")) {
+            return;
+        }
+        addColumnIfMissing("t_agent_token_usage", "cached_tokens",
+                "ALTER TABLE t_agent_token_usage ADD COLUMN `cached_tokens` INT DEFAULT 0 COMMENT 'prompt cache read tokens' AFTER `total_tokens`");
+        addColumnIfMissing("t_agent_token_usage", "cache_write_tokens",
+                "ALTER TABLE t_agent_token_usage ADD COLUMN `cache_write_tokens` INT DEFAULT 0 COMMENT 'prompt cache write tokens' AFTER `cached_tokens`");
     }
 
     private void executeIgnore(String sql) {

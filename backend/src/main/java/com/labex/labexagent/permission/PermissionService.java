@@ -95,9 +95,16 @@ public class PermissionService {
     }
 
     public PermissionApprovalResult reply(String requestId, String action, String feedback) {
+        return reply(null, requestId, action, feedback);
+    }
+
+    public PermissionApprovalResult reply(Integer projectId, String requestId, String action, String feedback) {
         PendingApproval pending = pendingApprovals.get(requestId);
         if (pending == null) {
             return new PermissionApprovalResult(false, false, "Permission request expired or not found");
+        }
+        if (projectId != null && pending.request.getProjectId() != null && !projectId.equals(pending.request.getProjectId())) {
+            return new PermissionApprovalResult(false, false, "Permission request does not belong to this project");
         }
         PermissionApprovalResult result = handleAskResult(pending.request, action, feedback);
         if (result.isRemember()) {

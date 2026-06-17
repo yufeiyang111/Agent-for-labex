@@ -46,6 +46,31 @@ public class ProjectIndexService {
         return limit(digest.toString(), 24000);
     }
 
+    public String buildAdaptiveProjectContext(StudentProject project, String query, Collection<String> priorityPaths) {
+        List<IndexedFile> files = scan(project);
+        Path root = Path.of(project.getWorkspacePath()).toAbsolutePath().normalize();
+        StringBuilder context = new StringBuilder();
+        context.append("Adaptive project context:\n");
+        context.append("\n## Entrypoints\n").append(listEntrypoints(files));
+        context.append("\n## Scripts And Commands\n").append(detectScriptsAndCommands(root, files));
+        context.append("\n## Routes And APIs\n").append(detectRoutesAndApis(files));
+        context.append("\n## Changed Or Remembered Files\n").append(listPriorityFiles(files, priorityPaths));
+        context.append("\n## Symbol Map\n").append(symbolMap(files, 90));
+
+        List<SearchHit> hits = searchFiles(project, query, 12);
+        if (!hits.isEmpty()) {
+            context.append("\n## Task Related Hits\n");
+            for (SearchHit hit : hits) {
+                context.append("\n### ").append(hit.path()).append(" score=").append(hit.score()).append('\n')
+                        .append(limit(hit.preview(), 1800)).append('\n');
+            }
+        }
+        context.append("\n## Indexing Rules\n")
+                .append("- Treat this as a map, not source of truth. Read exact files before editing.\n")
+                .append("- Prefer touched/relevant files first, then entrypoints, then symbol hits.\n");
+        return limit(context.toString(), 26000);
+    }
+
     private String listEntrypoints(List<IndexedFile> files) {
         List<String> names = List.of("package.json", "pom.xml", "build.gradle", "vite.config.js", "vite.config.ts", "run.py", "app.py", "main.py", "index.html", "src/main.js", "src/main.jsx", "src/main.ts", "src/main.tsx", "src/App.vue", "src/App.jsx", "src/App.tsx");
         StringBuilder builder = new StringBuilder();
@@ -99,6 +124,33 @@ public class ProjectIndexService {
             count++;
         }
         return builder.isEmpty() ? "- No files\n" : builder.toString();
+    }
+
+    private String listPriorityFiles(List<IndexedFile> files, Collection<String> priorityPaths) {
+        if (priorityPaths == null || priorityPaths.isEmpty()) {
+            return "- No remembered file changes yet\n";
+        }
+        Set<String> existing = files.stream().map(IndexedFile::path).collect(java.util.stream.Collectors.toSet());
+        StringBuilder builder = new StringBuilder();
+        for (String path : priorityPaths) {
+            if (path == null || path.isBlank()) continue;
+            builder.append("- ").append(path);
+            if (!existing.contains(path)) builder.append(" (not in current index)");
+            builder.append('\n');
+        }
+        return builder.isEmpty() ? "- No remembered file changes yet\n" : builder.toString();
+    }
+
+    private String symbolMap(List<IndexedFile> files, int limit) {
+        StringBuilder builder = new StringBuilder();
+        int count = 0;
+        for (IndexedFile file : files) {
+            String hints = file.hints();
+            if (hints == null || hints.isBlank()) continue;
+            builder.append("- ").append(file.path()).append(" :: ").append(hints).append('\n');
+            if (++count >= limit) break;
+        }
+        return builder.isEmpty() ? "- No symbols detected\n" : builder.toString();
     }
 
     private long lastModified(Path path) {
@@ -168,7 +220,8 @@ public class ProjectIndexService {
         List<String> lines = new ArrayList<>();
         for (String line : content.split("\\R")) {
             String trimmed = line.trim();
-            if (trimmed.matches("(class|def|function|const|let|var|public|private|protected|export|interface|@RequestMapping|@GetMapping|@PostMapping).*")) {
+            if (trimmed.matches("(class|def|function|const|let|var|public|private|protected|export|interface|enum|record|@RequestMapping|@GetMapping|@PostMapping|@PutMapping|@DeleteMapping).*")
+                    || trimmed.matches(".*(setup\\(|defineProps\\(|defineEmits\\(|router\\.|app\\.|Controller|Service|Mapper).*")) {
                 lines.add(trimmed);
             }
             if (lines.size() >= 4) break;

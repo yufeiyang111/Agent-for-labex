@@ -10,4 +10,6 @@ public class RecommendationRequest {
     private int limit = 10;
     private boolean includeMastered = false;
     private boolean explain = false;
+    private boolean refresh = true;
+    private java.util.List<Integer> questionIds;
 }

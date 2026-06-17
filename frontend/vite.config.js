@@ -17,6 +17,13 @@ export default defineConfig({
       '@assets': resolve(__dirname, 'src/assets')
     }
   },
+  optimizeDeps: {
+    include: [
+      'cytoscape',
+      'cytoscape-cose-bilkent',
+      'cose-base'
+    ]
+  },
   server: {
     port: 3000,
     host: '0.0.0.0',
@@ -24,7 +31,8 @@ export default defineConfig({
       '/api': {
         target: 'http://localhost:8080',
         changeOrigin: true,
-        secure: false
+        secure: false,
+        ws: true
       },
       '/uploads': {
         target: 'http://localhost:8080',

@@ -30,7 +30,7 @@ public class AgentConversationService {
     private static final int COMPACT_SOURCE_EVENTS = 120;
     private static final int COMPACT_TAIL_EVENTS = 18;
     private static final Set<String> MEMORY_SKIP_TYPES = Set.of("SESSION", "THINK", "TOOL_CALL");
-    private static final Set<String> MEMORY_IMPORTANT_TYPES = Set.of("USER", "FINAL", "OBSERVE", "ERROR", "INTERRUPTED", "COMMAND_APPROVAL_REQUIRED");
+    private static final Set<String> MEMORY_IMPORTANT_TYPES = Set.of("USER", "FINAL", "OBSERVE", "ERROR", "INTERRUPTED", "COMMAND_APPROVAL_REQUIRED", "USER_QUESTION");
     private final AgentConversationMapper conversationMapper;
     private final AgentMessageMapper messageMapper;
     private final RagConfig ragConfig;
@@ -92,7 +92,7 @@ public class AgentConversationService {
         String content = this.extractContent(data);
         String role = "FINAL".equals(type) || "FINAL_DELTA".equals(type) ? "assistant" : "event";
         this.saveMessage(conversation, type, role, content, data);
-        if ("FINAL".equals(type) || "OBSERVE".equals(type) || "ERROR".equals(type)) {
+        if (MEMORY_IMPORTANT_TYPES.contains(type)) {
             this.updateSummary(conversation, type, content);
         }
         this.autoCompactIfNeeded(conversation);
@@ -306,7 +306,7 @@ public class AgentConversationService {
             case "USER" -> 500;
             case "FINAL" -> 700;
             case "OBSERVE" -> 420;
-            case "ERROR", "INTERRUPTED", "COMMAND_APPROVAL_REQUIRED" -> 600;
+            case "ERROR", "INTERRUPTED", "COMMAND_APPROVAL_REQUIRED", "USER_QUESTION" -> 600;
             default -> 300;
         };
     }

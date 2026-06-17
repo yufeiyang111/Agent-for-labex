@@ -15,6 +15,18 @@ upload-path: D:/workfordasan/uploads
 code-exec:
   base-path: D:/workfordasan/code_exec
 
+labex-agent:
+  lsp:
+    commands:
+      java: ${LABEX_LSP_JAVA_CMD:jdtls}
+      typescript: ${LABEX_LSP_TS_CMD:typescript-language-server --stdio}
+      vue: ${LABEX_LSP_VUE_CMD:vue-language-server --stdio}
+      python: ${LABEX_LSP_PY_CMD:pyright-langserver --stdio}
+
+# 教学闭环文档模板目录。导出课程大纲、成绩明细和质量汇编时必须从这里读取模板。
+class-docs:
+  path: D:/workfordasan/Class-docs
+
 server:
   port: 8080
   servlet:
@@ -114,7 +126,7 @@ rag:
   # MiniMax Coding Plan 工具 API Host；需与 API Key 地区一致
   mini-max-api-host: https://api.minimaxi.com
   # MiniMax 模型
-  mini-max-model: MiniMax-M2.7
+  mini-max-model: MiniMax-M2.7-highspeed
   # 是否启用图片理解工具
   image-understanding-enabled: true
   # 最大上下文块数

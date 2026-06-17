@@ -1,6 +1,7 @@
 package com.labex.kg.controller;
 
 import com.labex.common.Result;
+import com.labex.kg.dto.RecommendationRequest;
 import com.labex.kg.dto.RecommendationResponse;
 import com.labex.kg.service.ExerciseRecommendationService;
 import lombok.extern.slf4j.Slf4j;
@@ -44,15 +45,27 @@ public class RecommendationController {
         return Result.success(recommendationService.recommendSimilar(questionId, limit));
     }
 
+    /** Create or refresh a personal practice set from KG recommendations. */
+    @PostMapping("/practice-set")
+    public Result<Map<String, Object>> practiceSet(@RequestBody(required = false) RecommendationRequest request) {
+        int studentId = getCurrentStudentId();
+        try {
+            return Result.success(recommendationService.createPersonalPracticeSet(studentId, request));
+        } catch (Exception e) {
+            log.warn("Create recommendation practice set failed for student {}: {}", studentId, e.getMessage());
+            return Result.error(e.getMessage());
+        }
+    }
+
     private int getCurrentStudentId() {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         if (auth != null && auth.isAuthenticated()) {
             try {
                 return Integer.parseInt(auth.getName());
             } catch (NumberFormatException e) {
-                return 1; // fallback
+                throw new IllegalStateException("当前登录用户不是学生账号");
             }
         }
-        return 1;
+        throw new IllegalStateException("未登录");
     }
 }

@@ -19,6 +19,7 @@ public class StudentMasteryDTO {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class MasteryItem {
+        private String kpId;
         private String kpName;
         private double mastery;
         private int attemptCount;

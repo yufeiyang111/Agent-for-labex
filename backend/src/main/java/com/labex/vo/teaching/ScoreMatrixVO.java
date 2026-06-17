@@ -18,6 +18,11 @@ public class ScoreMatrixVO {
     /** 学生行（含每个评分项的分数） */
     private List<StudentRow> students;
 
+    /** 分页信息 */
+    private Integer total;
+    private Integer page;
+    private Integer pageSize;
+
     @Data
     public static class ItemHeader {
         private Integer itemId;

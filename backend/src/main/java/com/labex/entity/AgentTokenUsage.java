@@ -18,6 +18,8 @@ public class AgentTokenUsage {
     private Integer promptTokens;
     private Integer completionTokens;
     private Integer totalTokens;
+    private Integer cachedTokens;
+    private Integer cacheWriteTokens;
     private Integer iteration;
     private String toolName;
     private LocalDateTime createTime;
@@ -36,6 +38,8 @@ public class AgentTokenUsage {
         this.promptTokens = promptTokens;
         this.completionTokens = completionTokens;
         this.totalTokens = totalTokens;
+        this.cachedTokens = 0;
+        this.cacheWriteTokens = 0;
         this.iteration = iteration;
         this.toolName = toolName;
         this.createTime = LocalDateTime.now();
@@ -61,6 +65,10 @@ public class AgentTokenUsage {
     public void setCompletionTokens(Integer completionTokens) { this.completionTokens = completionTokens; }
     public Integer getTotalTokens() { return totalTokens; }
     public void setTotalTokens(Integer totalTokens) { this.totalTokens = totalTokens; }
+    public Integer getCachedTokens() { return cachedTokens; }
+    public void setCachedTokens(Integer cachedTokens) { this.cachedTokens = cachedTokens; }
+    public Integer getCacheWriteTokens() { return cacheWriteTokens; }
+    public void setCacheWriteTokens(Integer cacheWriteTokens) { this.cacheWriteTokens = cacheWriteTokens; }
     public Integer getIteration() { return iteration; }
     public void setIteration(Integer iteration) { this.iteration = iteration; }
     public String getToolName() { return toolName; }

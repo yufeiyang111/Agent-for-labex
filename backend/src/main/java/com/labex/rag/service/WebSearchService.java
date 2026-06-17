@@ -255,9 +255,9 @@ public class WebSearchService {
             body.addProperty("api_key", ragConfig.getTavilyApiKey());
             body.addProperty("query", query);
             body.addProperty("max_results", Math.min(maxResults, 20));
-            body.addProperty("search_depth", "basic");
+            body.addProperty("search_depth", "advanced");
             body.addProperty("include_answer", false);
-            body.addProperty("include_raw_content", false);
+            body.addProperty("include_raw_content", true);
 
             connection = (HttpURLConnection) URI.create(TAVILY_URL).toURL().openConnection();
             connection.setRequestMethod("POST");
@@ -287,6 +287,11 @@ public class WebSearchService {
                 String title = getString(item, "title");
                 String url = getString(item, "url");
                 String content = getString(item, "content");
+                String rawContent = getString(item, "raw_content");
+                String evidence = rawContent.isBlank() ? content : rawContent;
+                if (!evidence.isBlank()) {
+                    content = clean(evidence);
+                }
                 double score = item.has("score") && item.get("score").isJsonPrimitive()
                         ? item.getAsJsonPrimitive("score").getAsDouble() : 0.0;
 
@@ -648,6 +653,9 @@ public class WebSearchService {
     private boolean isTemporalQuery(String value) {
         String text = value == null ? "" : value.toLowerCase(Locale.ROOT);
         int year = LocalDate.now().getYear();
+        if (text.matches(".*(最新|近期|最近|现在|目前|今天|今年|实时|发布|参数|价格|版本|新闻|更新|现状|趋势).*")) {
+            return true;
+        }
         return text.contains("最新")
                 || text.contains("近期")
                 || text.contains("最近")

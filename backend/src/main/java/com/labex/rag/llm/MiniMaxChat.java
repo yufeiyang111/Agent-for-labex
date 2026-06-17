@@ -136,6 +136,10 @@ public class MiniMaxChat implements LLMChat {
     }
 
     public void chatStream(String prompt, String context, String question, Consumer<StreamChunk> onChunk) {
+        chatStream(prompt, context, question, true, onChunk);
+    }
+
+    public void chatStream(String prompt, String context, String question, boolean enableThinking, Consumer<StreamChunk> onChunk) {
         HttpURLConnection connection = null;
         try {
             String apiKey = ragConfig.getMiniMaxApiKey();
@@ -154,7 +158,7 @@ public class MiniMaxChat implements LLMChat {
             requestBody.put("model", ragConfig.getMiniMaxModel());
             requestBody.put("messages", messages);
             requestBody.put("stream", true);
-            requestBody.put("enable_thinking", true);
+            requestBody.put("enable_thinking", enableThinking);
             requestBody.put("max_tokens", 8192);
             requestBody.put("max_completion_tokens", 8192);
             requestBody.put("user_id", "labex-system");

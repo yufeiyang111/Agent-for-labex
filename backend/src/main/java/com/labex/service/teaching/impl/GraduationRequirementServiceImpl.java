@@ -63,6 +63,13 @@ public class GraduationRequirementServiceImpl
     }
 
     @Override
+    public GraduationIndicator updateIndicator(Integer indicatorId, GraduationIndicator indicator) {
+        indicator.setIndicatorId(indicatorId);
+        indicatorMapper.updateById(indicator);
+        return indicator;
+    }
+
+    @Override
     @Transactional
     public void deleteRequirement(Integer requirementId) {
         indicatorMapper.delete(new LambdaQueryWrapper<GraduationIndicator>()

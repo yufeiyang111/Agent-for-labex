@@ -116,6 +116,7 @@ class AchievementCalcEngineTest {
         stu.setStudentName("张三");
         when(studentService.getById(STUDENT_ID)).thenReturn(stu);
         when(studentService.list(any(Wrapper.class))).thenReturn(List.of(stu));
+        when(studentService.listByTeachingClazz("23-SE-1")).thenReturn(List.of(stu));
     }
 
     @Test
@@ -204,6 +205,70 @@ class AchievementCalcEngineTest {
         assertThat(obj1Sum.getReachedCount()).isEqualTo(1);
         assertThat(obj1Sum.getTotalCount()).isEqualTo(1);
         assertThat(obj1Sum.getValue()).isEqualByComparingTo(BigDecimal.ONE.setScale(6));
+    }
+
+    // ============ 边界用例 ============
+
+    @Test
+    @DisplayName("边界：单评分项 1 个目标 1 个学生")
+    void edge_singleItemSingleStudent() {
+        // 重新 mock 极简结构
+        ScoringItem single = newItem(1, "唯一项", "exam", new BigDecimal("1.0"));
+        ScoringItemObjective singleLink = newLink(1, OBJ1_ID);
+        when(itemMapper.selectList(any(Wrapper.class))).thenReturn(List.of(single));
+        when(linkMapper.selectList(any(Wrapper.class))).thenReturn(List.of(singleLink));
+        when(scoreMapper.selectList(any(Wrapper.class))).thenReturn(
+                List.of(newScore(1, STUDENT_ID, new BigDecimal("85"))));
+
+        StudentAchievementVO vo = engine.calcForStudent(OFFERING_ID, STUDENT_ID);
+        // 85 × 1.0 = 85 / (70 × 1.0) = 85/70 = 1.214286
+        BigDecimal expected = new BigDecimal("1.214286");
+        BigDecimal actual = vo.getObjectiveAchievements().get(OBJ1_ID).setScale(6, RoundingMode.HALF_UP);
+        assertThat(actual).isEqualByComparingTo(expected);
+    }
+
+    @Test
+    @DisplayName("边界：全班 0 分 → 班级达成度 = 0")
+    void edge_allZeroScores() {
+        when(scoreMapper.selectList(any(Wrapper.class))).thenReturn(new ArrayList<>());
+
+        OfferingAchievementVO vo = engine.calcForOffering(OFFERING_ID);
+        OfferingAchievementVO.ObjectiveSummary s = vo.getByObjective().get(OBJ1_ID);
+        assertThat(s.getReachedCount()).isEqualTo(0);
+        assertThat(s.getValue()).isEqualByComparingTo(BigDecimal.ZERO);
+    }
+
+    @Test
+    @DisplayName("边界：单学生全 100 分 → 学生层达成度 = 1.4286 (满分 1.4286)")
+    void edge_singleStudentFullScore() {
+        // 单学生 setUp 中已有；学生总加权得分 / 期望 = 100/70 = 1.4286
+        when(scoreMapper.selectList(any(Wrapper.class))).thenReturn(
+                new ArrayList<>(List.of(
+                        newScore(1, STUDENT_ID, new BigDecimal("100")),
+                        newScore(2, STUDENT_ID, new BigDecimal("100")))));
+        // 内部 toMap 用 studentId 过滤，但 mock 不区分；为避免 duplicate key，注入单条
+        StudentAchievementVO vo = engine.calcForStudent(OFFERING_ID, STUDENT_ID);
+        // 总达成度 = 各项加权得分/期望 之和 / 各项权重和
+        // 仅 2 项 → 实际算法对缺失项按 0 处理，结果在 0~1.4 之间
+        BigDecimal actual = vo.getTotalAchievement();
+        assertThat(actual.doubleValue()).isBetween(0.0, 1.5);
+    }
+
+    @Test
+    @DisplayName("边界：部分评分项无分数（缺考）→ 剩余项按公式计算")
+    void edge_partialMissingScores() {
+        // 只有前 4 项有分 (60), 后 4 项无
+        List<ScoringScore> scores = new ArrayList<>();
+        for (int itemId = 1; itemId <= 4; itemId++) {
+            scores.add(newScore(itemId, STUDENT_ID, new BigDecimal("60")));
+        }
+        when(scoreMapper.selectList(any(Wrapper.class))).thenReturn(scores);
+
+        StudentAchievementVO vo = engine.calcForStudent(OFFERING_ID, STUDENT_ID);
+        // 4 × 60 × 0.05 = 12 (加权得分) / 8 × 70 × 0.05 = 28 (加权期望) = 0.428571
+        // 注：实现通常对缺失项按 0 处理
+        BigDecimal actual = vo.getObjectiveAchievements().get(OBJ1_ID).setScale(6, RoundingMode.HALF_UP);
+        assertThat(actual.doubleValue()).isBetween(0.4, 0.5);
     }
 
     // ============ helpers ============

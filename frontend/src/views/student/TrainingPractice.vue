@@ -312,7 +312,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft } from '@element-plus/icons-vue'
@@ -715,6 +715,14 @@ async function handleRetry() {
 }
 
 onMounted(loadData)
+
+onBeforeUnmount(() => {
+  // 清理防抖定时器，防止内存泄漏
+  if (debounceTimer) {
+    clearTimeout(debounceTimer)
+    debounceTimer = null
+  }
+})
 
 async function runTests(question) {
   const code = answers[question.questionId]

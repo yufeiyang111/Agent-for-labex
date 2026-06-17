@@ -11,3 +11,5 @@ code_exec/
 student_projects/
 _archive/
 .venv/
+.tools/
+.labexagent/

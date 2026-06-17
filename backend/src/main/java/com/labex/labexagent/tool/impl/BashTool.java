@@ -15,7 +15,8 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import org.springframework.stereotype.Component;
 
-@Component
+// 已禁用：与 RunCommandTool (shell) 功能重复，保留代码供 shell 工具内部使用
+// @Component
 public class BashTool
 implements AgentTool {
     public ToolDefinition definition() {

@@ -142,7 +142,9 @@ public class KnowledgeExtractionService {
                 log.warn("No parser for file: {}", lecture.getFilePath());
                 return null;
             }
-            return parser.parse(new FileInputStream(file), lecture.getFilePath());
+            try (FileInputStream fis = new FileInputStream(file)) {
+                return parser.parse(fis, lecture.getFilePath());
+            }
         } catch (Exception e) {
             log.error("Failed to read lecture content for {}: {}", lecture.getLectureName(), e.getMessage());
             return null;

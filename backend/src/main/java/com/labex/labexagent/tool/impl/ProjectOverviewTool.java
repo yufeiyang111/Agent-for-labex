@@ -2,6 +2,8 @@ package com.labex.labexagent.tool.impl;
 
 import com.google.gson.JsonObject;
 import com.labex.labexagent.runtime.AgentContext;
+import com.labex.labexagent.service.AgentWorkspaceMemoryService;
+import com.labex.labexagent.service.ProjectCodeMapService;
 import com.labex.labexagent.service.ProjectIndexService;
 import com.labex.labexagent.tool.AgentTool;
 import com.labex.labexagent.tool.ToolDefinition;
@@ -13,9 +15,15 @@ import org.springframework.stereotype.Component;
 public class ProjectOverviewTool
 implements AgentTool {
     private final ProjectIndexService projectIndexService;
+    private final AgentWorkspaceMemoryService workspaceMemoryService;
+    private final ProjectCodeMapService projectCodeMapService;
 
-    public ProjectOverviewTool(ProjectIndexService projectIndexService) {
+    public ProjectOverviewTool(ProjectIndexService projectIndexService,
+                               AgentWorkspaceMemoryService workspaceMemoryService,
+                               ProjectCodeMapService projectCodeMapService) {
         this.projectIndexService = projectIndexService;
+        this.workspaceMemoryService = workspaceMemoryService;
+        this.projectCodeMapService = projectCodeMapService;
     }
 
     public ToolDefinition definition() {
@@ -24,7 +32,18 @@ implements AgentTool {
 
     public ToolResult execute(AgentContext context, JsonObject args) {
         String query = ToolSupport.stringArg((JsonObject)args, "query", "");
-        return ToolResult.ok((String)this.projectIndexService.buildProjectDigest(context.getProject(), query));
+        String adaptive = this.projectIndexService.buildAdaptiveProjectContext(
+                context.getProject(),
+                query,
+                this.workspaceMemoryService.readMemory(context.getProject()).touchedFiles
+        );
+        String memory = this.workspaceMemoryService.buildMemoryContext(context.getProject(), query, "");
+        String repoMap = this.projectCodeMapService.buildRepoMap(
+                context.getProject(),
+                query,
+                this.workspaceMemoryService.readMemory(context.getProject()).touchedFiles,
+                18
+        );
+        return ToolResult.ok(adaptive + "\n\n" + repoMap + "\n\n" + memory);
     }
 }
-

@@ -13,7 +13,8 @@ import java.util.ArrayList;
 import java.util.List;
 import org.springframework.stereotype.Component;
 
-@Component
+// 已禁用：与 GrepTool 功能重复，grep 支持正则更强大
+// @Component
 public class SearchCodeTool
 implements AgentTool {
     public ToolDefinition definition() {

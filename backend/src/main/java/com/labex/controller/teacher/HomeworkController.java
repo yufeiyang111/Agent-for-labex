@@ -7,6 +7,7 @@ import com.labex.common.PageResult;
 import com.labex.entity.Homework;
 import com.labex.entity.HomeworkQuestion;
 import com.labex.entity.Question;
+import com.labex.entity.Student;
 import com.labex.entity.StudentHomework;
 import com.labex.entity.StudentHomeworkQuestion;
 import com.labex.entity.Teacher;
@@ -15,6 +16,7 @@ import com.labex.service.HomeworkService;
 import com.labex.service.QuestionService;
 import com.labex.service.StudentHomeworkQuestionService;
 import com.labex.service.StudentHomeworkService;
+import com.labex.service.StudentService;
 import com.labex.service.TeacherService;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -62,6 +64,9 @@ public class HomeworkController {
 
     @Autowired
     private StudentHomeworkQuestionService studentHomeworkQuestionService;
+
+    @Autowired
+    private StudentService studentService;
 
     @Autowired
     private TeacherService teacherService;
@@ -238,9 +243,32 @@ public class HomeworkController {
      * 查看作业的所有提交
      */
     @GetMapping("/{id}/submissions")
-    public Result<List<StudentHomework>> getSubmissions(@PathVariable Integer id) {
+    public Result<List<Map<String, Object>>> getSubmissions(@PathVariable Integer id) {
         List<StudentHomework> submissions = studentHomeworkService.findByHomeworkId(id);
-        return Result.success(submissions);
+        List<Map<String, Object>> result = new ArrayList<>();
+
+        for (StudentHomework submission : submissions) {
+            Map<String, Object> item = new HashMap<>();
+            item.put("id", submission.getId());
+            item.put("homeworkId", submission.getHomeworkId());
+            item.put("studentId", submission.getStudentId());
+            item.put("content", submission.getContent());
+            item.put("filePath", submission.getFilePath());
+            item.put("submitTime", submission.getSubmitTime());
+            item.put("score", submission.getScore());
+            item.put("remark", submission.getRemark());
+
+            // 获取学生姓名
+            Student student = studentService.getById(submission.getStudentId());
+            if (student != null) {
+                item.put("studentName", student.getStudentName());
+                item.put("studentNo", student.getStudentNo());
+            }
+
+            result.add(item);
+        }
+
+        return Result.success(result);
     }
 
     /**

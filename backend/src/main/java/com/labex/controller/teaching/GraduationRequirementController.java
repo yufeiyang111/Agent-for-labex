@@ -85,4 +85,10 @@ public class GraduationRequirementController {
         grService.deleteIndicator(indicatorId);
         return Result.success();
     }
+
+    @PutMapping("/indicator/{indicatorId}")
+    public Result<GraduationIndicator> updateIndicator(@PathVariable Integer indicatorId,
+                                                       @RequestBody GraduationIndicator indicator) {
+        return Result.success(grService.updateIndicator(indicatorId, indicator));
+    }
 }

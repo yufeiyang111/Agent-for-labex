@@ -6,13 +6,20 @@ import com.labex.labexagent.tool.AgentTool;
 import com.labex.labexagent.tool.ToolDefinition;
 import com.labex.labexagent.tool.ToolResult;
 import com.labex.labexagent.tool.ToolSupport;
+import java.util.Map;
 import org.springframework.stereotype.Component;
 
 @Component
 public class QuestionTool
 implements AgentTool {
     public ToolDefinition definition() {
-        return ToolDefinition.builder().name("question").description("Ask a clarifying question when a task is blocked and the user must decide.").stringProperty("question", "clarifying question for the user", true).build();
+        return ToolDefinition.builder()
+                .name("question")
+                .description("Ask one concise clarifying question when the task is blocked and the user must decide before the agent can continue.")
+                .stringProperty("question", "The exact question to show to the user.", true)
+                .stringProperty("summary", "Short label shown in the UI, such as 'Choose implementation scope'.", false)
+                .arrayProperty("options", "Optional answer choices. Leave empty for free-form text answers.", Map.of("type", "string"), false)
+                .build();
     }
 
     public ToolResult execute(AgentContext context, JsonObject args) {

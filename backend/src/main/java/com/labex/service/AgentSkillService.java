@@ -55,10 +55,33 @@ public class AgentSkillService extends ServiceImpl<AgentSkillMapper, AgentSkill>
     }
 
     public AgentSkill create(Integer studentId, Map<String, Object> body) {
-        AgentSkill skill = new AgentSkill();
-        applyBody(skill, studentId, body, true);
-        this.save(skill);
-        return skill;
+        // 先检查是否已存在相同 student_id 和 skill_key 的记录（包括已删除的）
+        String key = string(body, "skillKey", "");
+        String title = string(body, "title", "");
+        if (key.isBlank()) {
+            key = title;
+        }
+        key = normalizeKey(key);
+
+        // 查询是否已存在（不过滤 status，因为唯一约束是 student_id + skill_key）
+        AgentSkill existing = this.lambdaQuery()
+                .eq(AgentSkill::getStudentId, studentId)
+                .eq(AgentSkill::getSkillKey, key)
+                .one();
+
+        if (existing != null) {
+            // 如果存在（无论是否已删除），则更新并恢复状态
+            applyBody(existing, studentId, body, false);
+            existing.setStatus(1);  // 恢复状态
+            this.updateById(existing);
+            return existing;
+        } else {
+            // 如果不存在，则插入新记录
+            AgentSkill skill = new AgentSkill();
+            applyBody(skill, studentId, body, true);
+            this.save(skill);
+            return skill;
+        }
     }
 
     public AgentSkill update(Integer studentId, Integer skillId, Map<String, Object> body) {

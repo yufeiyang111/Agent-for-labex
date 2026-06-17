@@ -1,29 +1,26 @@
-﻿<template>
-  <div class="layout">
+<template>
+  <div class="layout wabi-layout">
     <!-- 侧边栏 -->
     <aside class="sidebar" :class="{ collapsed: isCollapse }">
       <div class="logo-container">
         <div class="logo">
-          <AppIcon :size="isCollapse ? 34 : 38" compact />
-          <span v-if="!isCollapse">Labex</span>
+          <AppIcon :size="isCollapse ? 30 : 34" compact />
+          <span v-if="!isCollapse" class="logo-text">Labex</span>
         </div>
       </div>
 
-      <el-menu
-        :default-active="activeMenu"
-        :collapse="isCollapse"
-        background-color="#ffffff"
-        text-color="#606266"
-        active-text-color="#4caf50"
-        router
-      >
-        <template v-for="item in menuList" :key="item.path">
-          <el-menu-item :index="item.path">
-            <el-icon><component :is="item.icon" /></el-icon>
-            <template #title>{{ item.title }}</template>
-          </el-menu-item>
-        </template>
-      </el-menu>
+      <nav class="nav-menu">
+        <router-link
+          v-for="item in menuList"
+          :key="item.path"
+          :to="item.path"
+          class="nav-item"
+          :class="{ active: activeMenu === item.path }"
+        >
+          <el-icon class="nav-icon"><component :is="item.icon" /></el-icon>
+          <span v-if="!isCollapse" class="nav-label">{{ item.title }}</span>
+        </router-link>
+      </nav>
     </aside>
 
     <!-- 主内容区 -->
@@ -35,23 +32,27 @@
             :icon="isCollapse ? Expand : Fold"
             @click="isCollapse = !isCollapse"
             text
+            class="toggle-btn"
           />
           <breadcrumb />
         </div>
 
         <div class="header-right">
-          <el-dropdown @command="handleCommand">
+          <el-dropdown @command="handleCommand" trigger="click">
             <span class="user-dropdown">
               <el-avatar
                 v-if="userStore.userInfo?.avatar"
                 :src="baseUrl + userStore.userInfo.avatar"
                 :size="32"
+                class="user-avatar"
               />
-              <el-avatar v-else :size="32" icon="User" />
+              <el-avatar v-else :size="32" class="user-avatar">
+                <span class="avatar-placeholder">{{ (userStore.userInfo?.name || '用')[0] }}</span>
+              </el-avatar>
               <span class="username">{{ userStore.userInfo?.name || '用户' }}</span>
             </span>
             <template #dropdown>
-              <el-dropdown-menu>
+              <el-dropdown-menu class="wabi-dropdown-menu">
                 <el-dropdown-item command="profile">个人中心</el-dropdown-item>
                 <el-dropdown-item divided command="logout">退出登录</el-dropdown-item>
               </el-dropdown-menu>
@@ -63,7 +64,7 @@
       <!-- 内容区 -->
       <main class="main-content">
         <router-view v-slot="{ Component }">
-          <transition name="el-fade-in-linear" mode="out-in">
+          <transition name="wabi-fade" mode="out-in">
             <component :is="Component" />
           </transition>
         </router-view>
@@ -87,10 +88,8 @@ const baseUrl = import.meta.env.VITE_API_BASE_URL || ''
 
 const isCollapse = ref(false)
 
-// 当前激活菜单
 const activeMenu = computed(() => route.path)
 
-// 根据角色生成菜单
 const menuList = computed(() => {
   const role = userStore.role
   if (role === 'TEACHER') {
@@ -123,7 +122,6 @@ const menuList = computed(() => {
   }
 })
 
-// 下拉菜单处理
 const handleCommand = async (command) => {
   if (command === 'logout') {
     try {
@@ -144,160 +142,244 @@ const handleCommand = async (command) => {
 </script>
 
 <style lang="scss" scoped>
-.layout {
+.wabi-layout {
+  --sidebar-width: 220px;
+  --sidebar-collapsed-width: 64px;
+  --header-height: 56px;
+  --wabi-bg: #f8f6f3;
+  --wabi-surface: #ffffff;
+  --wabi-border: #e8e4df;
+  --wabi-text: #2c2c2c;
+  --wabi-text-secondary: #8a8580;
+  --wabi-accent: #7a8b6f;
+  --wabi-accent-light: #e8ede5;
+
   display: flex;
   width: 100%;
   height: 100vh;
   overflow: hidden;
+  background: var(--wabi-bg);
 }
 
+/* 侧边栏 */
 .sidebar {
-  width: 248px;
+  width: var(--sidebar-width);
   height: 100%;
-  background: #ffffff;
-  border-right: 1px solid #f0f0f0;
+  background: var(--wabi-surface);
+  border-right: 1px solid var(--wabi-border);
   display: flex;
   flex-direction: column;
-  transition: width 0.35s cubic-bezier(0.25, 0.1, 0.25, 1);
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  flex-shrink: 0;
 
   &.collapsed {
-    width: 68px;
-  }
-
-  .logo-container {
-    height: 64px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-bottom: 1px solid #f0f0f0;
-    overflow: hidden;
-
-    .logo {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      font-size: 20px;
-      font-weight: 700;
-      color: #0f172a;
-      letter-spacing: -0.5px;
-    }
-  }
-
-  .el-menu {
-    border-right: none;
-    flex: 1;
-    overflow-y: auto;
-    padding: 12px;
-    background: transparent;
-
-    :deep(.el-menu-item) {
-      height: 48px;
-      line-height: 48px;
-      border-radius: 12px;
-      margin-bottom: 4px;
-      color: #6e6e73;
-      font-size: 14px;
-      font-weight: 500;
-      transition: all 0.25s cubic-bezier(0.25, 0.1, 0.25, 1);
-
-      .el-icon {
-        font-size: 18px;
-        margin-right: 12px;
-      }
-
-      &:hover {
-        background: #f5f5f7;
-        color: #1d1d1f;
-      }
-
-      &.is-active {
-        background: #e6f4ea;
-        color: #4caf50;
-      }
-    }
-  }
-
-  &.collapsed {
-    .el-menu {
-      :deep(.el-menu-item) {
-        padding: 0 !important;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        min-width: 68px;
-
-        .el-icon {
-          margin: 0;
-          width: 18px;
-          text-align: center;
-        }
-      }
-    }
+    width: var(--sidebar-collapsed-width);
   }
 }
 
+.logo-container {
+  height: var(--header-height);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-bottom: 1px solid var(--wabi-border);
+  padding: 0 16px;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.logo-text {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--wabi-text);
+  letter-spacing: -0.5px;
+  font-family: 'Georgia', serif;
+}
+
+/* 导航菜单 */
+.nav-menu {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px 8px;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  margin-bottom: 2px;
+  color: var(--wabi-text-secondary);
+  text-decoration: none;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  font-size: 14px;
+
+  &:hover {
+    background: var(--wabi-accent-light);
+    color: var(--wabi-text);
+  }
+
+  &.active {
+    background: var(--wabi-accent-light);
+    color: var(--wabi-accent);
+    font-weight: 500;
+  }
+}
+
+.nav-icon {
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.nav-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 折叠状态 */
+.sidebar.collapsed {
+  .nav-item {
+    padding: 10px;
+    justify-content: center;
+  }
+
+  .nav-icon {
+    margin: 0;
+  }
+}
+
+/* 主内容区 */
 .main-wrapper {
   flex: 1;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  min-width: 0;
 }
 
+/* 顶栏 */
 .header {
-  height: 64px;
-  background: #ffffff;
-  border-bottom: 1px solid #f0f0f0;
+  height: var(--header-height);
+  background: var(--wabi-surface);
+  border-bottom: 1px solid var(--wabi-border);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 28px;
+  padding: 0 24px;
+  flex-shrink: 0;
+}
 
-  .header-left {
-    display: flex;
-    align-items: center;
-    gap: 16px;
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
 
-    :deep(.el-button) {
-      padding: 10px;
-      border-radius: 10px;
-      color: #6e6e73;
-      transition: all 0.25s cubic-bezier(0.25, 0.1, 0.25, 1);
+.toggle-btn {
+  color: var(--wabi-text-secondary);
+  transition: color 0.2s ease;
 
-      &:hover {
-        background: #f5f5f7;
-        color: #4caf50;
-      }
-    }
-  }
-
-  .header-right {
-    .user-dropdown {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      cursor: pointer;
-      padding: 8px 16px;
-      border-radius: 12px;
-      transition: all 0.25s cubic-bezier(0.25, 0.1, 0.25, 1);
-
-      &:hover {
-        background: #f5f5f7;
-      }
-
-      .username {
-        font-size: 14px;
-        color: #1d1d1f;
-        font-weight: 500;
-      }
-    }
+  &:hover {
+    color: var(--wabi-accent);
   }
 }
 
+.header-right {
+  display: flex;
+  align-items: center;
+}
+
+.user-dropdown {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  padding: 6px 12px;
+  border-radius: 6px;
+  transition: background 0.2s ease;
+
+  &:hover {
+    background: var(--wabi-accent-light);
+  }
+}
+
+.user-avatar {
+  background: var(--wabi-accent-light);
+  border: none;
+}
+
+.avatar-placeholder {
+  color: var(--wabi-accent);
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.username {
+  font-size: 14px;
+  color: var(--wabi-text);
+  font-weight: 400;
+}
+
+/* 主内容 */
 .main-content {
   flex: 1;
-  padding: 28px;
   overflow-y: auto;
-  background: #f5f5f7;
-  min-height: calc(100vh - 64px);
+  background: var(--wabi-bg);
+}
+
+/* 下拉菜单 */
+.wabi-dropdown-menu {
+  border: 1px solid var(--wabi-border);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+}
+
+/* 页面过渡动画 */
+.wabi-fade-enter-active,
+.wabi-fade-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.wabi-fade-enter-from {
+  opacity: 0;
+  transform: translateY(4px);
+}
+
+.wabi-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-4px);
+}
+
+/* 滚动条 */
+.nav-menu::-webkit-scrollbar {
+  width: 4px;
+}
+
+.nav-menu::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.nav-menu::-webkit-scrollbar-thumb {
+  background: var(--wabi-border);
+  border-radius: 2px;
+}
+
+/* 响应式 */
+@media (max-width: 768px) {
+  .sidebar {
+    position: fixed;
+    z-index: 100;
+    transform: translateX(-100%);
+
+    &:not(.collapsed) {
+      transform: translateX(0);
+    }
+  }
 }
 </style>

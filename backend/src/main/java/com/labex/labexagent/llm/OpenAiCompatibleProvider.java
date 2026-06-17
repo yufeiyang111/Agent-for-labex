@@ -84,6 +84,18 @@ public class OpenAiCompatibleProvider implements LlmProvider {
             String currentToolName = null;
             StringBuilder currentToolArgs = null;
 
+            // <think> 标签解析器（处理模型在 content 中返回思考内容的情况）
+            ThinkTagStreamParser thinkParser = new ThinkTagStreamParser(
+                text -> {
+                    thinkingBuf.append(text);
+                    onChunk.accept(new StreamChunk("thinking_delta", text, null, null, thinkingBuf.toString(), false));
+                },
+                text -> {
+                    contentBuf.append(text);
+                    onChunk.accept(new StreamChunk("text_delta", text, null, null, null, false));
+                }
+            );
+
             try (BufferedReader reader = new BufferedReader(
                     new InputStreamReader(conn.getInputStream(), StandardCharsets.UTF_8))) {
                 String line;
@@ -92,6 +104,7 @@ public class OpenAiCompatibleProvider implements LlmProvider {
                     if (!line.startsWith("data: ")) continue;
                     String data = line.substring(6).trim();
                     if ("[DONE]".equals(data)) {
+                        thinkParser.flush();
                         onChunk.accept(new StreamChunk("done", contentBuf.toString(), currentToolName,
                                 currentToolArgs != null ? currentToolArgs.toString() : null,
                                 thinkingBuf.toString(), true));
@@ -104,7 +117,7 @@ public class OpenAiCompatibleProvider implements LlmProvider {
                         var delta = choices.get(0).getAsJsonObject().getAsJsonObject("delta");
                         if (delta == null) continue;
 
-                        if (delta.has("tool_calls")) {
+                        if (delta.has("tool_calls") && !delta.get("tool_calls").isJsonNull()) {
                             var toolCalls = delta.getAsJsonArray("tool_calls");
                             for (var tc : toolCalls) {
                                 var fn = tc.getAsJsonObject().getAsJsonObject("function");
@@ -123,21 +136,23 @@ public class OpenAiCompatibleProvider implements LlmProvider {
                             }
                         }
 
-                        if (delta.has("content") && !delta.get("content").isJsonNull()) {
-                            String content = delta.get("content").getAsString();
-                            contentBuf.append(content);
-                            onChunk.accept(new StreamChunk("text_delta", content, null, null, null, false));
-                        }
-
+                        // 优先检查 reasoning_content（DeepSeek 等模型原生支持）
                         if (delta.has("reasoning_content") && !delta.get("reasoning_content").isJsonNull()) {
                             String thinking = delta.get("reasoning_content").getAsString();
                             thinkingBuf.append(thinking);
                             onChunk.accept(new StreamChunk("thinking_delta", thinking, null, null, thinkingBuf.toString(), false));
                         }
+
+                        // content 可能包含 <think> 标签，通过 parser 分离
+                        if (delta.has("content") && !delta.get("content").isJsonNull()) {
+                            String content = delta.get("content").getAsString();
+                            thinkParser.push(content);
+                        }
                     } catch (Exception parseEx) {
                         log.debug("SSE parse skip: {}", parseEx.getMessage());
                     }
                 }
+                thinkParser.flush();
             }
 
             if (currentToolName != null && currentToolArgs != null) {
@@ -170,6 +185,8 @@ public class OpenAiCompatibleProvider implements LlmProvider {
         body.put("max_tokens", config.maxTokens() != null ? config.maxTokens() : 8192);
         if (config.temperature() != null) body.put("temperature", config.temperature());
         if (stream) body.put("stream", true);
+        // 启用模型思考模式（DeepSeek/MiniMax 等模型支持 reasoning_content）
+        body.put("enable_thinking", true);
 
         if (tools != null && !tools.isEmpty()) {
             body.put("tools", tools);
@@ -249,9 +266,34 @@ public class OpenAiCompatibleProvider implements LlmProvider {
             result.put("prompt_tokens", usage.has("prompt_tokens") ? usage.get("prompt_tokens").getAsInt() : 0);
             result.put("completion_tokens", usage.has("completion_tokens") ? usage.get("completion_tokens").getAsInt() : 0);
             result.put("total_tokens", usage.has("total_tokens") ? usage.get("total_tokens").getAsInt() : 0);
+            int cached = nestedInt(usage, "prompt_tokens_details", "cached_tokens");
+            if (cached == 0) cached = nestedInt(usage, "input_token_details", "cache_read");
+            if (cached == 0) cached = intValue(usage, "cached_tokens");
+            int cacheWrite = nestedInt(usage, "input_token_details", "cache_creation");
+            if (cacheWrite == 0) cacheWrite = intValue(usage, "cache_creation_input_tokens");
+            result.put("cached_tokens", cached);
+            result.put("cache_write_tokens", cacheWrite);
             return result;
         } catch (Exception e) {
             return null;
+        }
+    }
+
+    private int nestedInt(JsonObject root, String objectName, String fieldName) {
+        try {
+            if (!root.has(objectName) || root.get(objectName).isJsonNull()) return 0;
+            JsonObject nested = root.getAsJsonObject(objectName);
+            return intValue(nested, fieldName);
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+
+    private int intValue(JsonObject root, String fieldName) {
+        try {
+            return root.has(fieldName) && !root.get(fieldName).isJsonNull() ? root.get(fieldName).getAsInt() : 0;
+        } catch (Exception e) {
+            return 0;
         }
     }
 
@@ -296,5 +338,79 @@ public class OpenAiCompatibleProvider implements LlmProvider {
         url = url.replaceAll("/+$", "");
         if (url.endsWith("/v1")) url = url.substring(0, url.length() - 3);
         return url;
+    }
+
+    /**
+     * 流式解析 <think>...</think> 标签的状态机
+     * 处理标签跨多个 chunk 的情况
+     */
+    private static class ThinkTagStreamParser {
+        private static final String OPEN_TAG = "<think>";
+        private static final String CLOSE_TAG = "</think>";
+        private final java.util.function.Consumer<String> onThinking;
+        private final java.util.function.Consumer<String> onText;
+        private final StringBuilder buffer = new StringBuilder();
+        private boolean inThink = false;
+
+        ThinkTagStreamParser(java.util.function.Consumer<String> onThinking, java.util.function.Consumer<String> onText) {
+            this.onThinking = onThinking;
+            this.onText = onText;
+        }
+
+        void push(String text) {
+            if (text == null || text.isEmpty()) return;
+            buffer.append(text);
+            process();
+        }
+
+        void flush() {
+            if (buffer.length() > 0) {
+                emit(buffer.toString(), inThink);
+                buffer.setLength(0);
+            }
+        }
+
+        private void emit(String text, boolean thinking) {
+            if (text.isEmpty()) return;
+            if (thinking) onThinking.accept(text);
+            else onText.accept(text);
+        }
+
+        private void process() {
+            while (buffer.length() > 0) {
+                if (!inThink) {
+                    int openIdx = buffer.indexOf(OPEN_TAG);
+                    if (openIdx >= 0) {
+                        if (openIdx > 0) emit(buffer.substring(0, openIdx), false);
+                        buffer.delete(0, openIdx + OPEN_TAG.length());
+                        inThink = true;
+                        continue;
+                    }
+                    int safe = findSafeLength(buffer, OPEN_TAG);
+                    if (safe > 0) { emit(buffer.substring(0, safe), false); buffer.delete(0, safe); }
+                    break;
+                } else {
+                    int closeIdx = buffer.indexOf(CLOSE_TAG);
+                    if (closeIdx >= 0) {
+                        if (closeIdx > 0) emit(buffer.substring(0, closeIdx), true);
+                        buffer.delete(0, closeIdx + CLOSE_TAG.length());
+                        inThink = false;
+                        continue;
+                    }
+                    int safe = findSafeLength(buffer, CLOSE_TAG);
+                    if (safe > 0) { emit(buffer.substring(0, safe), true); buffer.delete(0, safe); }
+                    break;
+                }
+            }
+        }
+
+        private static int findSafeLength(StringBuilder buf, String tag) {
+            int maxPrefix = tag.length() - 1;
+            if (maxPrefix <= 0) return buf.length();
+            for (int len = Math.min(maxPrefix, buf.length()); len > 0; len--) {
+                if (tag.startsWith(buf.substring(buf.length() - len))) return buf.length() - len;
+            }
+            return buf.length();
+        }
     }
 }

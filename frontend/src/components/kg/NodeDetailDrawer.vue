@@ -229,7 +229,7 @@ const questionTypeMap = {
 }
 
 const getQuestionTypeName = (type) => questionTypeMap[type]?.name || '未知'
-const getQuestionTypeTag = (type) => questionTypeMap[type]?.tag || ''
+const getQuestionTypeTag = (type) => questionTypeMap[type]?.tag || 'info'
 
 // 文本截断
 const truncateText = (text, len) => {

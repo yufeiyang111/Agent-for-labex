@@ -233,7 +233,7 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Clock, Edit, Histogram, View } from '@element-plus/icons-vue'
 import { studentApi } from '@/api'
@@ -315,6 +315,14 @@ const progressPercent = computed(() => {
 })
 
 onMounted(loadHomeworks)
+
+onBeforeUnmount(() => {
+  // 清理防抖定时器，防止内存泄漏
+  if (debounceTimer) {
+    clearTimeout(debounceTimer)
+    debounceTimer = null
+  }
+})
 
 async function loadHomeworks() {
   loading.value = true
@@ -469,8 +477,8 @@ async function saveAnswer(question) {
   if (!currentHomework.value) return
   try {
     await studentApi.homework.saveAnswer(currentHomework.value.homeworkId, question.id, getAnswerPayload(question))
-  } catch {
-    // silent autosave failure
+  } catch (e) {
+    console.warn('Auto-save failed:', e)
   }
 }
 

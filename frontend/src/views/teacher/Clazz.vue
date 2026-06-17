@@ -1,399 +1,371 @@
-﻿<template>
-  <div class="clazz-page">
-    <!-- 面包屑导航 -->
-    <el-breadcrumb separator="/" class="breadcrumb">
-      <el-breadcrumb-item :to="{ path: '/teacher' }">教师首页</el-breadcrumb-item>
-      <el-breadcrumb-item>班级管理</el-breadcrumb-item>
-    </el-breadcrumb>
-
-    <!-- 页面标题和搜索区域 -->
-    <div class="page-header">
-      <h2 class="page-title">班级管理</h2>
-      <div class="search-area">
-        <el-input
-          v-model="searchQuery"
-          placeholder="搜索班级编号或描述"
-          clearable
-          @clear="handleSearch"
-          @keyup.enter="handleSearch"
-          class="search-input"
-        >
-          <template #prefix>
-            <el-icon><Search /></el-icon>
-          </template>
-        </el-input>
-        <el-button type="primary" @click="handleSearch" class="search-btn">
-          搜索
-        </el-button>
+<template>
+  <div class="clazz-page wabi-page">
+    <div class="wabi-body">
+      <div class="wabi-card">
+        <div class="wabi-card-header">
+          <div class="header-left">
+            <span class="wabi-card-title">班级管理</span>
+            <div class="search-wrapper">
+              <el-input
+                v-model="searchQuery"
+                placeholder="搜索班级编号或描述"
+                clearable
+                @clear="handleSearch"
+                @keyup.enter="handleSearch"
+                size="small"
+                class="wabi-search"
+              >
+                <template #prefix>
+                  <el-icon><Search /></el-icon>
+                </template>
+              </el-input>
+            </div>
+          </div>
+          <el-button type="primary" :icon="Plus" @click="handleAdd" class="wabi-btn-primary">
+            新增班级
+          </el-button>
+        </div>
+        <div class="wabi-card-content">
+          <div v-if="!loading && !clazzList.length" class="wabi-empty">
+            <p class="wabi-empty-text">暂无班级数据</p>
+          </div>
+          <div v-else class="clazz-list">
+            <div v-for="clazz in clazzList" :key="clazz.clazzId" class="clazz-item">
+              <div class="clazz-info">
+                <div class="clazz-header">
+                  <span class="clazz-no">{{ clazz.no }}</span>
+                  <span class="wabi-tag" :class="clazz.state === 1 ? 'wabi-tag-accent' : ''">
+                    {{ clazz.state === 1 ? '启用' : '禁用' }}
+                  </span>
+                </div>
+                <div class="clazz-memo">{{ clazz.memo || '暂无描述' }}</div>
+              </div>
+              <div class="clazz-actions">
+                <el-button size="small" text @click="handleToggleState(clazz)" class="wabi-btn-text">
+                  {{ clazz.state === 1 ? '禁用' : '启用' }}
+                </el-button>
+                <el-button size="small" text @click="handleEdit(clazz)" class="wabi-btn-text">
+                  编辑
+                </el-button>
+                <el-button size="small" text type="danger" @click="handleDelete(clazz)" class="wabi-btn-text wabi-btn-danger">
+                  删除
+                </el-button>
+              </div>
+            </div>
+          </div>
+          <div v-if="pagination.total > pagination.pageSize" class="pagination-wrapper">
+            <el-pagination
+              v-model:current-page="pagination.page"
+              v-model:page-size="pagination.pageSize"
+              :page-sizes="[20, 40, 60]"
+              :total="pagination.total"
+              layout="total, sizes, prev, pager, next"
+              @size-change="loadClazzList"
+              @current-change="loadClazzList"
+              small
+            />
+          </div>
+        </div>
       </div>
     </div>
 
-    <!-- 操作按钮区域 -->
-    <div class="action-bar">
-      <el-button type="success" @click="handleAdd" class="add-btn">
-        <el-icon><Plus /></el-icon>
-        新增班级
-      </el-button>
-    </div>
-
-    <!-- 班级列表表格 -->
-    <el-card class="table-card" shadow="hover">
-      <el-table
-        :data="clazzList"
-        v-loading="loading"
-        stripe
-        hover
-        style="width: 100%"
-      >
-        <el-table-column prop="no" label="班级编号" min-width="120" />
-        <el-table-column prop="memo" label="描述" min-width="180" />
-        <el-table-column label="状态" width="100">
-          <template #default="{ row }">
-            <el-tag :type="row.state === 1 ? 'success' : 'info'">
-              {{ row.state === 1 ? '启用' : '禁用' }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="260" fixed="right">
-          <template #default="{ row }">
-            <div class="action-buttons">
-              <el-button
-                :type="row.state === 1 ? 'warning' : 'success'"
-                size="small"
-                plain
-                @click="handleToggleState(row)"
-                class="action-btn"
-              >
-                {{ row.state === 1 ? '禁用' : '启用' }}
-              </el-button>
-              <el-button type="primary" size="small" plain @click="handleEdit(row)" class="action-btn">
-                编辑
-              </el-button>
-              <el-button type="danger" size="small" plain @click="handleDelete(row)" class="action-btn">
-                删除
-              </el-button>
-            </div>
-          </template>
-        </el-table-column>
-      </el-table>
-
-      <!-- 分页 -->
-      <el-pagination
-        v-model:current-page="pagination.page"
-        v-model:page-size="pagination.pageSize"
-        :page-sizes="[20, 40, 60, 100]"
-        :total="pagination.total"
-        layout="total, sizes, prev, pager, next, jumper"
-        @size-change="loadClazzList"
-        @current-change="loadClazzList"
-        class="pagination"
-      />
-    </el-card>
-
-    <!-- 新增/编��对话框 -->
-    <el-dialog
-      v-model="dialogVisible"
-      :title="dialogTitle"
-      width="500px"
-      class="clazz-dialog"
-    >
-      <el-form
-        ref="formRef"
-        :model="formData"
-        :rules="formRules"
-        label-width="100px"
-      >
+    <!-- 新增/编辑对话框 -->
+    <el-dialog v-model="dialogVisible" :title="dialogTitle" width="500" class="wabi-dialog">
+      <el-form ref="formRef" :model="form" :rules="formRules" label-width="80" class="wabi-form">
         <el-form-item label="班级编号" prop="no">
-          <el-input v-model="formData.no" placeholder="请输入班级编号" :disabled="isEdit" />
+          <el-input v-model="form.no" placeholder="如 23-SE-1" />
         </el-form-item>
         <el-form-item label="描述" prop="memo">
-          <el-input
-            v-model="formData.memo"
-            type="textarea"
-            :rows="3"
-            placeholder="请输入班级描述"
-          />
+          <el-input v-model="form.memo" type="textarea" :rows="3" placeholder="班级描述信息" />
         </el-form-item>
         <el-form-item label="状态">
-          <el-switch
-            v-model="formData.state"
-            :active-value="1"
-            :inactive-value="0"
-            active-text="启用"
-            inactive-text="禁用"
-          />
+          <el-switch v-model="form.state" :active-value="1" :inactive-value="0" active-text="启用" inactive-text="禁用" />
         </el-form-item>
       </el-form>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSubmit" :loading="submitting">
-          确定
-        </el-button>
+        <el-button @click="dialogVisible = false" class="wabi-btn-ghost">取消</el-button>
+        <el-button type="primary" @click="handleSubmit" :loading="submitting" class="wabi-btn-primary">保存</el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Search, Plus } from '@element-plus/icons-vue'
-import { teacherApi } from '@/api/index.js'
+import { Plus, Search } from '@element-plus/icons-vue'
+import { teacherApi } from '@/api'
 
-// 响应式数据
+const clazzApi = teacherApi.clazz
+
 const loading = ref(false)
 const submitting = ref(false)
 const clazzList = ref([])
-const dialogVisible = ref(false)
-const dialogTitle = computed(() => isEdit.value ? '编辑班级' : '新增班级')
-const isEdit = ref(false)
-const formRef = ref(null)
 const searchQuery = ref('')
+const dialogVisible = ref(false)
+const dialogTitle = ref('新增班级')
+const formRef = ref()
 
-// 分页
 const pagination = reactive({
   page: 1,
   pageSize: 20,
   total: 0
 })
 
-// 表单数据
-const formData = reactive({
+const form = ref({
+  clazzId: null,
   no: '',
   memo: '',
   state: 1
 })
 
-// 表单验证规则
 const formRules = {
-  no: [
-    { required: true, message: '请输入班级编号', trigger: 'blur' },
-    { min: 2, max: 20, message: '长度在 2 到 20 个字符', trigger: 'blur' }
-  ],
-  memo: [
-    { required: true, message: '请输入班级描述', trigger: 'blur' },
-    { max: 200, message: '最多200个字符', trigger: 'blur' }
-  ]
+  no: [{ required: true, message: '请输入班级编号', trigger: 'blur' }]
 }
 
-// 加载班级列表
 const loadClazzList = async () => {
   loading.value = true
   try {
     const params = {
       page: pagination.page,
-      pageSize: pagination.pageSize
+      pageSize: pagination.pageSize,
+      keyword: searchQuery.value || undefined
     }
-    if (searchQuery.value) {
-      params.keyword = searchQuery.value
-    }
-    const response = await teacherApi.clazz.list(params)
-    clazzList.value = response.data?.list || []
-    pagination.total = response.data?.total || 0
+    const res = await clazzApi.list(params)
+    clazzList.value = res.data?.list || res.data || []
+    pagination.total = res.data?.total || clazzList.value.length
   } catch (error) {
-    ElMessage.error('加载班级列表失败')
-    console.error(error)
+    console.error('加载班级列表失败:', error)
   } finally {
     loading.value = false
   }
 }
 
-// 搜索
 const handleSearch = () => {
   pagination.page = 1
   loadClazzList()
 }
 
-// 重置表单
-const resetForm = () => {
-  Object.assign(formData, {
-    no: '',
-    memo: '',
-    state: 1
-  })
-}
-
-// 新增班级
 const handleAdd = () => {
-  resetForm()
-  isEdit.value = false
+  form.value = { clazzId: null, no: '', memo: '', state: 1 }
+  dialogTitle.value = '新增班级'
   dialogVisible.value = true
 }
 
-// 编辑班级
 const handleEdit = (row) => {
-  Object.assign(formData, {
-    no: row.no,
-    memo: row.memo,
-    state: row.state
-  })
-  isEdit.value = true
+  form.value = { ...row }
+  dialogTitle.value = '编辑班级'
   dialogVisible.value = true
 }
 
-// 提交表单
 const handleSubmit = async () => {
+  await formRef.value.validate()
+  submitting.value = true
   try {
-    await formRef.value.validate()
-    submitting.value = true
-
-    if (isEdit.value) {
-      await teacherApi.clazz.update(formData.no, formData)
+    if (form.value.no) {
+      await clazzApi.update(form.value.no, form.value)
       ElMessage.success('更新成功')
     } else {
-      await teacherApi.clazz.add(formData)
-      ElMessage.success('添加成功')
+      await clazzApi.add(form.value)
+      ElMessage.success('创建成功')
     }
-
     dialogVisible.value = false
     loadClazzList()
   } catch (error) {
-    if (error !== false) {
-      ElMessage.error('操作失败')
-      console.error(error)
-    }
+    ElMessage.error('操作失败')
   } finally {
     submitting.value = false
   }
 }
 
-// 切换状态
 const handleToggleState = async (row) => {
   const newState = row.state === 1 ? 0 : 1
-  const action = newState === 1 ? '启用' : '禁用'
-
-  try {
-    await ElMessageBox.confirm(
-      `确认${action}班级 "${row.no}" 吗？`,
-      '提示',
-      { type: 'warning' }
-    )
-    await teacherApi.clazz.updateState(row.no, newState)
-    ElMessage.success(`${action}成功`)
-    loadClazzList()
-  } catch (error) {
-    if (error !== 'cancel') {
-      ElMessage.error(`${action}失败`)
-      console.error(error)
-    }
-  }
-}
-
-// 删除班级
-const handleDelete = (row) => {
-  ElMessageBox.confirm(
-    `确认删除班级 "${row.no}" 吗？此操作不可恢复！`,
-    '警告',
-    { type: 'warning' }
-  ).then(async () => {
-    try {
-      await teacherApi.clazz.delete(row.no)
-      ElMessage.success('删除成功')
-      loadClazzList()
-    } catch (error) {
-      ElMessage.error('删除失败')
-      console.error(error)
-    }
-  }).catch(() => {})
-}
-
-// 页面初始化
-onMounted(() => {
+  await clazzApi.updateState(row.no, newState)
+  ElMessage.success(newState === 1 ? '已启用' : '已禁用')
   loadClazzList()
-})
+}
+
+const handleDelete = async (row) => {
+  await ElMessageBox.confirm('确定删除该班级?', '提示', { type: 'warning' })
+  await clazzApi.delete(row.no)
+  ElMessage.success('已删除')
+  loadClazzList()
+}
+
+onMounted(loadClazzList)
 </script>
 
 <style scoped>
 .clazz-page {
-  padding: 20px;
+  min-height: 100vh;
+  background: var(--wabi-bg, #f8f6f3);
 }
 
-.breadcrumb {
-  margin-bottom: 20px;
+.wabi-body {
+  padding: 24px;
+  max-width: 1200px;
+  margin: 0 auto;
+  animation: wabi-fade-in 0.4s ease;
 }
 
-.page-header {
+@keyframes wabi-fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.search-wrapper {
+  width: 240px;
+}
+
+.wabi-search :deep(.el-input__wrapper) {
+  border-radius: 4px;
+  box-shadow: 0 0 0 1px var(--wabi-border, #e8e4df);
+}
+
+/* 班级列表 */
+.clazz-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.clazz-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
-  flex-wrap: wrap;
-  gap: 15px;
-}
-
-.page-title {
-  font-size: 24px;
-  font-weight: 600;
-  color: #2d8a4e;
-  margin: 0;
-}
-
-.search-area {
-  display: flex;
-  gap: 10px;
-}
-
-.search-input {
-  width: 280px;
-}
-
-.action-bar {
-  margin-bottom: 20px;
-}
-
-.add-btn {
-  background: #5cb85c;
-  border: none;
-  transition: all 0.3s ease;
-}
-
-.add-btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(92, 184, 92, 0.4);
-}
-
-.table-card {
-  border-radius: 12px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-  border: 1px solid #e8f5e9;
-}
-
-.table-card :deep(.el-card__body) {
-  padding: 20px;
-}
-
-.pagination {
-  margin-top: 20px;
-  justify-content: flex-end;
-}
-
-.clazz-dialog :deep(.el-dialog__header) {
-  background: #e8f5e9;
-  border-radius: 8px 8px 0 0;
-}
-
-.clazz-dialog :deep(.el-dialog__title) {
-  color: #2d8a4e;
-  font-weight: 600;
-}
-
-/* 操作按钮样式 */
-.action-buttons {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  flex-wrap: nowrap;
-}
-
-.action-btn {
-  padding: 6px 12px;
-  height: 28px;
-  font-size: 12px;
-  border-radius: 4px;
+  padding: 16px 20px;
+  background: var(--wabi-surface, #fff);
+  border: 1px solid var(--wabi-border, #e8e4df);
+  border-radius: 6px;
   transition: all 0.2s ease;
 }
 
-.action-btn:hover {
-  transform: translateY(-1px);
+.clazz-item:hover {
+  border-color: var(--wabi-accent, #7a8b6f);
+}
+
+.clazz-info {
+  flex: 1;
+}
+
+.clazz-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.clazz-no {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--wabi-text, #2c2c2c);
+}
+
+.clazz-memo {
+  font-size: 13px;
+  color: var(--wabi-text-secondary, #8a8580);
+}
+
+.clazz-actions {
+  display: flex;
+  gap: 4px;
+}
+
+/* 分页 */
+.pagination-wrapper {
+  margin-top: 16px;
+  display: flex;
+  justify-content: center;
+}
+
+/* 标签 */
+.wabi-tag {
+  display: inline-block;
+  padding: 2px 8px;
+  background: var(--wabi-border-light, #f0ece8);
+  color: var(--wabi-text-secondary, #8a8580);
+  font-size: 12px;
+  border-radius: 2px;
+}
+
+.wabi-tag-accent {
+  background: var(--wabi-accent-light, #e8ede5);
+  color: var(--wabi-accent, #7a8b6f);
+}
+
+/* 空状态 */
+.wabi-empty {
+  padding: 40px 0;
+  text-align: center;
+}
+
+.wabi-empty-text {
+  color: var(--wabi-text-secondary, #8a8580);
+  font-size: 14px;
+  margin: 0;
+}
+
+/* 按钮 */
+.wabi-btn-primary {
+  background: var(--wabi-accent, #7a8b6f);
+  border-color: var(--wabi-accent, #7a8b6f);
+  border-radius: 4px;
+}
+
+.wabi-btn-primary:hover {
+  background: #6b7d60;
+  border-color: #6b7d60;
+}
+
+.wabi-btn-ghost {
+  border-color: var(--wabi-border, #e8e4df);
+  color: var(--wabi-text-secondary, #8a8580);
+  border-radius: 4px;
+}
+
+.wabi-btn-text {
+  color: var(--wabi-text-secondary, #8a8580);
+}
+
+.wabi-btn-text:hover {
+  color: var(--wabi-accent, #7a8b6f);
+}
+
+.wabi-btn-danger:hover {
+  color: #c47c7c;
+}
+
+/* 响应式 */
+@media (max-width: 768px) {
+  .wabi-body {
+    padding: 16px;
+  }
+
+  .header-left {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .search-wrapper {
+    width: 100%;
+  }
+
+  .clazz-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .clazz-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
 }
 </style>

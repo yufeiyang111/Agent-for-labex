@@ -9,6 +9,7 @@ import com.labex.rag.llm.MiniMaxChat;
 import com.labex.rag.memory.SessionMemory;
 import com.labex.rag.retrieval.HybridRetriever;
 import com.labex.rag.service.ImageUnderstandingService;
+import com.labex.rag.service.RagQueryMetricService;
 import com.labex.rag.service.RagService;
 import com.labex.rag.service.WebSearchService;
 import com.labex.service.LectureService;
@@ -49,6 +50,7 @@ public class RagController {
     private final SessionMemory sessionMemory;
     private final WebSearchService webSearchService;
     private final ImageUnderstandingService imageUnderstandingService;
+    private final RagQueryMetricService metricService;
 
     private static final String SYSTEM_PROMPT = loadPrompt();
     private static final Gson GSON = new Gson();
@@ -76,7 +78,8 @@ public class RagController {
             @Lazy MiniMaxChat miniMaxChat,
             @Lazy SessionMemory sessionMemory,
             @Lazy WebSearchService webSearchService,
-            @Lazy ImageUnderstandingService imageUnderstandingService) {
+            @Lazy ImageUnderstandingService imageUnderstandingService,
+            @Lazy RagQueryMetricService metricService) {
         this.lectureService = lectureService;
         this.ragService = ragService;
         this.hybridRetriever = hybridRetriever;
@@ -84,6 +87,7 @@ public class RagController {
         this.sessionMemory = sessionMemory;
         this.webSearchService = webSearchService;
         this.imageUnderstandingService = imageUnderstandingService;
+        this.metricService = metricService;
         log.info("RagController initialized successfully");
     }
 
@@ -214,6 +218,7 @@ public class RagController {
      */
     @PostMapping("/query")
     public Result<QueryResponse> queryEnhanced(@RequestBody QueryRequest request) {
+        long startedAt = System.currentTimeMillis();
         try {
             String question = request.getQuestion();
             List<Map<String, Object>> attachments = sanitizeAttachments(request.getAttachments());
@@ -270,6 +275,8 @@ public class RagController {
             sources.addAll(imageSources);
             sources.addAll(knowledgeSources);
             sources.addAll(webSources);
+            sources = orderSources(sources);
+            sources = orderSources(sources);
 
             String context = buildContext(sources, attachments);
             String prompt = buildAnswerPrompt(retrievalMode, deepThinking, sources.isEmpty(), attachments, retrievalPlan, hasFetchedWebContent(webSources));
@@ -308,6 +315,16 @@ public class RagController {
             response.setThinkingTrace(thinkingTrace);
             response.setAttachments(new ArrayList<>());
 
+            metricService.record(
+                    sessionId,
+                    userId,
+                    retrievalMode,
+                    deepThinking,
+                    question,
+                    retrievalPlan.query(),
+                    sources,
+                    System.currentTimeMillis() - startedAt);
+
             return Result.success(response);
         } catch (Exception e) {
             log.error("查询失败: {}", e.getMessage(), e);
@@ -329,6 +346,7 @@ public class RagController {
     }
 
     private void runQueryStream(QueryRequest request, String userId, SseEmitter emitter) {
+        long startedAt = System.currentTimeMillis();
         String question = request.getQuestion();
         String sessionId = request.getSessionId();
         String retrievalMode = normalizeRetrievalMode(request.getRetrievalMode());
@@ -364,49 +382,87 @@ public class RagController {
             sendStreamEvent(emitter, "session", Map.of("sessionId", Objects.toString(sessionId, "")));
             sendThinkingEvent(emitter, deepThinking, "解析问题", "我正在读取用户输入、附件和检索模式，准备把可用信息合并成一个更准确的检索意图。");
 
+            // ========== 收集所有来源（边搜边推给前端） ==========
+            List<Map<String, Object>> sources = new ArrayList<>();
+            List<String> searchKeywords = new ArrayList<>();
+
+            // 图片理解
             List<Map<String, Object>> imageSources = new ArrayList<>();
             if (!attachments.isEmpty()) {
                 sendStreamEvent(emitter, "status", Map.of("text", "正在调用 understand_image 读取图片内容"));
                 imageSources = imageUnderstandingService.analyzeAttachments(question, attachments);
+                sources.addAll(imageSources);
+                for (Map<String, Object> src : imageSources) {
+                    sendStreamEvent(emitter, "source_found", src);
+                }
                 long successCount = imageSources.stream().filter(source -> Boolean.TRUE.equals(source.get("success"))).count();
-                sendThinkingEvent(emitter, deepThinking, "调用图片理解工具", "已读取 " + attachments.size() + " 张图片，成功获得 " + successCount + " 条图片分析结果，后续检索会使用这些图片信息。");
+                sendThinkingEvent(emitter, deepThinking, "调用图片理解工具", "已读取 " + attachments.size() + " 张图片，成功获得 " + successCount + " 条图片分析结果。");
             }
 
             RetrievalPlan retrievalPlan = buildRetrievalPlan(question, retrievalMode, deepThinking, imageSources);
-            sendStreamEvent(emitter, "status", Map.of("text", "正在根据图片和问题生成智能检索计划"));
-            sendThinkingEvent(emitter, deepThinking, "制定检索策略", "智能检索查询为：“" + truncate(retrievalPlan.query(), 140) + "”。本轮将动态读取知识库 " + retrievalPlan.knowledgeTopK() + " 条、网页 " + retrievalPlan.webTopK() + " 条，并抓取前 " + retrievalPlan.webFetchTopK() + " 条网页正文。");
 
-            List<Map<String, Object>> knowledgeSources = new ArrayList<>();
-            List<Map<String, Object>> webSources = new ArrayList<>();
-            List<String> searchKeywords = new ArrayList<>();
+            // ========== 并行检索：知识库 + 联网搜索，每搜到一个就推给前端 ==========
+            CompletableFuture<List<Map<String, Object>>> knowledgeFuture;
+            CompletableFuture<WebSearchService.SearchBundle> webFuture;
 
             if (retrievalPlan.useKnowledge() && !retrievalPlan.query().isBlank()) {
-                sendStreamEvent(emitter, "status", Map.of("text", "正在检索知识库"));
-                knowledgeSources = buildKnowledgeSources(hybridRetriever.search(retrievalPlan.query(), retrievalPlan.knowledgeTopK()));
-                sendThinkingEvent(emitter, deepThinking, "检索知识库", "已命中 " + knowledgeSources.size() + " 条知识库片段，会优先使用与图片和问题都匹配的材料。");
+                sendStreamEvent(emitter, "status", Map.of("text", "正在检索知识库..."));
+                knowledgeFuture = CompletableFuture.supplyAsync(() -> {
+                    try {
+                        List<Map<String, Object>> results = buildKnowledgeSources(hybridRetriever.search(retrievalPlan.query(), retrievalPlan.knowledgeTopK()));
+                        // 搜到后立刻逐条推给前端
+                        for (Map<String, Object> src : results) {
+                            sendStreamEvent(emitter, "source_found", src);
+                        }
+                        return results;
+                    } catch (Exception e) {
+                        log.warn("知识库检索失败: {}", e.getMessage());
+                        return new ArrayList<Map<String, Object>>();
+                    }
+                });
+            } else {
+                knowledgeFuture = CompletableFuture.completedFuture(new ArrayList<>());
             }
 
             if (retrievalPlan.useWeb() && !retrievalPlan.query().isBlank()) {
-                sendStreamEvent(emitter, "status", Map.of("text", "正在联网搜索并读取网页正文"));
-                SearchPlan searchPlan = buildWebSearchPlan(question, retrievalPlan, imageSources);
-                sendThinkingEvent(emitter, deepThinking, "AI search planning", "Search query: \"" + truncate(searchPlan.query(), 140) + "\". Keywords: " + String.join(", ", searchPlan.keywords()) + ".");
-                WebSearchService.SearchBundle webSearch = webSearchService.search(
-                        searchPlan.query(),
-                        searchPlan.webTopK(),
-                        searchPlan.webFetchTopK(),
-                        searchPlan.keywords()
-                );
-                searchKeywords = webSearch.getKeywords();
-                webSources = buildWebSources(webSearch.getResults());
-                long fetchedCount = webSources.stream().filter(source -> Boolean.TRUE.equals(source.get("contentFetched"))).count();
-                sendThinkingEvent(emitter, deepThinking, "联网搜索核对", "已获得 " + webSources.size() + " 条网页参考，并读取 " + fetchedCount + " 条网页正文摘录，最终回答会优先引用可验证内容。");
+                sendStreamEvent(emitter, "status", Map.of("text", "正在联网搜索..."));
+                SearchPlan streamSearchPlan = buildWebSearchPlan(question, retrievalPlan, imageSources);
+                String webQuery = streamSearchPlan.query();
+                List<String> keywords = streamSearchPlan.keywords();
+                webFuture = CompletableFuture.supplyAsync(() -> {
+                    try {
+                        WebSearchService.SearchBundle bundle = webSearchService.search(
+                                webQuery,
+                                streamSearchPlan.webTopK(),
+                                streamSearchPlan.webFetchTopK(),
+                                keywords);
+                        List<Map<String, Object>> webResults = buildWebSources(bundle.getResults());
+                        // 搜到后立刻逐条推给前端
+                        for (Map<String, Object> src : webResults) {
+                            sendStreamEvent(emitter, "source_found", src);
+                        }
+                        return bundle;
+                    } catch (Exception e) {
+                        log.warn("联网搜索失败: {}", e.getMessage());
+                        return new WebSearchService.SearchBundle(keywords, List.of(), new ArrayList<>());
+                    }
+                });
+            } else {
+                webFuture = CompletableFuture.completedFuture(new WebSearchService.SearchBundle(List.of(), List.of(), new ArrayList<>()));
             }
 
-            List<Map<String, Object>> sources = new ArrayList<>();
-            sources.addAll(imageSources);
+            // 等待并行任务完成
+            CompletableFuture.allOf(knowledgeFuture, webFuture).join();
+
+            List<Map<String, Object>> knowledgeSources = knowledgeFuture.get();
+            WebSearchService.SearchBundle webBundle = webFuture.get();
+            List<Map<String, Object>> webSources = buildWebSources(webBundle.getResults());
+            searchKeywords = webBundle.getKeywords();
+
             sources.addAll(knowledgeSources);
             sources.addAll(webSources);
 
+            // 所有搜索完成，发送汇总 metadata
             sendStreamEvent(emitter, "metadata", buildStreamMetadata(sessionId, retrievalMode, searchKeywords, sources));
             String context = buildContext(sources, attachments);
             String prompt = buildAnswerPrompt(retrievalMode, deepThinking, sources.isEmpty(), attachments, retrievalPlan, hasFetchedWebContent(webSources));
@@ -419,11 +475,13 @@ public class RagController {
             StringBuilder answerBuilder = new StringBuilder();
             StringBuilder modelThinkingBuilder = new StringBuilder();
             String finalQuestion = question;
-            miniMaxChat.chatStream(prompt, context, buildQuestionWithAttachments(finalQuestion, attachments), chunk -> {
+            miniMaxChat.chatStream(prompt, context, buildQuestionWithAttachments(finalQuestion, attachments), deepThinking, chunk -> {
                 if ("thinking_delta".equals(chunk.type())) {
                     // 转发模型的真实思考过程
                     modelThinkingBuilder.append(chunk.content());
-                    sendStreamEvent(emitter, "thinking_delta", Map.of("text", chunk.content()));
+                    if (deepThinking) {
+                        sendStreamEvent(emitter, "thinking_delta", Map.of("text", chunk.content() == null ? "" : chunk.content()));
+                    }
                 } else if ("text_delta".equals(chunk.type())) {
                     answerBuilder.append(chunk.content());
                     sendAnswerDelta(emitter, chunk.content());
@@ -438,8 +496,9 @@ public class RagController {
             }
 
             // 使用模型的真实思考内容（如果有的话），否则使用手动构建的
-            String modelThinking = modelThinkingBuilder.toString().trim();
-            String finalThinkingTrace = modelThinking.isEmpty() ? thinkingTrace : modelThinking;
+            String finalThinkingTrace = modelThinkingBuilder.length() > 0
+                    ? modelThinkingBuilder.toString()
+                    : thinkingTrace;
 
             sessionMemory.addMessage(sessionId, "user", finalQuestion, null, null, null, null, GSON.toJson(attachments));
             sessionMemory.addMessage(sessionId, "assistant", answer, GSON.toJson(sources), retrievalMode, GSON.toJson(searchKeywords), finalThinkingTrace);
@@ -453,6 +512,15 @@ public class RagController {
             response.setSearchKeywords(searchKeywords);
             response.setThinkingTrace(finalThinkingTrace);
             response.setAttachments(new ArrayList<>());
+            metricService.record(
+                    sessionId,
+                    userId,
+                    retrievalMode,
+                    deepThinking,
+                    finalQuestion,
+                    retrievalPlan.query(),
+                    sources,
+                    System.currentTimeMillis() - startedAt);
             sendStreamEvent(emitter, "done", response);
             emitter.complete();
         } catch (Exception e) {
@@ -574,14 +642,99 @@ public class RagController {
             source.put("exactMatch", result.isExactMatch());
             source.put("publishedAt", result.getPublishedAt());
             source.put("fetchedAt", result.getFetchedAt());
+            source.put("host", host(result.getUrl()));
+            source.put("evidenceLevel", evidenceLevel(result, !content.isBlank()));
+            source.put("sourceQuality", sourceQuality(host(result.getUrl()), !content.isBlank()));
             sources.add(source);
         }
         return sources;
     }
 
+    private List<Map<String, Object>> orderSources(List<Map<String, Object>> sources) {
+        if (sources == null || sources.size() <= 1) {
+            return sources == null ? new ArrayList<>() : sources;
+        }
+        List<Map<String, Object>> ordered = new ArrayList<>(sources);
+        ordered.sort((left, right) -> Double.compare(sourceRank(right), sourceRank(left)));
+        return ordered;
+    }
+
+    private double sourceRank(Map<String, Object> source) {
+        String type = Objects.toString(source.get("type"), "knowledge");
+        double rank = switch (type) {
+            case "image" -> 1.35;
+            case "web" -> 0.55;
+            default -> 0.75;
+        };
+        rank += getNumber(source.get("score")) * 0.35;
+        rank += getNumber(source.get("vectorScore")) * 0.10;
+        if (Boolean.TRUE.equals(source.get("contentFetched"))) {
+            rank += 0.28;
+        }
+        if (Boolean.TRUE.equals(source.get("exactMatch"))) {
+            rank += 0.18;
+        }
+        String evidence = Objects.toString(source.get("evidenceLevel"), "");
+        if (evidence.contains("verified_exact")) {
+            rank += 0.22;
+        } else if (evidence.contains("verified")) {
+            rank += 0.14;
+        } else if (evidence.contains("snippet")) {
+            rank -= 0.08;
+        } else if (evidence.contains("fallback")) {
+            rank -= 0.55;
+        }
+        String quality = Objects.toString(source.get("sourceQuality"), "");
+        if (quality.contains("primary_or_docs_verified")) {
+            rank += 0.18;
+        } else if (quality.contains("primary_or_docs")) {
+            rank += 0.08;
+        } else if (quality.contains("secondary_snippet")) {
+            rank -= 0.04;
+        }
+        return rank;
+    }
+
     private boolean hasFetchedWebContent(List<Map<String, Object>> webSources) {
         return webSources != null && webSources.stream()
                 .anyMatch(source -> Boolean.TRUE.equals(source.get("contentFetched")));
+    }
+
+    private double getNumber(Object value) {
+        return value instanceof Number number ? number.doubleValue() : 0.0;
+    }
+
+    private String evidenceLevel(WebSearchService.WebSearchResult result, boolean contentFetched) {
+        if (result.isFallback()) {
+            return "fallback_search_page";
+        }
+        if (contentFetched) {
+            return result.isExactMatch() ? "verified_exact_page_body" : "verified_page_body";
+        }
+        return result.isExactMatch() ? "search_snippet_exact" : "search_snippet_only";
+    }
+
+    private String sourceQuality(String host, boolean contentFetched) {
+        if (host == null || host.isBlank()) {
+            return contentFetched ? "body_fetched" : "snippet_only";
+        }
+        String normalized = host.toLowerCase(Locale.ROOT);
+        boolean primaryLike = normalized.endsWith(".gov")
+                || normalized.endsWith(".edu")
+                || normalized.contains("docs.")
+                || normalized.contains("developer.")
+                || normalized.contains("learn.microsoft.com")
+                || normalized.contains("openai.com")
+                || normalized.contains("anthropic.com")
+                || normalized.contains("cloud.google.com")
+                || normalized.contains("github.com");
+        if (primaryLike && contentFetched) {
+            return "primary_or_docs_verified";
+        }
+        if (primaryLike) {
+            return "primary_or_docs_snippet";
+        }
+        return contentFetched ? "secondary_verified" : "secondary_snippet";
     }
 
     private String buildContext(List<Map<String, Object>> sources, List<Map<String, Object>> attachments) {
@@ -624,6 +777,10 @@ public class RagController {
                         .append(Boolean.TRUE.equals(source.get("contentFetched")) ? "true" : "false")
                         .append("\nExactEntityMatch: ")
                         .append(Boolean.TRUE.equals(source.get("exactMatch")) ? "true" : "false")
+                        .append("\nEvidenceLevel: ")
+                        .append(Objects.toString(source.get("evidenceLevel"), "unknown"))
+                        .append("\nSourceQuality: ")
+                        .append(Objects.toString(source.get("sourceQuality"), "unknown"))
                         .append("\nPublishedAt: ")
                         .append(Objects.toString(source.get("publishedAt"), ""))
                         .append("\nFetchedAt: ")
@@ -670,6 +827,7 @@ public class RagController {
         prompt.append("\nPersonalization rule: adapt the explanation to the user's apparent intent. For learning questions, teach progressively; for troubleshooting, give diagnosis and fixes; for comparisons, give ranking criteria and trade-offs.");
         prompt.append("\nExact entity rule: preserve the exact entity/version/name from the user request. Do not silently replace it with a nearby version. If sources only discuss a different version, state that explicitly.");
         prompt.append("\nFreshness rule: for latest/current/recent questions, prefer dated fetched web page excerpts. If no fetched source is recent or exact, say the search did not verify the claim instead of filling the gap from memory.");
+        prompt.append("\nCitation rule: when using retrieved context, cite source numbers from Context like [1], [2]. For web claims, cite only sources whose ContentFetched=true unless explicitly describing them as unverified snippets.");
         if (noSources) {
             prompt.append("\n本次没有检索到可用参考资料，请明确提示用户当前回答缺少外部依据。");
         }
@@ -702,15 +860,15 @@ public class RagController {
             List<Map<String, Object>> attachments,
             RetrievalPlan retrievalPlan) {
         List<String> lines = new ArrayList<>();
-        lines.add("解析问题\n我先把用户问题拆成核心目标、约束条件和需要确认的信息，避免直接给出未经核对的结论。\n本次问题聚焦：“" + truncate(question, 90) + "”。");
-        lines.add("制定检索策略\n我选择使用" + formatModeLabel(retrievalMode) + "，并把用户输入、图片理解结果和关键术语合并成新的检索查询。\n智能检索查询是：“" + truncate(retrievalPlan.query(), 140) + "”，知识库计划读取 " + retrievalPlan.knowledgeTopK() + " 条，网页计划搜索 " + retrievalPlan.webTopK() + " 条并读取前 " + retrievalPlan.webFetchTopK() + " 条正文。");
+        lines.add("解析问题\n我先把用户问题拆成核心目标、约束条件和需要确认的信息，避免直接给出未经核对的结论。\n本次问题聚焦：" + truncate(question, 90) + "。");
+        lines.add("制定检索策略\n我选择使用" + formatModeLabel(retrievalMode) + "，并把用户输入、图片理解结果和关键术语合并成新的检索查询。\n智能检索查询是：" + truncate(retrievalPlan.query(), 140) + "，知识库计划读取 " + retrievalPlan.knowledgeTopK() + " 条，网页计划搜索 " + retrievalPlan.webTopK() + " 条并读取前 " + retrievalPlan.webFetchTopK() + " 条正文。");
         if (!knowledgeSources.isEmpty()) {
             lines.add("检索知识库\n我从知识库中命中 " + knowledgeSources.size() + " 条讲义片段，优先挑选标题、片段内容和问题语义更接近的资料。\n这些资料会作为回答中的课程依据。");
         }
         if (!webSources.isEmpty()) {
             String keywordText = searchKeywords.isEmpty() ? "原始问题" : String.join("、", searchKeywords);
             long fetchedCount = webSources.stream().filter(source -> Boolean.TRUE.equals(source.get("contentFetched"))).count();
-            lines.add("联网搜索核对\n我使用关键词“" + keywordText + "”进行网页搜索，获得 " + webSources.size() + " 条网页参考，并读取了其中 " + fetchedCount + " 条网页正文摘录。\n接下来会优先保留标题清楚、摘要直接、正文可验证且可点击访问的来源。");
+            lines.add("联网搜索核对\n我使用关键词" + keywordText + "进行网页搜索，获得 " + webSources.size() + " 条网页参考，并读取了其中 " + fetchedCount + " 条网页正文摘录。\n接下来会优先保留标题清楚、摘要直接、正文可验证且可点击访问的来源。");
         }
         if (!attachments.isEmpty()) {
             long successCount = imageSources.stream().filter(source -> Boolean.TRUE.equals(source.get("success"))).count();
@@ -1035,6 +1193,15 @@ public class RagController {
         return first == null || first.isBlank() ? Objects.toString(second, "") : first;
     }
 
+    private String host(String url) {
+        try {
+            String host = java.net.URI.create(Objects.toString(url, "")).getHost();
+            return host == null ? "" : host.toLowerCase(Locale.ROOT);
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
     private String formatModeLabel(String retrievalMode) {
         return switch (retrievalMode) {
             case "web" -> "联网搜索";
@@ -1287,6 +1454,19 @@ public class RagController {
         } catch (Exception e) {
             log.error("获取状态失败: {}", e.getMessage());
             return Result.error("获取状态失败: " + e.getMessage());
+        }
+    }
+
+    @GetMapping("/metrics/summary")
+    public Result<Map<String, Object>> getMetricSummary(
+            @RequestParam(defaultValue = "100") Integer limit,
+            @RequestParam(defaultValue = "true") Boolean currentUserOnly) {
+        try {
+            String userId = Boolean.FALSE.equals(currentUserOnly) ? null : getCurrentUserId();
+            return Result.success(metricService.summary(userId, limit == null ? 100 : limit));
+        } catch (Exception e) {
+            log.error("Failed to get RAG metric summary: {}", e.getMessage(), e);
+            return Result.error("Failed to get RAG metric summary: " + e.getMessage());
         }
     }
 }

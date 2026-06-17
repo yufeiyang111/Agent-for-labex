@@ -77,7 +77,8 @@ export function useAgentStream() {
 
         for (const line of lines) {
           if (line.startsWith('event: ')) {
-            const eventType = line.substring(7).trim()
+            // 事件类型从 JSON 数据的 type 字段获取，此处有意忽略 SSE event 字段
+            const _eventType = line.substring(7).trim()
             continue
           }
           if (line.startsWith('data: ')) {
