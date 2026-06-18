@@ -1,20 +1,19 @@
-# Labex 实验教学管理系统 - 后端配置文件
+# Labex 实验教学管理系统 - 后端配置文件（示例）
+# 使用说明：复制此文件为 application.yml 并配置环境变量
 
 # 文件上传配置
 file:
   upload:
-    # 使用绝对路径，确保文件可以正确存储和读取
-    # Windows系统示例: D:/workfordasan/uploads 或 D:\\workfordasan\\uploads
-    # Linux/Mac系统示例: /home/user/workfordasan/uploads
-    path: D:/workfordasan/uploads
+    path: ${UPLOAD_PATH:D:/workfordasan/uploads}
 
-# 简化的上传路径配置（直接被代码引用）
-upload-path: D:/workfordasan/uploads
+# 简化的上传路径配置
+upload-path: ${UPLOAD_PATH:D:/workfordasan/uploads}
 
-# 在线编程执行目录（Windows 环境建议使用可信目录，避免 Temp 路径被策略阻止执行）
+# 在线编程执行目录
 code-exec:
-  base-path: D:/workfordasan/code_exec
+  base-path: ${CODE_EXEC_BASE_PATH:D:/workfordasan/code_exec}
 
+# Labex Agent LSP 配置
 labex-agent:
   lsp:
     commands:
@@ -23,12 +22,13 @@ labex-agent:
       vue: ${LABEX_LSP_VUE_CMD:vue-language-server --stdio}
       python: ${LABEX_LSP_PY_CMD:pyright-langserver --stdio}
 
-# 教学闭环文档模板目录。导出课程大纲、成绩明细和质量汇编时必须从这里读取模板。
+# 教学闭环文档模板目录
 class-docs:
-  path: D:/workfordasan/Class-docs
+  path: ${CLASS_DOCS_PATH:D:/workfordasan/Class-docs}
 
+# 服务器配置
 server:
-  port: 8080
+  port: ${SERVER_PORT:8080}
   servlet:
     context-path: /api
 
@@ -40,9 +40,9 @@ spring:
   datasource:
     type: com.alibaba.druid.pool.DruidDataSource
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://localhost:3306/labex?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
-    username: root
-    password: yu6670980506
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:${MYSQL_PORT:3306}/${MYSQL_DATABASE:labex}?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: ${MYSQL_USERNAME:root}
+    password: ${MYSQL_PASSWORD:}
     # Druid 连接池配置
     druid:
       initial-size: 5
@@ -59,10 +59,10 @@ spring:
   # Redis 配置
   data:
     redis:
-      host: localhost
-      port: 6379
-      password:
-      database: 0
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: ${REDIS_DATABASE:0}
       timeout: 10000ms
       lettuce:
         pool:
@@ -73,10 +73,10 @@ spring:
 
   # Neo4j 图数据库配置
   neo4j:
-    uri: bolt://localhost:7687
+    uri: ${NEO4J_URI:bolt://localhost:7687}
     authentication:
-      username: neo4j
-      password: yu6670980506
+      username: ${NEO4J_USERNAME:neo4j}
+      password: ${NEO4J_PASSWORD:}
 
   # 文件上传配置
   servlet:
@@ -101,7 +101,7 @@ mybatis-plus:
 
 # JWT 配置
 jwt:
-  secret: labex-secret-key-2026-very-long-and-secure-key-for-jwt-signing-must-be-at-least-64-bytes
+  secret: ${JWT_SECRET:labex-secret-key-change-this-in-production-at-least-64-bytes}
   expiration: 86400000  # 24小时过期（毫秒）
   header: Authorization
   prefix: "Bearer "
@@ -117,16 +117,15 @@ logging:
 # RAG 配置
 rag:
   # Python 嵌入服务地址
-  embedding-service-url: http://localhost:5000
-  # MiniMax API Key（请替换为你的实际API Key）
-#  sk-api-ILMujkml6Hdqp5jrzdHf-f7qkf3B1F2wsRANW8UM9Ni0okCzAtcHFZjDD6Na11gCeype58bzT4djBL84FGnKYMQ9rfGDhUReQ52eNDo4pHwMM-pJ6H021QM
-  mini-max-api-key: sk-cp-RXPtq9jNm3nrU4uqccKuuu-PE3Yh-79mPvgjOKflViPPWtDRWkSV2_9TFKXOQTxUkKlENtgATd3umSRMm5llkLmCoeClpeH9OYx5DWvOr5M2sI-XXxHfXOE
+  embedding-service-url: ${EMBEDDING_SERVICE_URL:http://localhost:5000}
+  # MiniMax API Key
+  mini-max-api-key: ${MINIMAX_API_KEY:}
   # MiniMax API 基础地址
-  mini-max-base-url: https://api.minimaxi.com/v1
-  # MiniMax Coding Plan 工具 API Host；需与 API Key 地区一致
-  mini-max-api-host: https://api.minimaxi.com
+  mini-max-base-url: ${MINIMAX_BASE_URL:https://api.minimaxi.com/v1}
+  # MiniMax Coding Plan 工具 API Host
+  mini-max-api-host: ${MINIMAX_API_HOST:https://api.minimaxi.com}
   # MiniMax 模型
-  mini-max-model: MiniMax-M2.7-highspeed
+  mini-max-model: ${MINIMAX_MODEL:MiniMax-M2.7-highspeed}
   # 是否启用图片理解工具
   image-understanding-enabled: true
   # 最大上下文块数
@@ -135,8 +134,7 @@ rag:
   chunk-size: 500
   # 块重叠（tokens）
   chunk-overlap: 50
-  # Tavily 搜索 API Key（可选，配置后联网搜索使用 Tavily 代替 Jsoup 爬取）
-  # 免费注册：https://tavily.com  每月 1000 次免费调用
-  tavily-api-key:
+  # Tavily 搜索 API Key（可选）
+  tavily-api-key: ${TAVILY_API_KEY:}
   # 上传文件路径
-  upload-path: D:/workfordasan/uploads
+  upload-path: ${UPLOAD_PATH:D:/workfordasan/uploads}

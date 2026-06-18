@@ -6,6 +6,8 @@ dist/
 .DS_Store
 *.log
 .env
+.env.local
+.env.*.local
 uploads/
 code_exec/
 student_projects/
@@ -13,3 +15,26 @@ _archive/
 .venv/
 .tools/
 .labexagent/
+
+# 敏感配置文件（使用 application-example.yml 作为模板）
+backend/src/main/resources/application.yml
+backend/target/
+
+# IDE 配置
+.idea/
+*.iml
+.vscode/
+*.swp
+*.swo
+
+# 系统文件
+Thumbs.db
+.DS_Store
+
+# 日志文件
+*.log
+logs/
+
+# 临时文件
+*.tmp
+*.temp
